@@ -35,6 +35,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    // Capture avant tout await
+    final router = GoRouter.of(context);
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -70,13 +73,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
-    if (confirmed == true && mounted) {
-      final router = GoRouter.of(context);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('onboarding_seen');
-      await PinStorage.clearPin();
-      router.go('/login');
-    }
+
+    if (confirmed != true) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('onboarding_seen');
+    await PinStorage.clearPin();
+
+    if (!mounted) return;
+    router.go('/login');
   }
 
   void _showSnackbar(String msg) {
