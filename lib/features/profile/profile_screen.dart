@@ -71,10 +71,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (confirmed == true && mounted) {
+      final router = GoRouter.of(context);
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('onboarding_seen');
       await PinStorage.clearPin();
-      if (mounted) context.go('/login');
+      router.go('/login');
     }
   }
 
@@ -431,7 +432,7 @@ class _ToggleItem extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.white,
+            activeThumbColor: AppColors.white,
             activeTrackColor: AppColors.green,
             inactiveThumbColor: AppColors.white,
             inactiveTrackColor: AppColors.borderLight,

@@ -22,7 +22,6 @@ class Slide1Painter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     final dotPaint = Paint()..color = AppColors.greenLight.withValues(alpha: 0.85);
-    final solidWhite = Paint()..color = AppColors.white;
 
     // Boîte inbox centrale
     final boxRect = RRect.fromRectAndRadius(

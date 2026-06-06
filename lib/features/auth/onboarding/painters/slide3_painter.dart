@@ -13,13 +13,10 @@ class Slide3Painter extends CustomPainter {
     final cy = size.height / 2;
 
     final fillWhite = Paint()..color = AppColors.white.withValues(alpha: 0.15);
-    final solidWhite = Paint()..color = AppColors.white;
     final strokeWhite = Paint()
       ..color = AppColors.white.withValues(alpha: 0.45)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    final purplePaint = Paint()..color = AppColors.purple.withValues(alpha: 0.85);
-    final purpleLightPaint = Paint()..color = AppColors.purpleLight.withValues(alpha: 0.9);
 
     // Téléphone
     const phoneW = 110.0;
