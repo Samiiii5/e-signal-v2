@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/auth/login/login_page1_screen.dart';
 import '../../features/auth/login/login_page2_screen.dart';
 import '../../features/auth/onboarding/onboarding_screen.dart';
@@ -10,6 +9,7 @@ import '../../features/inbox/chat_screen.dart';
 import '../../features/inbox/inbox_screen.dart';
 import '../../features/payments/payments_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../core/services/session_service.dart';
 import 'app_shell.dart';
 
 // ─── Helpers de transition ────────────────────────────────────────────────────
@@ -120,12 +120,10 @@ const _authRoutes = {
   '/onboarding', '/login', '/login/password', '/pin', '/pin/setup',
 };
 
-Future<String?> _rootRedirect(context, state) async {
+String? _rootRedirect(BuildContext context, GoRouterState state) {
   if (_authRoutes.contains(state.matchedLocation)) return null;
-
-  final prefs = await SharedPreferences.getInstance();
-  final onboardingSeen = prefs.getBool('onboarding_seen') ?? false;
-  if (!onboardingSeen) return '/onboarding';
-
+  if (!SessionService.onboardingSeen) return '/onboarding';
+  if (!SessionService.isLoggedIn) return '/login';
+  if (!SessionService.pinValidated) return '/pin';
   return null;
 }

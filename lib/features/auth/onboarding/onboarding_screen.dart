@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/session_service.dart';
 import 'painters/slide1_painter.dart';
 import 'painters/slide2_painter.dart';
 import 'painters/slide3_painter.dart';
@@ -32,10 +32,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ),
   ];
 
-  Future<void> _finish() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_seen', true);
-    if (mounted) context.go('/login');
+  void _finish() {
+    SessionService.markOnboardingSeen();
+    context.go('/login');
   }
 
   void _next() {

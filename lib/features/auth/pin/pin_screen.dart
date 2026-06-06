@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/session_service.dart';
 import '../../../core/theme/app_text_styles.dart';
-import 'pin_storage.dart';
+import '../../../shared/mock/users_mock.dart';
 import 'widgets/pin_dots.dart';
 import 'widgets/pin_keypad.dart';
 
@@ -15,8 +16,6 @@ class PinScreen extends StatefulWidget {
 
 class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMixin {
   String _input = '';
-  String _initials = '?';
-  String _displayName = '';
   bool _error = false;
   late AnimationController _shakeController;
   late Animation<double> _shakeAnimation;
@@ -24,7 +23,6 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _loadUser();
     _shakeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -34,24 +32,13 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
     );
   }
 
-  Future<void> _loadUser() async {
-    final name = await PinStorage.getDisplayName();
-    final initials = await PinStorage.getInitials();
-    if (mounted) {
-      setState(() {
-        _displayName = name ?? '';
-        _initials = initials;
-      });
-    }
-  }
-
-  Future<void> _onKey(String digit) async {
+  void _onKey(String digit) {
     if (_input.length >= 4) return;
     setState(() {
       _input += digit;
       _error = false;
     });
-    if (_input.length == 4) await _verify();
+    if (_input.length == 4) _verify();
   }
 
   void _onDelete() {
@@ -59,10 +46,9 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
     setState(() => _input = _input.substring(0, _input.length - 1));
   }
 
-  Future<void> _verify() async {
-    final ok = await PinStorage.checkPin(_input);
-    if (!mounted) return;
-    if (ok) {
+  void _verify() {
+    if (_input == mockUser.pin) {
+      SessionService.validatePin();
       context.go('/inbox');
     } else {
       _shakeController.forward(from: 0);
@@ -73,10 +59,10 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
     }
   }
 
-  Future<void> _onForgotPin() async {
-    await PinStorage.clearPin();
-    if (!mounted) return;
-    context.go('/pin/setup');
+  void _onForgotPin() {
+    final router = GoRouter.of(context);
+    SessionService.logout();
+    router.go('/login');
   }
 
   @override
@@ -96,14 +82,16 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
             children: [
               const SizedBox(height: 64),
 
-              // Avatar initiales
-              _Avatar(initials: _initials),
+              _Avatar(initials: mockUser.initials),
               const SizedBox(height: 16),
 
-              // Prénom
-              if (_displayName.isNotEmpty)
-                Text(_displayName, style: AppTextStyles.h2),
-              const SizedBox(height: 6),
+              Text(mockUser.displayName, style: AppTextStyles.h2),
+              const SizedBox(height: 4),
+              Text(
+                '${mockUser.role} · ${mockUser.company}',
+                style: AppTextStyles.bodySecondary,
+              ),
+              const SizedBox(height: 8),
               Text(
                 'Entrez votre code PIN',
                 style: AppTextStyles.bodySecondary,
@@ -111,7 +99,6 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
 
               const SizedBox(height: 44),
 
-              // 4 dots avec shake si erreur
               AnimatedBuilder(
                 animation: _shakeAnimation,
                 builder: (_, child) {
@@ -136,12 +123,10 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
 
               const Spacer(),
 
-              // Pavé numérique
               PinKeypad(onKey: _onKey, onDelete: _onDelete),
 
               const SizedBox(height: 24),
 
-              // Code PIN oublié
               TextButton(
                 onPressed: _onForgotPin,
                 style: TextButton.styleFrom(
@@ -162,8 +147,6 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
     );
   }
 }
-
-// ─── Avatar ───────────────────────────────────────────────────────────────────
 
 class _Avatar extends StatelessWidget {
   final String initials;

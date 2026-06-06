@@ -84,7 +84,7 @@ final mockMessagesThread001 = <Message>[
     isFromContact: false,
     sentAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 27)),
     type: MessageType.paymentLink,
-    paymentAmount: '25000',
+    paymentAmount: '15000',
     paymentCurrency: 'FCFA',
     paymentStatus: PaymentStatus.paid,
     paymentProvider: 'wave',

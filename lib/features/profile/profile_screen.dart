@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/session_service.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../auth/pin/pin_storage.dart';
+import '../../shared/mock/users_mock.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,29 +13,9 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _displayName = '';
-  String _initials = '?';
   bool _notificationsEnabled = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUser();
-  }
-
-  Future<void> _loadUser() async {
-    final name = await PinStorage.getDisplayName();
-    final initials = await PinStorage.getInitials();
-    if (mounted) {
-      setState(() {
-        _displayName = name ?? 'Utilisateur';
-        _initials = initials;
-      });
-    }
-  }
-
   Future<void> _logout() async {
-    // Capture avant tout await
     final router = GoRouter.of(context);
 
     final confirmed = await showDialog<bool>(
@@ -76,11 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (confirmed != true) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('onboarding_seen');
-    await PinStorage.clearPin();
-
-    if (!mounted) return;
+    SessionService.logout();
     router.go('/login');
   }
 
@@ -108,12 +84,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 32),
 
               // ── Avatar + identité ──────────────────────────────────
-              _Avatar(initials: _initials),
+              _Avatar(initials: mockUser.initials),
               const SizedBox(height: 14),
-              Text(_displayName, style: AppTextStyles.h2),
+              Text(mockUser.displayName, style: AppTextStyles.h2),
               const SizedBox(height: 4),
               Text(
-                'Administrateur · Score360 Africa',
+                '${mockUser.role} · ${mockUser.company}',
                 style: AppTextStyles.small,
               ),
 
@@ -163,11 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         iconBg: AppColors.purpleLight,
                         iconColor: AppColors.purpleDark,
                         label: 'Modifier le code PIN',
-                        onTap: () async {
-                          final router = GoRouter.of(context);
-                          await PinStorage.clearPin();
-                          router.go('/pin/setup');
-                        },
+                        onTap: () => _showSnackbar('Le code PIN est défini par votre administrateur'),
                       ),
                     ]),
 

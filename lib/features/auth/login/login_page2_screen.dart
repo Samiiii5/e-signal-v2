@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/services/session_service.dart';
 import '../../../shared/mock/users_mock.dart';
-import '../pin/pin_storage.dart';
 
 class LoginPage2Screen extends StatefulWidget {
   final String phone;
@@ -39,13 +39,12 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
       _error = null;
       _isLoading = true;
     });
+    final router = GoRouter.of(context);
     try {
-      final result = await authService.login(widget.phone, _passwordController.text);
+      await authService.login(widget.phone, _passwordController.text);
+      await SessionService.setLoggedIn();
       if (!mounted) return;
-      await PinStorage.saveUser(result.displayName);
-      final pinSet = await PinStorage.hasPinSet();
-      if (!mounted) return;
-      context.go(pinSet ? '/pin' : '/pin/setup');
+      router.go('/pin');
     } catch (_) {
       setState(() => _error = 'Mot de passe incorrect. Réessayez.');
     } finally {
