@@ -164,8 +164,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         iconColor: AppColors.purpleDark,
                         label: 'Modifier le code PIN',
                         onTap: () async {
+                          final router = GoRouter.of(context);
                           await PinStorage.clearPin();
-                          if (mounted) context.go('/pin/setup');
+                          router.go('/pin/setup');
                         },
                       ),
                     ]),
