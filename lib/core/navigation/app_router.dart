@@ -1,5 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../features/auth/login/login_page1_screen.dart';
+import '../../features/auth/login/login_page2_screen.dart';
 import '../../features/auth/onboarding/onboarding_screen.dart';
 import '../../features/auth/pin/pin_screen.dart';
 import '../../features/inbox/inbox_screen.dart';
@@ -17,27 +19,33 @@ GoRouter buildRouter() {
         builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginPage1Screen(),
+        routes: [
+          GoRoute(
+            path: 'password',
+            builder: (context, state) => LoginPage2Screen(
+              phone: state.extra as String,
+            ),
+          ),
+        ],
+      ),
+      GoRoute(
         path: '/pin',
         builder: (context, state) => const PinScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(navigationShell: shell),
         branches: [
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: '/inbox', builder: (context, state) => const InboxScreen()),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: '/payments', builder: (context, state) => const PaymentsScreen()),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
-            ],
-          ),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/inbox', builder: (context, state) => const InboxScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/payments', builder: (context, state) => const PaymentsScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
+          ]),
         ],
       ),
     ],
@@ -45,15 +53,17 @@ GoRouter buildRouter() {
 }
 
 Future<String?> _rootRedirect(context, state) async {
-  final isAuthRoute = state.matchedLocation == '/onboarding' ||
-      state.matchedLocation == '/pin';
+  final loc = state.matchedLocation;
+  final isAuthRoute = loc == '/onboarding' ||
+      loc == '/login' ||
+      loc == '/login/password' ||
+      loc == '/pin';
 
-  // Ne pas rediriger si on est déjà sur une route d'auth
   if (isAuthRoute) return null;
 
   final prefs = await SharedPreferences.getInstance();
   final onboardingSeen = prefs.getBool('onboarding_seen') ?? false;
-
   if (!onboardingSeen) return '/onboarding';
+
   return null;
 }
