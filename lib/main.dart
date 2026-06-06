@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/navigation/app_router.dart';
 import 'core/theme/app_theme.dart';
 
 void main() {
@@ -10,15 +11,11 @@ class ESignalApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'e-Signal',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const Scaffold(
-        body: Center(
-          child: Text('e-Signal'),
-        ),
-      ),
+      routerConfig: buildRouter(),
     );
   }
 }
