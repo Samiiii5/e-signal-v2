@@ -4,6 +4,7 @@ import '../../features/auth/login/login_page1_screen.dart';
 import '../../features/auth/login/login_page2_screen.dart';
 import '../../features/auth/onboarding/onboarding_screen.dart';
 import '../../features/auth/pin/pin_screen.dart';
+import '../../features/auth/pin/pin_setup_screen.dart';
 import '../../features/inbox/inbox_screen.dart';
 import '../../features/payments/payments_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -33,6 +34,12 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/pin',
         builder: (context, state) => const PinScreen(),
+        routes: [
+          GoRoute(
+            path: 'setup',
+            builder: (context, state) => const PinSetupScreen(),
+          ),
+        ],
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(navigationShell: shell),
@@ -52,14 +59,12 @@ GoRouter buildRouter() {
   );
 }
 
-Future<String?> _rootRedirect(context, state) async {
-  final loc = state.matchedLocation;
-  final isAuthRoute = loc == '/onboarding' ||
-      loc == '/login' ||
-      loc == '/login/password' ||
-      loc == '/pin';
+const _authRoutes = {
+  '/onboarding', '/login', '/login/password', '/pin', '/pin/setup',
+};
 
-  if (isAuthRoute) return null;
+Future<String?> _rootRedirect(context, state) async {
+  if (_authRoutes.contains(state.matchedLocation)) return null;
 
   final prefs = await SharedPreferences.getInstance();
   final onboardingSeen = prefs.getBool('onboarding_seen') ?? false;
