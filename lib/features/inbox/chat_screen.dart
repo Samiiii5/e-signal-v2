@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
 
@@ -66,6 +67,11 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _inputController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(AppSnackbar.success('Message envoyé'));
+    }
   }
 
   @override

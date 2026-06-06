@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/delivery_mock.dart';
 import '../../shared/mock/payments_mock.dart';
 import '../../shared/services/payment_service.dart';
@@ -100,11 +101,6 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
               child: _generatedUrl != null
                   ? _SuccessView(
                       url: _generatedUrl!,
-                      onClose: () => Navigator.of(context).pop(
-                        paymentService is MockPaymentService
-                            ? null // le mock a déjà ajouté le lien
-                            : null,
-                      ),
                       onDone: () => Navigator.of(context).pop(true),
                     )
                   : Column(
@@ -200,10 +196,9 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
 
 class _SuccessView extends StatelessWidget {
   final String url;
-  final VoidCallback onClose;
   final VoidCallback onDone;
 
-  const _SuccessView({required this.url, required this.onClose, required this.onDone});
+  const _SuccessView({required this.url, required this.onDone});
 
   @override
   Widget build(BuildContext context) {
@@ -251,17 +246,9 @@ class _SuccessView extends StatelessWidget {
               GestureDetector(
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: url));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Lien copié !',
-                          style: AppTextStyles.small.copyWith(color: AppColors.white)),
-                      backgroundColor: AppColors.green,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      margin: const EdgeInsets.all(16),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
+                  ScaffoldMessenger.of(context)
+                    ..clearSnackBars()
+                    ..showSnackBar(AppSnackbar.success('Lien copié !'));
                 },
                 child: const Icon(Icons.copy_outlined, size: 18, color: AppColors.purple),
               ),

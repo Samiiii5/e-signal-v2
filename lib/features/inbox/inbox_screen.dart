@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/shimmer_box.dart';
 import '../../shared/mock/threads_mock.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -15,6 +16,8 @@ class _InboxScreenState extends State<InboxScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   _Filter _activeFilter = _Filter.all;
+  bool _isLoading = true;
+  List<Thread> _threads = [];
 
   @override
   void initState() {
@@ -22,6 +25,7 @@ class _InboxScreenState extends State<InboxScreen> {
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.toLowerCase());
     });
+    _loadThreads();
   }
 
   @override
@@ -30,10 +34,20 @@ class _InboxScreenState extends State<InboxScreen> {
     super.dispose();
   }
 
-  List<Thread> get _filtered {
-    var list = List<Thread>.from(mockThreads);
+  Future<void> _loadThreads() async {
+    if (!_isLoading) setState(() => _isLoading = true);
+    // Simule un appel réseau (remplacer par inboxService.getThreads() en Sprint 3)
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    setState(() {
+      _threads = List.from(mockThreads);
+      _isLoading = false;
+    });
+  }
 
-    // Filtre canal / non-lus
+  List<Thread> get _filtered {
+    var list = List<Thread>.from(_threads);
+
     switch (_activeFilter) {
       case _Filter.whatsapp:
         list = list.where((t) => t.channel == Channel.whatsapp).toList();
@@ -47,7 +61,6 @@ class _InboxScreenState extends State<InboxScreen> {
         break;
     }
 
-    // Filtre recherche
     if (_searchQuery.isNotEmpty) {
       list = list
           .where((t) =>
@@ -59,8 +72,7 @@ class _InboxScreenState extends State<InboxScreen> {
     return list;
   }
 
-  int get _totalUnread =>
-      mockThreads.fold(0, (sum, t) => sum + t.unreadCount);
+  int get _totalUnread => _threads.fold(0, (sum, t) => sum + t.unreadCount);
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +91,8 @@ class _InboxScreenState extends State<InboxScreen> {
                 children: [
                   Text('Inbox', style: AppTextStyles.h1),
                   const SizedBox(width: 10),
-                  if (_totalUnread > 0) _UnreadBadge(count: _totalUnread),
+                  if (!_isLoading && _totalUnread > 0)
+                    _UnreadBadge(count: _totalUnread),
                 ],
               ),
             ),
@@ -115,25 +128,103 @@ class _InboxScreenState extends State<InboxScreen> {
 
             const SizedBox(height: 8),
 
-            // ── Liste des conversations ───────────────────────────────
+            // ── Liste ou skeleton ─────────────────────────────────────
             Expanded(
-              child: threads.isEmpty
-                  ? _EmptyState(query: _searchQuery)
-                  : ListView.separated(
-                      padding: const EdgeInsets.only(top: 4, bottom: 16),
-                      itemCount: threads.length,
-                      separatorBuilder: (_, __) => const Divider(
-                        indent: 76,
-                        endIndent: 0,
-                        height: 0,
-                        thickness: 0.5,
-                        color: AppColors.borderLight,
-                      ),
-                      itemBuilder: (_, i) => _ThreadTile(thread: threads[i]),
-                    ),
+              child: _isLoading
+                  ? const _InboxSkeleton()
+                  : threads.isEmpty
+                      ? _EmptyState(query: _searchQuery)
+                      : RefreshIndicator(
+                          onRefresh: _loadThreads,
+                          color: AppColors.green,
+                          child: ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.only(top: 4, bottom: 16),
+                            itemCount: threads.length,
+                            separatorBuilder: (_, __) => const Divider(
+                              indent: 76,
+                              endIndent: 0,
+                              height: 0,
+                              thickness: 0.5,
+                              color: AppColors.borderLight,
+                            ),
+                            itemBuilder: (_, i) => _ThreadTile(thread: threads[i]),
+                          ),
+                        ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+class _InboxSkeleton extends StatelessWidget {
+  const _InboxSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.only(top: 4),
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 7,
+      separatorBuilder: (_, __) => const Divider(
+        indent: 76,
+        height: 0,
+        thickness: 0.5,
+        color: AppColors.borderLight,
+      ),
+      itemBuilder: (_, __) => const _SkeletonTile(),
+    );
+  }
+}
+
+class _SkeletonTile extends StatelessWidget {
+  const _SkeletonTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+      child: Row(
+        children: [
+          ShimmerBox(
+            width: 48,
+            height: 48,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ShimmerBox(
+                      width: 130,
+                      height: 13,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    const Spacer(),
+                    ShimmerBox(
+                      width: 32,
+                      height: 11,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ShimmerBox(
+                  width: double.infinity,
+                  height: 11,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -197,11 +288,11 @@ enum _Filter { all, whatsapp, sms, email, unread }
 extension _FilterLabel on _Filter {
   String get label {
     switch (this) {
-      case _Filter.all: return 'Tous';
+      case _Filter.all:      return 'Tous';
       case _Filter.whatsapp: return 'WhatsApp';
-      case _Filter.sms: return 'SMS';
-      case _Filter.email: return 'Email';
-      case _Filter.unread: return 'Non lus';
+      case _Filter.sms:      return 'SMS';
+      case _Filter.email:    return 'Email';
+      case _Filter.unread:   return 'Non lus';
     }
   }
 }
@@ -216,11 +307,8 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUnread = filter == _Filter.unread;
-
     final bgActive = isUnread ? AppColors.purpleLight : AppColors.green;
     final textActive = isUnread ? AppColors.purple : AppColors.white;
-    final bgInactive = AppColors.backgroundStatus;
-    const textInactive = AppColors.textSecondary;
 
     return GestureDetector(
       onTap: onTap,
@@ -228,7 +316,7 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? bgActive : bgInactive,
+          color: isActive ? bgActive : AppColors.backgroundStatus,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -236,7 +324,7 @@ class _FilterChip extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: isActive ? textActive : textInactive,
+            color: isActive ? textActive : AppColors.textSecondary,
           ),
         ),
       ),
@@ -261,15 +349,8 @@ class _ThreadTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Avatar + badge canal
-            _ContactAvatar(
-              initials: thread.contactInitials,
-              channel: thread.channel,
-            ),
-
+            _ContactAvatar(initials: thread.contactInitials, channel: thread.channel),
             const SizedBox(width: 12),
-
-            // Contenu texte
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,8 +407,7 @@ class _ThreadTile extends StatelessWidget {
   }
 
   String _formatTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
+    final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 60) return '${diff.inMinutes}min';
     if (diff.inHours < 24) return '${diff.inHours}h';
     if (diff.inDays == 1) return 'Hier';
@@ -350,7 +430,6 @@ class _ContactAvatar extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Cercle initiales
           Container(
             width: 48,
             height: 48,
@@ -369,7 +448,6 @@ class _ContactAvatar extends StatelessWidget {
               ),
             ),
           ),
-          // Badge canal — petit cercle en bas à droite
           Positioned(
             bottom: -2,
             right: -2,
@@ -382,10 +460,7 @@ class _ContactAvatar extends StatelessWidget {
                 border: Border.all(color: AppColors.white, width: 1.5),
               ),
               child: Center(
-                child: Text(
-                  _channelEmoji(channel),
-                  style: const TextStyle(fontSize: 9),
-                ),
+                child: Text(_channelLabel(channel), style: const TextStyle(fontSize: 9)),
               ),
             ),
           ),
@@ -394,25 +469,21 @@ class _ContactAvatar extends StatelessWidget {
     );
   }
 
-  Color _channelColor(Channel ch) {
-    switch (ch) {
-      case Channel.whatsapp: return const Color(0xFF25D366);
-      case Channel.facebook: return const Color(0xFF1877F2);
-      case Channel.sms:      return const Color(0xFF5C6BC0);
-      case Channel.tiktok:   return const Color(0xFF010101);
-      case Channel.email:    return const Color(0xFFEA4335);
-    }
-  }
+  Color _channelColor(Channel ch) => switch (ch) {
+    Channel.whatsapp => const Color(0xFF25D366),
+    Channel.facebook => const Color(0xFF1877F2),
+    Channel.sms      => const Color(0xFF5C6BC0),
+    Channel.tiktok   => const Color(0xFF010101),
+    Channel.email    => const Color(0xFFEA4335),
+  };
 
-  String _channelEmoji(Channel ch) {
-    switch (ch) {
-      case Channel.whatsapp: return 'W';
-      case Channel.facebook: return 'f';
-      case Channel.sms:      return 'S';
-      case Channel.tiktok:   return 'T';
-      case Channel.email:    return '@';
-    }
-  }
+  String _channelLabel(Channel ch) => switch (ch) {
+    Channel.whatsapp => 'W',
+    Channel.facebook => 'f',
+    Channel.sms      => 'S',
+    Channel.tiktok   => 'T',
+    Channel.email    => '@',
+  };
 }
 
 // ── Badge non-lus ─────────────────────────────────────────────────────────────

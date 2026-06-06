@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/auth/login/login_page1_screen.dart';
@@ -11,6 +12,43 @@ import '../../features/payments/payments_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import 'app_shell.dart';
 
+// ─── Helpers de transition ────────────────────────────────────────────────────
+
+/// Slide depuis la droite — navigation en avant dans la pile.
+CustomTransitionPage<void> _slidePage(GoRouterState state, Widget child) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 300),
+    transitionsBuilder: (_, animation, secondaryAnimation, child) {
+      final slide = Tween<Offset>(
+        begin: const Offset(1, 0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+      final fade = CurvedAnimation(parent: animation, curve: const Interval(0, 0.5));
+      return SlideTransition(
+        position: slide,
+        child: FadeTransition(opacity: fade, child: child),
+      );
+    },
+  );
+}
+
+/// Fade doux — transitions du flux d'auth.
+CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 280),
+    transitionsBuilder: (_, animation, __, child) => FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeIn),
+      child: child,
+    ),
+  );
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
+
 GoRouter buildRouter() {
   return GoRouter(
     initialLocation: '/inbox',
@@ -18,32 +56,36 @@ GoRouter buildRouter() {
     routes: [
       GoRoute(
         path: '/onboarding',
-        builder: (context, state) => const OnboardingScreen(),
+        pageBuilder: (context, state) => _fadePage(state, const OnboardingScreen()),
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => const LoginPage1Screen(),
+        pageBuilder: (context, state) => _fadePage(state, const LoginPage1Screen()),
         routes: [
           GoRoute(
             path: 'password',
-            builder: (context, state) => LoginPage2Screen(
-              phone: state.extra as String,
+            pageBuilder: (context, state) => _slidePage(
+              state,
+              LoginPage2Screen(phone: state.extra as String),
             ),
           ),
         ],
       ),
       GoRoute(
         path: '/pin',
-        builder: (context, state) => const PinScreen(),
+        pageBuilder: (context, state) => _fadePage(state, const PinScreen()),
         routes: [
           GoRoute(
             path: 'setup',
-            builder: (context, state) => const PinSetupScreen(),
+            pageBuilder: (context, state) => _fadePage(state, const PinSetupScreen()),
           ),
         ],
       ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, shell) => AppShell(navigationShell: shell),
+        // Pas de transition entre onglets : l'état est préservé (indexedStack)
+        pageBuilder: (context, state, shell) => NoTransitionPage(
+          child: AppShell(navigationShell: shell),
+        ),
         branches: [
           StatefulShellBranch(routes: [
             GoRoute(
@@ -52,8 +94,9 @@ GoRouter buildRouter() {
               routes: [
                 GoRoute(
                   path: ':threadId',
-                  builder: (context, state) => ChatScreen(
-                    threadId: state.pathParameters['threadId']!,
+                  pageBuilder: (context, state) => _slidePage(
+                    state,
+                    ChatScreen(threadId: state.pathParameters['threadId']!),
                   ),
                 ),
               ],
@@ -70,6 +113,8 @@ GoRouter buildRouter() {
     ],
   );
 }
+
+// ─── Redirect ─────────────────────────────────────────────────────────────────
 
 const _authRoutes = {
   '/onboarding', '/login', '/login/password', '/pin', '/pin/setup',

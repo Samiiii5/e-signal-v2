@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../constants/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../widgets/network_banner.dart';
 
 class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -17,13 +18,18 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: navigationShell,
+      backgroundColor: AppColors.white,
+      body: Column(
+        children: [
+          // Bannière réseau — hauteur animée 0 ↔ 36px
+          const NetworkBanner(),
+          Expanded(child: navigationShell),
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.white,
-          border: Border(
-            top: BorderSide(color: AppColors.borderLight, width: 0.5),
-          ),
+          border: Border(top: BorderSide(color: AppColors.borderLight, width: 0.5)),
         ),
         child: BottomNavigationBar(
           currentIndex: navigationShell.currentIndex,
