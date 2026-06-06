@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../shared/mock/threads_mock.dart';
@@ -254,9 +255,7 @@ class _ThreadTile extends StatelessWidget {
     final hasUnread = thread.unreadCount > 0;
 
     return InkWell(
-      onTap: () {
-        // TODO: navigation vers chat screen (Sprint suivant)
-      },
+      onTap: () => context.push('/inbox/${thread.id}'),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
