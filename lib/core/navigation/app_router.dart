@@ -9,6 +9,7 @@ import '../../features/inbox/chat_screen.dart';
 import '../../features/inbox/inbox_screen.dart';
 import '../../features/payments/payments_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/stats/stats_screen.dart';
 import '../../core/services/session_service.dart';
 import 'app_shell.dart';
 
@@ -101,6 +102,9 @@ GoRouter buildRouter() {
                 ),
               ],
             ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/stats', builder: (context, state) => const StatsScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: '/payments', builder: (context, state) => const PaymentsScreen()),
