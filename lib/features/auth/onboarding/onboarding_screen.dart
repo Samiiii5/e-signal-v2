@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/session_service.dart';
-import '../../../core/theme/app_text_styles.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -187,6 +186,8 @@ class _Slide1 extends StatelessWidget {
                       foregroundColor: AppColors.white,
                       shape: const StadiumBorder(),
                       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       elevation: 0,
                     ),
                     child: const Row(
@@ -706,6 +707,8 @@ class _NavButtons extends StatelessWidget {
                 foregroundColor: AppColors.white,
                 shape: const StadiumBorder(),
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 elevation: 0,
               ),
               child: const Row(
