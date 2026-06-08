@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/session_service.dart';
+import 'painters/slide1_painter.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -86,7 +87,7 @@ class _Dots extends StatelessWidget {
   }
 }
 
-// ── Slide 1 : Bienvenue (fond violet foncé) ───────────────────────────────────
+// ── Slide 1 : Bienvenue (fond violet foncé + image dame) ─────────────────────
 
 class _Slide1 extends StatelessWidget {
   final VoidCallback onNext;
@@ -97,114 +98,117 @@ class _Slide1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final h = MediaQuery.of(context).size.height;
     return Container(
       color: AppColors.primary,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 24),
-              // Logo
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Center(
-                      child: Text('eS', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  RichText(
-                    text: const TextSpan(
-                      children: [
-                        TextSpan(text: 'e-', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w700, fontSize: 22)),
-                        TextSpan(text: 'Signal', style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w700, fontSize: 22)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              // Illustration placeholder (cercle décoratif)
-              Center(
-                child: Container(
-                  width: 220,
-                  height: 280,
-                  decoration: BoxDecoration(
-                    color: AppColors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(color: AppColors.white.withValues(alpha: 0.15)),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
+        children: [
+          // Image dame + décorations (bas de l'écran)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: h * 0.55,
+            child: const Slide1Widget(),
+          ),
+          // Contenu texte en SafeArea
+          SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                // Logo centré en haut
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.phone_android, size: 80, color: AppColors.white.withValues(alpha: 0.6)),
-                      const SizedBox(height: 16),
-                      Text('e-Signal', style: TextStyle(color: AppColors.green, fontSize: 20, fontWeight: FontWeight.w700)),
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: const Center(
+                          child: Text('eS', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      RichText(
+                        text: const TextSpan(
+                          children: [
+                            TextSpan(text: 'e-', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w700, fontSize: 20)),
+                            TextSpan(text: 'Signal', style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w700, fontSize: 20)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-              const Spacer(),
-              // Texte
-              RichText(
-                text: const TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Tout votre business\nconnecté, analysé,\n',
-                      style: TextStyle(color: AppColors.white, fontSize: 28, fontWeight: FontWeight.w700, height: 1.3),
-                    ),
-                    TextSpan(
-                      text: 'et propulsé.',
-                      style: TextStyle(color: AppColors.green, fontSize: 28, fontWeight: FontWeight.w700, height: 1.3),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Centralisez vos conversations, comprenez vos performances et prenez de meilleures décisions.',
-                style: TextStyle(color: AppColors.white.withValues(alpha: 0.75), fontSize: 14, height: 1.5),
-              ),
-              const SizedBox(height: 32),
-              // Dots + bouton suivant
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _Dots(current: currentPage, count: 4, activeColor: AppColors.green, inactiveColor: AppColors.white.withValues(alpha: 0.3)),
-                  ElevatedButton(
-                    onPressed: onNext,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.green,
-                      foregroundColor: AppColors.white,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      elevation: 0,
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                        SizedBox(width: 6),
-                        Icon(Icons.arrow_forward, size: 16),
-                      ],
-                    ),
+                // Texte positionné dans la partie haute (au-dessus de l'image)
+                SizedBox(height: h * 0.06),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RichText(
+                        text: const TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Tout votre business\nconnecté, analysé,\n',
+                              style: TextStyle(color: AppColors.white, fontSize: 28, fontWeight: FontWeight.w700, height: 1.3),
+                            ),
+                            TextSpan(
+                              text: 'et propulsé.',
+                              style: TextStyle(color: AppColors.green, fontSize: 28, fontWeight: FontWeight.w700, height: 1.3),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Centralisez vos conversations, comprenez vos performances et prenez de meilleures décisions.',
+                        style: TextStyle(color: AppColors.white.withValues(alpha: 0.75), fontSize: 14, height: 1.5),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 24),
-            ],
+                ),
+                const Spacer(),
+                // Dots + bouton suivant
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _Dots(current: currentPage, count: 4, activeColor: AppColors.green, inactiveColor: AppColors.white.withValues(alpha: 0.3)),
+                      ElevatedButton(
+                        onPressed: onNext,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.green,
+                          foregroundColor: AppColors.white,
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                            SizedBox(width: 6),
+                            Icon(Icons.arrow_forward, size: 16),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
