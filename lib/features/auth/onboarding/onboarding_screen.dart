@@ -87,7 +87,7 @@ class _Dots extends StatelessWidget {
   }
 }
 
-// ── Slide 1 : Bienvenue (fond violet foncé + image dame) ─────────────────────
+// ── Slide 1 : Bienvenue — conforme au mockup ─────────────────────────────────
 
 class _Slide1 extends StatelessWidget {
   final VoidCallback onNext;
@@ -98,117 +98,230 @@ class _Slide1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final h = MediaQuery.of(context).size.height;
-    return Container(
-      color: AppColors.primary,
-      child: Stack(
-        children: [
-          // Image dame + décorations (bas de l'écran)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: h * 0.55,
-            child: const Slide1Widget(),
-          ),
-          // Contenu texte en SafeArea
-          SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final size = MediaQuery.of(context).size;
+    return GestureDetector(
+      onTap: onNext,
+      child: Container(
+        color: const Color(0xFF2D1B69),
+        child: Stack(
+          children: [
+            // ── Image dame — occupe les 63% inférieurs ──
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: size.height * 0.63,
+              child: const Slide1Widget(),
+            ),
+
+            // ── Confettis / décorations autour de la dame ──
+            // Carré vert haut-gauche
+            _Confetti(top: size.height * 0.32, left: 24, w: 16, h: 10, color: const Color(0xFF22C55E), angle: 0.4),
+            // Carré vert milieu-gauche
+            _Confetti(top: size.height * 0.40, left: 48, w: 12, h: 8, color: const Color(0xFF22C55E), angle: -0.3),
+            // Carré jaune gauche
+            _Confetti(top: size.height * 0.46, left: 22, w: 10, h: 6, color: const Color(0xFFFFC107), angle: 0.6),
+            // Carré vert droite-haut
+            _Confetti(top: size.height * 0.30, right: 28, w: 14, h: 9, color: const Color(0xFF22C55E), angle: -0.5),
+            // Carré vert droite-milieu
+            _Confetti(top: size.height * 0.38, right: 50, w: 10, h: 7, color: const Color(0xFF22C55E), angle: 0.3),
+            // Carré blanc droite
+            _Confetti(top: size.height * 0.43, right: 24, w: 12, h: 8, color: Colors.white.withValues(alpha: 0.5), angle: -0.7),
+            // Flèche verte montante gauche
+            Positioned(
+              top: size.height * 0.36,
+              left: 18,
+              child: Transform.rotate(
+                angle: 0.25,
+                child: const Icon(Icons.arrow_upward_rounded, color: Color(0xFF22C55E), size: 22),
+              ),
+            ),
+            // Flèche verte montante droite
+            Positioned(
+              top: size.height * 0.44,
+              right: 20,
+              child: Transform.rotate(
+                angle: -0.2,
+                child: const Icon(Icons.arrow_upward_rounded, color: Color(0xFF22C55E), size: 18),
+              ),
+            ),
+            // Tiret blanc diagonal centre
+            Positioned(
+              top: size.height * 0.41,
+              left: size.width * 0.38,
+              child: Transform.rotate(
+                angle: 0.6,
+                child: Container(width: 22, height: 3, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(2))),
+              ),
+            ),
+
+            // ── Contenu textuel en SafeArea ──
+            SafeArea(
+              child: Column(
+                children: [
+                  const SizedBox(height: 28),
+
+                  // Logo e-Signal centré
+                  _ESignalLogo(),
+
+                  SizedBox(height: size.height * 0.045),
+
+                  // Titre centré
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: const TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Tout votre business\nconnecté, analysé,\n',
+                            style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700, height: 1.35),
+                          ),
+                          TextSpan(
+                            text: 'et propulsé.',
+                            style: TextStyle(color: Color(0xFF22C55E), fontSize: 26, fontWeight: FontWeight.w700, height: 1.35),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Description centrée
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 36),
+                    child: Text(
+                      'Centralisez vos conversations, comprenez vos performances et prenez de meilleures décisions.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.78), fontSize: 13, height: 1.55),
+                    ),
+                  ),
+
+                  const Spacer(),
+
+                  // 4 dots de progression centrés
+                  _Dots(
+                    current: currentPage,
+                    count: 4,
+                    activeColor: Colors.white,
+                    inactiveColor: Colors.white.withValues(alpha: 0.35),
+                  ),
+                  const SizedBox(height: 28),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Logo "eS" avec icône graphique + "e-Signal"
+class _ESignalLogo extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            // Fond semi-transparent arrondi
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+            // eS + barres graphique
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const SizedBox(height: 24),
-                // Logo centré en haut
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: const Center(
-                          child: Text('eS', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w800, fontSize: 14)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      RichText(
-                        text: const TextSpan(
-                          children: [
-                            TextSpan(text: 'e-', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.w700, fontSize: 20)),
-                            TextSpan(text: 'Signal', style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w700, fontSize: 20)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                const Text(
+                  'eS',
+                  style: TextStyle(color: Color(0xFF22C55E), fontSize: 30, fontWeight: FontWeight.w900, height: 1),
                 ),
-                // Texte positionné dans la partie haute (au-dessus de l'image)
-                SizedBox(height: h * 0.03),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      RichText(
-                        text: const TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'Tout votre business\nconnecté, analysé,\n',
-                              style: TextStyle(color: AppColors.white, fontSize: 28, fontWeight: FontWeight.w700, height: 1.3),
-                            ),
-                            TextSpan(
-                              text: 'et propulsé.',
-                              style: TextStyle(color: AppColors.green, fontSize: 28, fontWeight: FontWeight.w700, height: 1.3),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Centralisez vos conversations, comprenez vos performances et prenez de meilleures décisions.',
-                        style: TextStyle(color: AppColors.white.withValues(alpha: 0.75), fontSize: 14, height: 1.5),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                // Dots + bouton suivant
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _Dots(current: currentPage, count: 4, activeColor: AppColors.green, inactiveColor: AppColors.white.withValues(alpha: 0.3)),
-                      ElevatedButton(
-                        onPressed: onNext,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.green,
-                          foregroundColor: AppColors.white,
-                          shape: const StadiumBorder(),
-                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          elevation: 0,
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                            SizedBox(width: 6),
-                            Icon(Icons.arrow_forward, size: 16),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  padding: const EdgeInsets.only(bottom: 4, left: 2),
+                  child: _BarChart(),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'e-Signal',
+          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: 1.5),
+        ),
+      ],
+    );
+  }
+}
+
+// Mini bar chart avec flèche — intégré dans le logo
+class _BarChart extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF22C55E);
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: CustomPaint(painter: _BarChartPainter(color: color)),
+    );
+  }
+}
+
+class _BarChartPainter extends CustomPainter {
+  final Color color;
+  const _BarChartPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = color..style = PaintingStyle.fill;
+    final w = size.width / 5;
+    // 3 barres croissantes
+    canvas.drawRect(Rect.fromLTWH(0, size.height * 0.55, w, size.height * 0.45), p);
+    canvas.drawRect(Rect.fromLTWH(w * 1.5, size.height * 0.30, w, size.height * 0.70), p);
+    canvas.drawRect(Rect.fromLTWH(w * 3.0, 0, w, size.height), p);
+    // Flèche en haut de la 3e barre
+    final arrow = Paint()..color = color..strokeWidth = 1.5..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(w * 3.5, 0), Offset(size.width, 0), arrow);
+    canvas.drawLine(Offset(size.width - 4, 0), Offset(size.width, 0), arrow);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Confetti générique positionnable
+class _Confetti extends StatelessWidget {
+  final double? top, bottom, left, right;
+  final double w, h;
+  final Color color;
+  final double angle;
+
+  const _Confetti({
+    this.top, this.bottom, this.left, this.right,
+    required this.w, required this.h,
+    required this.color, required this.angle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: top, bottom: bottom, left: left, right: right,
+      child: Transform.rotate(
+        angle: angle,
+        child: Container(
+          width: w, height: h,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+        ),
       ),
     );
   }
