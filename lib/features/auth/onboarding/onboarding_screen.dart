@@ -115,11 +115,30 @@ class _Slide1 extends StatelessWidget {
             ),
           ),
 
-          // ── 4 traits décoratifs à droite de la dame ───────────────────────
+          // ── Icônes canaux flottantes autour de la dame ────────────────────
+          // Bulle message verte — haut-gauche de la dame
           Positioned(
-            bottom: 180,
-            right: 28,
-            child: _AccentStrokes(),
+            bottom: size.height * 0.38,
+            left: 20,
+            child: _FloatingIcon(icon: Icons.chat_bubble_rounded, color: const Color(0xFF1E9E5E), size: 26),
+          ),
+          // Enveloppe violette — milieu-gauche
+          Positioned(
+            bottom: size.height * 0.30,
+            left: 44,
+            child: _FloatingIcon(icon: Icons.email_rounded, color: const Color(0xFF6C5CE7), size: 22),
+          ),
+          // Smartphone blanc — haut-droite
+          Positioned(
+            bottom: size.height * 0.40,
+            right: 24,
+            child: _FloatingIcon(icon: Icons.smartphone_rounded, color: Colors.white, size: 24),
+          ),
+          // Wifi vert — droite-milieu
+          Positioned(
+            bottom: size.height * 0.28,
+            right: 36,
+            child: _FloatingIcon(icon: Icons.wifi_rounded, color: const Color(0xFF1E9E5E), size: 20),
           ),
 
           // ── Décoration géométrique bas-droite ─────────────────────────────
@@ -142,10 +161,16 @@ class _Slide1 extends StatelessWidget {
                 children: [
                   const SizedBox(height: 24),
 
-                  // Logo e-Signal centré
-                  Center(child: _LogoWidget()),
+                  // Logo e-Signal — image réelle
+                  Center(
+                    child: Image.asset(
+                      'design/logo_onboarding.png',
+                      height: 80,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
 
-                  const SizedBox(height: 40),
+                  SizedBox(height: size.height * 0.02),
 
                   // Titre
                   RichText(
@@ -180,7 +205,8 @@ class _Slide1 extends StatelessWidget {
                     'Centralisez vos conversations, comprenez\nvos performances et prenez de meilleures\ndécisions.',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.72),
-                      fontSize: 14,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
                       height: 1.55,
                     ),
                   ),
@@ -245,119 +271,24 @@ class _Slide1 extends StatelessWidget {
   }
 }
 
-// ── Logo e-Signal ─────────────────────────────────────────────────────────────
+// ── Icône canal flottante ─────────────────────────────────────────────────────
 
-class _LogoWidget extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Icône eS dans un carré arrondi semi-transparent
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Text(
-                  'eS',
-                  style: TextStyle(
-                    color: Color(0xFF1E9E5E),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
-                  ),
-                ),
-                // mini barchart en haut-droite
-                Positioned(
-                  right: 2,
-                  top: 2,
-                  child: SizedBox(
-                    width: 12,
-                    height: 10,
-                    child: CustomPaint(painter: _MiniBarPainter()),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        RichText(
-          text: const TextSpan(
-            children: [
-              TextSpan(
-                text: 'e-',
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700),
-              ),
-              TextSpan(
-                text: 'Signal',
-                style: TextStyle(color: Color(0xFF1E9E5E), fontSize: 22, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MiniBarPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = const Color(0xFF1E9E5E)..style = PaintingStyle.fill;
-    final bw = size.width / 4.5;
-    canvas.drawRect(Rect.fromLTWH(0, size.height * 0.5, bw, size.height * 0.5), p);
-    canvas.drawRect(Rect.fromLTWH(bw * 1.5, size.height * 0.25, bw, size.height * 0.75), p);
-    canvas.drawRect(Rect.fromLTWH(bw * 3.0, 0, bw, size.height), p);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
-}
-
-// ── 4 traits décoratifs jaune / vert inclinés ─────────────────────────────────
-
-class _AccentStrokes extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        _Stroke(width: 36, color: const Color(0xFFFFC107), angle: -0.25),
-        const SizedBox(height: 8),
-        _Stroke(width: 24, color: const Color(0xFF1E9E5E), angle: -0.25),
-        const SizedBox(height: 8),
-        _Stroke(width: 30, color: const Color(0xFFFFC107).withValues(alpha: 0.55), angle: -0.25),
-        const SizedBox(height: 8),
-        _Stroke(width: 18, color: const Color(0xFF1E9E5E).withValues(alpha: 0.65), angle: -0.25),
-      ],
-    );
-  }
-}
-
-class _Stroke extends StatelessWidget {
-  final double width;
+class _FloatingIcon extends StatelessWidget {
+  final IconData icon;
   final Color color;
-  final double angle;
-  const _Stroke({required this.width, required this.color, required this.angle});
+  final double size;
+  const _FloatingIcon({required this.icon, required this.color, required this.size});
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: angle,
-      child: Container(
-        width: width,
-        height: 4,
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+    return Container(
+      width: size + 12,
+      height: size + 12,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        shape: BoxShape.circle,
       ),
+      child: Icon(icon, color: color, size: size),
     );
   }
 }
