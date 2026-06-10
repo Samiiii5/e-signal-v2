@@ -115,30 +115,42 @@ class _Slide1 extends StatelessWidget {
             ),
           ),
 
-          // ── Icônes canaux flottantes autour de la dame ────────────────────
-          // Bulle message verte — haut-gauche de la dame
+          // ── Icônes canaux flottantes repositionnées ───────────────────────
+          // Message vert — haut-droite de la dame
           Positioned(
-            bottom: size.height * 0.38,
-            left: 20,
-            child: _FloatingIcon(icon: Icons.chat_bubble_rounded, color: const Color(0xFF1E9E5E), size: 26),
+            bottom: size.height * 0.44,
+            right: size.width * 0.32,
+            child: _FloatingIcon(icon: Icons.chat_bubble_rounded, color: const Color(0xFF1E9E5E)),
           ),
-          // Enveloppe violette — milieu-gauche
+          // Email violet — droite au niveau de la taille
           Positioned(
             bottom: size.height * 0.30,
-            left: 44,
-            child: _FloatingIcon(icon: Icons.email_rounded, color: const Color(0xFF6C5CE7), size: 22),
+            right: 20,
+            child: _FloatingIcon(icon: Icons.email_rounded, color: const Color(0xFF6C5CE7)),
           ),
-          // Smartphone blanc — haut-droite
+          // SMS/smartphone vert — bas-droite de la dame
           Positioned(
-            bottom: size.height * 0.40,
-            right: 24,
-            child: _FloatingIcon(icon: Icons.smartphone_rounded, color: Colors.white, size: 24),
+            bottom: size.height * 0.18,
+            right: 28,
+            child: _FloatingIcon(icon: Icons.sms_rounded, color: const Color(0xFF1E9E5E)),
           ),
-          // Wifi vert — droite-milieu
+          // WhatsApp cercle vert — gauche de la dame
           Positioned(
             bottom: size.height * 0.28,
-            right: 36,
-            child: _FloatingIcon(icon: Icons.wifi_rounded, color: const Color(0xFF1E9E5E), size: 20),
+            left: 8,
+            child: _FloatingIcon(icon: Icons.chat_rounded, color: const Color(0xFF25D366)),
+          ),
+          // Notification — au-dessus à gauche
+          Positioned(
+            bottom: size.height * 0.50,
+            left: 24,
+            child: _FloatingIcon(icon: Icons.notifications_rounded, color: Colors.white),
+          ),
+          // Graphique — haut-droite loin de la dame
+          Positioned(
+            bottom: size.height * 0.52,
+            right: 20,
+            child: _FloatingIcon(icon: Icons.bar_chart_rounded, color: const Color(0xFF1E9E5E)),
           ),
 
           // ── Décoration géométrique bas-droite ─────────────────────────────
@@ -171,7 +183,9 @@ class _Slide1 extends StatelessWidget {
                   SizedBox(height: size.height * 0.02),
 
                   // Titre centré
-                  RichText(
+                  SizedBox(
+                    width: double.infinity,
+                    child: RichText(
                     textAlign: TextAlign.center,
                     text: const TextSpan(
                       children: [
@@ -196,11 +210,14 @@ class _Slide1 extends StatelessWidget {
                       ],
                     ),
                   ),
+                  ),
 
                   const SizedBox(height: 14),
 
                   // Description centrée
-                  Text(
+                  SizedBox(
+                    width: double.infinity,
+                    child: Text(
                     'Centralisez vos conversations, comprenez\nvos performances et prenez de meilleures\ndécisions.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -209,6 +226,7 @@ class _Slide1 extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                       height: 1.55,
                     ),
+                  ),
                   ),
 
                   const Spacer(),
@@ -236,19 +254,18 @@ class _Slide1 extends StatelessWidget {
 class _FloatingIcon extends StatelessWidget {
   final IconData icon;
   final Color color;
-  final double size;
-  const _FloatingIcon({required this.icon, required this.color, required this.size});
+  const _FloatingIcon({required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size + 12,
-      height: size + 12,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Icon(icon, color: color, size: size),
+      child: Icon(icon, color: color, size: 20),
     );
   }
 }
