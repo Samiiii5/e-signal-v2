@@ -146,7 +146,7 @@ class _Slide1 extends StatelessWidget {
                   ),
                 ),
                 // Texte positionné dans la partie haute (au-dessus de l'image)
-                SizedBox(height: h * 0.06),
+                SizedBox(height: h * 0.03),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 28),
                   child: Column(
