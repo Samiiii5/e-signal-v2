@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/session_service.dart';
-import 'painters/slide1_painter.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -87,7 +86,7 @@ class _Dots extends StatelessWidget {
   }
 }
 
-// ── Slide 1 : Bienvenue — conforme au mockup ─────────────────────────────────
+// ── Slide 1 ───────────────────────────────────────────────────────────────────
 
 class _Slide1 extends StatelessWidget {
   final VoidCallback onNext;
@@ -99,232 +98,317 @@ class _Slide1 extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    return GestureDetector(
-      onTap: onNext,
-      child: Container(
-        color: const Color(0xFF2D1B69),
-        child: Stack(
-          children: [
-            // ── Image dame — occupe les 63% inférieurs ──
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: size.height * 0.63,
-              child: const Slide1Widget(),
-            ),
 
-            // ── Confettis / décorations autour de la dame ──
-            // Carré vert haut-gauche
-            _Confetti(top: size.height * 0.32, left: 24, w: 16, h: 10, color: const Color(0xFF22C55E), angle: 0.4),
-            // Carré vert milieu-gauche
-            _Confetti(top: size.height * 0.40, left: 48, w: 12, h: 8, color: const Color(0xFF22C55E), angle: -0.3),
-            // Carré jaune gauche
-            _Confetti(top: size.height * 0.46, left: 22, w: 10, h: 6, color: const Color(0xFFFFC107), angle: 0.6),
-            // Carré vert droite-haut
-            _Confetti(top: size.height * 0.30, right: 28, w: 14, h: 9, color: const Color(0xFF22C55E), angle: -0.5),
-            // Carré vert droite-milieu
-            _Confetti(top: size.height * 0.38, right: 50, w: 10, h: 7, color: const Color(0xFF22C55E), angle: 0.3),
-            // Carré blanc droite
-            _Confetti(top: size.height * 0.43, right: 24, w: 12, h: 8, color: Colors.white.withValues(alpha: 0.5), angle: -0.7),
-            // Flèche verte montante gauche
-            Positioned(
-              top: size.height * 0.36,
-              left: 18,
-              child: Transform.rotate(
-                angle: 0.25,
-                child: const Icon(Icons.arrow_upward_rounded, color: Color(0xFF22C55E), size: 22),
-              ),
+    return Container(
+      color: const Color(0xFF2D1B69),
+      child: Stack(
+        children: [
+          // ── Dame bas-gauche, dépasse légèrement vers le haut ──────────────
+          Positioned(
+            bottom: 56,        // laisse de la place pour les dots/boutons
+            left: 0,
+            child: Image.asset(
+              'design/image_onboarding1.png',
+              width: size.width * 0.62,
+              fit: BoxFit.fitWidth,
+              alignment: Alignment.bottomLeft,
             ),
-            // Flèche verte montante droite
-            Positioned(
-              top: size.height * 0.44,
-              right: 20,
-              child: Transform.rotate(
-                angle: -0.2,
-                child: const Icon(Icons.arrow_upward_rounded, color: Color(0xFF22C55E), size: 18),
-              ),
-            ),
-            // Tiret blanc diagonal centre
-            Positioned(
-              top: size.height * 0.41,
-              left: size.width * 0.38,
-              child: Transform.rotate(
-                angle: 0.6,
-                child: Container(width: 22, height: 3, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(2))),
-              ),
-            ),
+          ),
 
-            // ── Contenu textuel en SafeArea ──
-            SafeArea(
+          // ── 4 traits décoratifs à droite de la dame ───────────────────────
+          Positioned(
+            bottom: 180,
+            right: 28,
+            child: _AccentStrokes(),
+          ),
+
+          // ── Décoration géométrique bas-droite ─────────────────────────────
+          Positioned(
+            bottom: 60,
+            right: 20,
+            child: SizedBox(
+              width: 72,
+              height: 72,
+              child: CustomPaint(painter: _GeoDeco()),
+            ),
+          ),
+
+          // ── Contenu principal (logo + texte + dots + boutons) ─────────────
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
                   // Logo e-Signal centré
-                  _ESignalLogo(),
+                  Center(child: _LogoWidget()),
 
-                  SizedBox(height: size.height * 0.045),
+                  const SizedBox(height: 40),
 
-                  // Titre centré
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                    child: RichText(
-                      textAlign: TextAlign.center,
-                      text: const TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Tout votre business\nconnecté, analysé,\n',
-                            style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700, height: 1.35),
+                  // Titre
+                  RichText(
+                    text: const TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Tout votre business\nconnecté, analysé,\n',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            height: 1.3,
                           ),
-                          TextSpan(
-                            text: 'et propulsé.',
-                            style: TextStyle(color: Color(0xFF22C55E), fontSize: 26, fontWeight: FontWeight.w700, height: 1.35),
+                        ),
+                        TextSpan(
+                          text: 'et propulsé.',
+                          style: TextStyle(
+                            color: Color(0xFF1E9E5E),
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            height: 1.3,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
 
-                  // Description centrée
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 36),
-                    child: Text(
-                      'Centralisez vos conversations, comprenez vos performances et prenez de meilleures décisions.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.78), fontSize: 13, height: 1.55),
+                  // Description
+                  Text(
+                    'Centralisez vos conversations, comprenez\nvos performances et prenez de meilleures\ndécisions.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      fontSize: 14,
+                      height: 1.55,
                     ),
                   ),
 
                   const Spacer(),
 
-                  // 4 dots de progression centrés
-                  _Dots(
-                    current: currentPage,
-                    count: 4,
-                    activeColor: Colors.white,
-                    inactiveColor: Colors.white.withValues(alpha: 0.35),
+                  // Dots + Passer / Suivant
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _Dots(
+                        current: currentPage,
+                        count: 4,
+                        activeColor: const Color(0xFF1E9E5E),
+                        inactiveColor: Colors.white.withValues(alpha: 0.35),
+                      ),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: onSkip,
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.white.withValues(alpha: 0.65),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                            child: const Text('Passer', style: TextStyle(fontSize: 14)),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: onNext,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1E9E5E),
+                              foregroundColor: Colors.white,
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              elevation: 0,
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                SizedBox(width: 6),
+                                Icon(Icons.arrow_forward_rounded, size: 16),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// Logo "eS" avec icône graphique + "e-Signal"
-class _ESignalLogo extends StatelessWidget {
+// ── Logo e-Signal ─────────────────────────────────────────────────────────────
+
+class _LogoWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            // Fond semi-transparent arrondi
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-            // eS + barres graphique
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
+        // Icône eS dans un carré arrondi semi-transparent
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: Stack(
+              alignment: Alignment.center,
               children: [
                 const Text(
                   'eS',
-                  style: TextStyle(color: Color(0xFF22C55E), fontSize: 30, fontWeight: FontWeight.w900, height: 1),
+                  style: TextStyle(
+                    color: Color(0xFF1E9E5E),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4, left: 2),
-                  child: _BarChart(),
+                // mini barchart en haut-droite
+                Positioned(
+                  right: 2,
+                  top: 2,
+                  child: SizedBox(
+                    width: 12,
+                    height: 10,
+                    child: CustomPaint(painter: _MiniBarPainter()),
+                  ),
                 ),
               ],
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 8),
-        const Text(
-          'e-Signal',
-          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: 1.5),
+        const SizedBox(width: 10),
+        RichText(
+          text: const TextSpan(
+            children: [
+              TextSpan(
+                text: 'e-',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700),
+              ),
+              TextSpan(
+                text: 'Signal',
+                style: TextStyle(color: Color(0xFF1E9E5E), fontSize: 22, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 }
 
-// Mini bar chart avec flèche — intégré dans le logo
-class _BarChart extends StatelessWidget {
+class _MiniBarPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = const Color(0xFF1E9E5E)..style = PaintingStyle.fill;
+    final bw = size.width / 4.5;
+    canvas.drawRect(Rect.fromLTWH(0, size.height * 0.5, bw, size.height * 0.5), p);
+    canvas.drawRect(Rect.fromLTWH(bw * 1.5, size.height * 0.25, bw, size.height * 0.75), p);
+    canvas.drawRect(Rect.fromLTWH(bw * 3.0, 0, bw, size.height), p);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// ── 4 traits décoratifs jaune / vert inclinés ─────────────────────────────────
+
+class _AccentStrokes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    const color = Color(0xFF22C55E);
-    return SizedBox(
-      width: 18,
-      height: 18,
-      child: CustomPaint(painter: _BarChartPainter(color: color)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _Stroke(width: 36, color: const Color(0xFFFFC107), angle: -0.25),
+        const SizedBox(height: 8),
+        _Stroke(width: 24, color: const Color(0xFF1E9E5E), angle: -0.25),
+        const SizedBox(height: 8),
+        _Stroke(width: 30, color: const Color(0xFFFFC107).withValues(alpha: 0.55), angle: -0.25),
+        const SizedBox(height: 8),
+        _Stroke(width: 18, color: const Color(0xFF1E9E5E).withValues(alpha: 0.65), angle: -0.25),
+      ],
     );
   }
 }
 
-class _BarChartPainter extends CustomPainter {
-  final Color color;
-  const _BarChartPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = color..style = PaintingStyle.fill;
-    final w = size.width / 5;
-    // 3 barres croissantes
-    canvas.drawRect(Rect.fromLTWH(0, size.height * 0.55, w, size.height * 0.45), p);
-    canvas.drawRect(Rect.fromLTWH(w * 1.5, size.height * 0.30, w, size.height * 0.70), p);
-    canvas.drawRect(Rect.fromLTWH(w * 3.0, 0, w, size.height), p);
-    // Flèche en haut de la 3e barre
-    final arrow = Paint()..color = color..strokeWidth = 1.5..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(w * 3.5, 0), Offset(size.width, 0), arrow);
-    canvas.drawLine(Offset(size.width - 4, 0), Offset(size.width, 0), arrow);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// Confetti générique positionnable
-class _Confetti extends StatelessWidget {
-  final double? top, bottom, left, right;
-  final double w, h;
+class _Stroke extends StatelessWidget {
+  final double width;
   final Color color;
   final double angle;
-
-  const _Confetti({
-    this.top, this.bottom, this.left, this.right,
-    required this.w, required this.h,
-    required this.color, required this.angle,
-  });
+  const _Stroke({required this.width, required this.color, required this.angle});
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: top, bottom: bottom, left: left, right: right,
-      child: Transform.rotate(
-        angle: angle,
-        child: Container(
-          width: w, height: h,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
-        ),
+    return Transform.rotate(
+      angle: angle,
+      child: Container(
+        width: width,
+        height: 4,
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
       ),
     );
   }
+}
+
+// ── Décoration géométrique bas-droite ─────────────────────────────────────────
+
+class _GeoDeco extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sWhite = Paint()
+      ..color = Colors.white.withValues(alpha: 0.20)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final sGold = Paint()
+      ..color = const Color(0xFFFFC107).withValues(alpha: 0.50)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final sGreen = Paint()
+      ..color = const Color(0xFF1E9E5E).withValues(alpha: 0.50)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    // Triangle blanc
+    final tri = Path()
+      ..moveTo(size.width * 0.10, size.height * 0.95)
+      ..lineTo(size.width * 0.50, size.height * 0.05)
+      ..lineTo(size.width * 0.90, size.height * 0.95)
+      ..close();
+    canvas.drawPath(tri, sWhite);
+
+    // Losange doré
+    final dia = Path()
+      ..moveTo(size.width * 0.65, 0)
+      ..lineTo(size.width, size.height * 0.30)
+      ..lineTo(size.width * 0.65, size.height * 0.60)
+      ..lineTo(size.width * 0.30, size.height * 0.30)
+      ..close();
+    canvas.drawPath(dia, sGold);
+
+    // Petit carré vert
+    final sq = Path()
+      ..moveTo(size.width * 0.05, size.height * 0.30)
+      ..lineTo(size.width * 0.25, size.height * 0.20)
+      ..lineTo(size.width * 0.35, size.height * 0.40)
+      ..lineTo(size.width * 0.15, size.height * 0.50)
+      ..close();
+    canvas.drawPath(sq, sGreen);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
 // ── Slide 2 : Inbox unifiée (fond blanc) ─────────────────────────────────────
