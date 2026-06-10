@@ -105,7 +105,7 @@ class _Slide1 extends StatelessWidget {
         children: [
           // ── Dame bas-gauche, dépasse légèrement vers le haut ──────────────
           Positioned(
-            bottom: 56,        // laisse de la place pour les dots/boutons
+            bottom: 48,        // laisse de la place pour les dots
             left: 0,
             child: Image.asset(
               'design/image_onboarding1.png',
@@ -152,28 +152,27 @@ class _Slide1 extends StatelessWidget {
             ),
           ),
 
-          // ── Contenu principal (logo + texte + dots + boutons) ─────────────
+          // ── Contenu principal (logo + texte + dots) ───────────────────────
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 24),
 
                   // Logo e-Signal — image réelle
-                  Center(
-                    child: Image.asset(
-                      'design/logo_onboarding.png',
-                      height: 80,
-                      fit: BoxFit.contain,
-                    ),
+                  Image.asset(
+                    'design/logo_onboarding.png',
+                    height: 80,
+                    fit: BoxFit.contain,
                   ),
 
                   SizedBox(height: size.height * 0.02),
 
-                  // Titre
+                  // Titre centré
                   RichText(
+                    textAlign: TextAlign.center,
                     text: const TextSpan(
                       children: [
                         TextSpan(
@@ -200,9 +199,10 @@ class _Slide1 extends StatelessWidget {
 
                   const SizedBox(height: 14),
 
-                  // Description
+                  // Description centrée
                   Text(
                     'Centralisez vos conversations, comprenez\nvos performances et prenez de meilleures\ndécisions.',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.72),
                       fontSize: 15,
@@ -213,54 +213,14 @@ class _Slide1 extends StatelessWidget {
 
                   const Spacer(),
 
-                  // Dots + Passer / Suivant
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _Dots(
-                        current: currentPage,
-                        count: 4,
-                        activeColor: const Color(0xFF1E9E5E),
-                        inactiveColor: Colors.white.withValues(alpha: 0.35),
-                      ),
-                      Row(
-                        children: [
-                          TextButton(
-                            onPressed: onSkip,
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white.withValues(alpha: 0.65),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            ),
-                            child: const Text('Passer', style: TextStyle(fontSize: 14)),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: onNext,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1E9E5E),
-                              foregroundColor: Colors.white,
-                              shape: const StadiumBorder(),
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              elevation: 0,
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                                SizedBox(width: 6),
-                                Icon(Icons.arrow_forward_rounded, size: 16),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  // 4 dots centrés — pas de boutons
+                  _Dots(
+                    current: currentPage,
+                    count: 4,
+                    activeColor: Colors.white,
+                    inactiveColor: Colors.white.withValues(alpha: 0.35),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 28),
                 ],
               ),
             ),
