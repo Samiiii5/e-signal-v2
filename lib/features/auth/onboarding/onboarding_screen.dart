@@ -679,7 +679,7 @@ class _ChannelBubble extends StatelessWidget {
   }
 }
 
-// ── Slide 3 : Analytics (fond blanc) ─────────────────────────────────────────
+// ── Slide 3 : Analytics ───────────────────────────────────────────────────────
 
 class _Slide3 extends StatelessWidget {
   final VoidCallback onNext;
@@ -694,75 +694,236 @@ class _Slide3 extends StatelessWidget {
       color: AppColors.white,
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 24),
+
+              // Titre
               RichText(
                 textAlign: TextAlign.center,
                 text: const TextSpan(
                   children: [
-                    TextSpan(text: 'Comprenez', style: TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.w700)),
-                    TextSpan(text: ' ce qui\nfait grandir votre business', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w700, height: 1.3)),
+                    TextSpan(text: 'Comprenez ', style: TextStyle(color: AppColors.primary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25)),
+                    TextSpan(text: 'ce qui\nfait grandir votre business', style: TextStyle(color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25)),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               const Text(
                 'Des tableaux de bord clairs pour suivre\nvos performances en temps réel.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
               ),
-              const SizedBox(height: 24),
-              // Cartes métriques
-              Row(
-                children: [
-                  Expanded(child: _MetricCard(label: 'Revenus', value: '1 250 000\nFCFA', growth: '+18.5%')),
-                  const SizedBox(width: 12),
-                  Expanded(child: _MetricCard(label: 'Conversations', value: '324', growth: '+12.3%')),
-                  const SizedBox(width: 12),
-                  Expanded(child: _MetricCard(label: 'Taux réponse', value: '92%', growth: '+7.1%')),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Donut simplifié (représentation visuelle)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.backgroundPage,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
+              const SizedBox(height: 20),
+
+              // ── Layout exact de l'image 1 : col gauche + col droite ──────────
+              Expanded(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Conversations par canal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary)),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _DonutSimple(),
-                        const SizedBox(width: 16),
-                        Expanded(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            _LegendItem(color: Color(0xFF22C55E), label: 'WhatsApp', pct: '45%'),
-                            _LegendItem(color: Color(0xFF3B82F6), label: 'SMS', pct: '20%'),
-                            _LegendItem(color: Color(0xFF8B5CF6), label: 'Email', pct: '20%'),
-                            _LegendItem(color: Color(0xFFF59E0B), label: 'Facebook', pct: '10%'),
-                            _LegendItem(color: Color(0xFFEC4899), label: 'Instagram', pct: '5%'),
-                          ],
-                        )),
-                      ],
+                    // Colonne gauche : 3 cards métriques empilées
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        children: [
+                          // Card Revenus grande
+                          _StatCard(
+                            label: 'Revenus',
+                            value: '1 250 000\nFCFA',
+                            growth: '+18.5%',
+                            showChart: true,
+                            chartColor: AppColors.green,
+                          ),
+                          const SizedBox(height: 10),
+                          // Card Conversations petite
+                          _StatCard(
+                            label: 'Conversations',
+                            value: '324',
+                            growth: '+12.3%',
+                            showChart: true,
+                            chartColor: AppColors.primary,
+                          ),
+                          const SizedBox(height: 10),
+                          // Card Taux de réponse petite
+                          _StatCard(
+                            label: 'Taux de réponse',
+                            value: '92%',
+                            growth: '+7.1%',
+                            showChart: false,
+                            chartColor: AppColors.green,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Colonne droite : card donut
+                    Expanded(
+                      flex: 6,
+                      child: _DonutCard(),
                     ),
                   ],
                 ),
               ),
-              const Spacer(),
-              _NavButtons(onSkip: onSkip, onNext: onNext, currentPage: currentPage),
-              const SizedBox(height: 24),
+
+              const SizedBox(height: 16),
+
+              // Boutons Passer / Suivant
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: onSkip,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Passer', style: TextStyle(fontSize: 15)),
+                  ),
+                  ElevatedButton(
+                    onPressed: onNext,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      elevation: 0,
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                        SizedBox(width: 6),
+                        Icon(Icons.arrow_forward_rounded, size: 16),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Card métrique (Revenus / Conversations / Taux de réponse)
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final String growth;
+  final bool showChart;
+  final Color chartColor;
+
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.growth,
+    required this.showChart,
+    required this.chartColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary, height: 1.15)),
+              ),
+              if (showChart) ...[
+                SizedBox(
+                  width: 36, height: 24,
+                  child: CustomPaint(painter: _MiniChartPainter(color: chartColor)),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(growth, style: TextStyle(fontSize: 11, color: chartColor, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+// Mini graphique courbe tendance haussière
+class _MiniChartPainter extends CustomPainter {
+  final Color color;
+  const _MiniChartPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path()
+      ..moveTo(0, size.height * 0.85)
+      ..cubicTo(size.width * 0.2, size.height * 0.70, size.width * 0.4, size.height * 0.50, size.width * 0.5, size.height * 0.40)
+      ..cubicTo(size.width * 0.6, size.height * 0.30, size.width * 0.8, size.height * 0.15, size.width, size.height * 0.05);
+
+    canvas.drawPath(path, paint);
+
+    // Petite flèche en haut à droite
+    canvas.drawLine(Offset(size.width - 6, size.height * 0.05), Offset(size.width, size.height * 0.05), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// Card donut "Conversations par canal"
+class _DonutCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Conversations\npar canal', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textPrimary, height: 1.3)),
+          const SizedBox(height: 12),
+          Center(
+            child: SizedBox(
+              width: 80, height: 80,
+              child: CustomPaint(painter: _DonutPainter()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const _LegendItem(color: Color(0xFF22C55E), label: 'WhatsApp', pct: '45%'),
+          const _LegendItem(color: Color(0xFF3B82F6), label: 'SMS',      pct: '20%'),
+          const _LegendItem(color: Color(0xFF8B5CF6), label: 'Email',    pct: '20%'),
+          const _LegendItem(color: Color(0xFFF59E0B), label: 'Facebook', pct: '10%'),
+          const _LegendItem(color: Color(0xFFEC4899), label: 'Instagram',pct: '5%'),
+        ],
       ),
     );
   }
@@ -792,17 +953,6 @@ class _MetricCard extends StatelessWidget {
           Text(growth, style: const TextStyle(fontSize: 10, color: AppColors.green, fontWeight: FontWeight.w600)),
         ],
       ),
-    );
-  }
-}
-
-class _DonutSimple extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 70,
-      height: 70,
-      child: CustomPaint(painter: _DonutPainter()),
     );
   }
 }
@@ -861,7 +1011,7 @@ class _LegendItem extends StatelessWidget {
   }
 }
 
-// ── Slide 4 : Passez à l'action (fond vert très clair) ───────────────────────
+// ── Slide 4 : Passez à l'action ──────────────────────────────────────────────
 
 class _Slide4 extends StatelessWidget {
   final VoidCallback onFinish;
@@ -871,59 +1021,135 @@ class _Slide4 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Container(
-      color: const Color(0xFFF0FFF4),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1A6B3A), Color(0xFF1E9E5E)],
+        ),
+      ),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 24),
-              RichText(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const SizedBox(height: 28),
+
+            // Titre
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: RichText(
                 textAlign: TextAlign.center,
                 text: const TextSpan(
                   children: [
-                    TextSpan(text: 'Décidez', style: TextStyle(color: AppColors.green, fontSize: 26, fontWeight: FontWeight.w700)),
-                    TextSpan(text: ' avec des insights\nexploitables et finançables', style: TextStyle(color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w700, height: 1.3)),
+                    TextSpan(
+                      text: 'Décidez ',
+                      style: TextStyle(color: Color(0xFFB9F5D8), fontSize: 28, fontWeight: FontWeight.w800, height: 1.25),
+                    ),
+                    TextSpan(
+                      text: 'avec des insights\nexploitables et finançables',
+                      style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 1.25),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Transformez vos données en actions et accédez à plus d\'opportunités.',
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'Transformez vos données en actions\net accédez à plus d\'opportunités.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.80), fontSize: 14, height: 1.5),
               ),
-              const SizedBox(height: 32),
-              // Grille 2x2 de features
-              Row(
+            ),
+
+            const SizedBox(height: 16),
+
+            // Zone centrale : homme + 4 cards flottantes
+            Expanded(
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
                 children: [
-                  Expanded(child: _FeatureCard(icon: Icons.bar_chart_rounded, label: 'Insights', color: AppColors.green)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _FeatureCard(icon: Icons.track_changes_rounded, label: 'Décisions', color: AppColors.primary)),
+                  // Image homme centrée
+                  Positioned(
+                    bottom: 0,
+                    child: Image.asset(
+                      'design/image_onboarding4.png',
+                      height: size.height * 0.48,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+
+                  // Card Insights — haut gauche
+                  Positioned(
+                    top: size.height * 0.01,
+                    left: 16,
+                    child: _FloatingFeatureCard(
+                      icon: Icons.bar_chart_rounded,
+                      label: 'Insights',
+                      iconColor: AppColors.green,
+                    ),
+                  ),
+
+                  // Card Décisions — haut droite
+                  Positioned(
+                    top: size.height * 0.01,
+                    right: 16,
+                    child: _FloatingFeatureCard(
+                      icon: Icons.track_changes_rounded,
+                      label: 'Décisions',
+                      iconColor: AppColors.primary,
+                    ),
+                  ),
+
+                  // Card Croissance — bas gauche
+                  Positioned(
+                    bottom: size.height * 0.10,
+                    left: 16,
+                    child: _FloatingFeatureCard(
+                      icon: Icons.trending_up_rounded,
+                      label: 'Croissance',
+                      iconColor: const Color(0xFFF59E0B),
+                    ),
+                  ),
+
+                  // Card Financement — bas droite
+                  Positioned(
+                    bottom: size.height * 0.10,
+                    right: 16,
+                    child: _FloatingFeatureCard(
+                      icon: Icons.account_balance_wallet_rounded,
+                      label: 'Financement',
+                      iconColor: const Color(0xFF3B82F6),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: _FeatureCard(icon: Icons.trending_up_rounded, label: 'Croissance', color: const Color(0xFFF59E0B))),
-                  const SizedBox(width: 12),
-                  Expanded(child: _FeatureCard(icon: Icons.account_balance_wallet_rounded, label: 'Financement', color: const Color(0xFF3B82F6))),
-                ],
-              ),
-              const Spacer(),
-              // Dots
-              _Dots(current: currentPage, count: 4, activeColor: AppColors.green),
-              const SizedBox(height: 24),
-              // Bouton Commencer
-              SizedBox(
+            ),
+
+            // Dots
+            _Dots(
+              current: currentPage,
+              count: 4,
+              activeColor: Colors.white,
+              inactiveColor: Colors.white.withValues(alpha: 0.35),
+            ),
+            const SizedBox(height: 20),
+
+            // Bouton Commencer maintenant — vert pleine largeur
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: onFinish,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.green,
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     elevation: 0,
@@ -931,61 +1157,74 @@ class _Slide4 extends StatelessWidget {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('Commencer maintenant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('Commencer maintenant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                       SizedBox(width: 8),
                       Icon(Icons.arrow_forward, size: 18),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              // Lien Se connecter
-              GestureDetector(
-                onTap: onFinish,
-                child: RichText(
-                  text: const TextSpan(
-                    children: [
-                      TextSpan(text: 'Vous avez déjà un compte ? ', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                      TextSpan(text: 'Se connecter', style: TextStyle(color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
+            ),
+            const SizedBox(height: 16),
+
+            // Lien Se connecter
+            GestureDetector(
+              onTap: onFinish,
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(text: 'Vous avez déjà un compte ? ', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 14)),
+                    const TextSpan(text: 'Se connecter', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700, decoration: TextDecoration.underline, decorationColor: Colors.white)),
+                  ],
                 ),
               ),
-              const SizedBox(height: 32),
-            ],
-          ),
+            ),
+            const SizedBox(height: 28),
+          ],
         ),
       ),
     );
   }
 }
 
-class _FeatureCard extends StatelessWidget {
+// Card feature flottante (slide 4)
+class _FloatingFeatureCard extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color color;
-  const _FeatureCard({required this.icon, required this.label, required this.color});
+  final Color iconColor;
+
+  const _FloatingFeatureCard({required this.icon, required this.label, required this.iconColor});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: 96,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6)),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 22),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
           ),
-          const SizedBox(height: 10),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+          ),
         ],
       ),
     );
