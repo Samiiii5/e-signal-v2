@@ -1024,18 +1024,12 @@ class _Slide4 extends StatelessWidget {
     final size = MediaQuery.of(context).size;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1A6B3A), Color(0xFF1E9E5E)],
-        ),
-      ),
+      color: const Color(0xFFF0FFF4),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
 
             // Titre
             Padding(
@@ -1046,70 +1040,68 @@ class _Slide4 extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: 'Décidez ',
-                      style: TextStyle(color: Color(0xFFB9F5D8), fontSize: 28, fontWeight: FontWeight.w800, height: 1.25),
+                      style: TextStyle(color: Color(0xFF1E9E5E), fontSize: 26, fontWeight: FontWeight.w800, height: 1.25),
                     ),
                     TextSpan(
                       text: 'avec des insights\nexploitables et finançables',
-                      style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 1.25),
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
+              child: const Text(
                 'Transformez vos données en actions\net accédez à plus d\'opportunités.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.80), fontSize: 14, height: 1.5),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Zone centrale : homme + 4 cards flottantes
             Expanded(
               child: Stack(
                 alignment: Alignment.center,
-                clipBehavior: Clip.none,
                 children: [
-                  // Image homme centrée
-                  Positioned(
-                    bottom: 0,
+                  // Image homme centrée — ColorFiltered pour fond transparent sur mint
+                  Center(
                     child: Image.asset(
                       'design/image_onboarding4.png',
-                      height: size.height * 0.48,
+                      height: size.height * 0.46,
                       fit: BoxFit.contain,
                     ),
                   ),
 
                   // Card Insights — haut gauche
                   Positioned(
-                    top: size.height * 0.01,
-                    left: 16,
+                    top: 8,
+                    left: 12,
                     child: _FloatingFeatureCard(
                       icon: Icons.bar_chart_rounded,
                       label: 'Insights',
-                      iconColor: AppColors.green,
+                      iconColor: const Color(0xFF1E9E5E),
                     ),
                   ),
 
                   // Card Décisions — haut droite
                   Positioned(
-                    top: size.height * 0.01,
-                    right: 16,
+                    top: 8,
+                    right: 12,
                     child: _FloatingFeatureCard(
                       icon: Icons.track_changes_rounded,
                       label: 'Décisions',
-                      iconColor: AppColors.primary,
+                      iconColor: const Color(0xFF6C5CE7),
                     ),
                   ),
 
                   // Card Croissance — bas gauche
                   Positioned(
-                    bottom: size.height * 0.10,
-                    left: 16,
+                    bottom: 8,
+                    left: 12,
                     child: _FloatingFeatureCard(
                       icon: Icons.trending_up_rounded,
                       label: 'Croissance',
@@ -1119,12 +1111,12 @@ class _Slide4 extends StatelessWidget {
 
                   // Card Financement — bas droite
                   Positioned(
-                    bottom: size.height * 0.10,
-                    right: 16,
+                    bottom: 8,
+                    right: 12,
                     child: _FloatingFeatureCard(
-                      icon: Icons.account_balance_wallet_rounded,
+                      icon: Icons.savings_rounded,
                       label: 'Financement',
-                      iconColor: const Color(0xFF3B82F6),
+                      iconColor: const Color(0xFF1E9E5E),
                     ),
                   ),
                 ],
@@ -1132,15 +1124,10 @@ class _Slide4 extends StatelessWidget {
             ),
 
             // Dots
-            _Dots(
-              current: currentPage,
-              count: 4,
-              activeColor: Colors.white,
-              inactiveColor: Colors.white.withValues(alpha: 0.35),
-            ),
+            _Dots(current: currentPage, count: 4),
             const SizedBox(height: 20),
 
-            // Bouton Commencer maintenant — vert pleine largeur
+            // Bouton Commencer maintenant — vert foncé pleine largeur
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: SizedBox(
@@ -1148,8 +1135,8 @@ class _Slide4 extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: onFinish,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.green,
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     elevation: 0,
@@ -1165,16 +1152,25 @@ class _Slide4 extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // Lien Se connecter
             GestureDetector(
               onTap: onFinish,
               child: RichText(
-                text: TextSpan(
+                text: const TextSpan(
                   children: [
-                    TextSpan(text: 'Vous avez déjà un compte ? ', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 14)),
-                    const TextSpan(text: 'Se connecter', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700, decoration: TextDecoration.underline, decorationColor: Colors.white)),
+                    TextSpan(text: 'Vous avez déjà un compte ? ', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                    TextSpan(
+                      text: 'Se connecter',
+                      style: TextStyle(
+                        color: Color(0xFF2E7D32),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Color(0xFF2E7D32),
+                      ),
+                    ),
                   ],
                 ),
               ),
