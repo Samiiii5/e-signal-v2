@@ -1062,64 +1062,14 @@ class _Slide4 extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Zone centrale : homme + 4 cards flottantes
+            // Zone centrale : image homme (contient déjà les 4 cards intégrées)
             Expanded(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Image homme centrée — ColorFiltered pour fond transparent sur mint
-                  Center(
-                    child: Image.asset(
-                      'design/image_onboarding4.png',
-                      height: size.height * 0.46,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-
-                  // Card Insights — haut gauche
-                  Positioned(
-                    top: 8,
-                    left: 12,
-                    child: _FloatingFeatureCard(
-                      icon: Icons.bar_chart_rounded,
-                      label: 'Insights',
-                      iconColor: const Color(0xFF1E9E5E),
-                    ),
-                  ),
-
-                  // Card Décisions — haut droite
-                  Positioned(
-                    top: 8,
-                    right: 12,
-                    child: _FloatingFeatureCard(
-                      icon: Icons.track_changes_rounded,
-                      label: 'Décisions',
-                      iconColor: const Color(0xFF6C5CE7),
-                    ),
-                  ),
-
-                  // Card Croissance — bas gauche
-                  Positioned(
-                    bottom: 8,
-                    left: 12,
-                    child: _FloatingFeatureCard(
-                      icon: Icons.trending_up_rounded,
-                      label: 'Croissance',
-                      iconColor: const Color(0xFFF59E0B),
-                    ),
-                  ),
-
-                  // Card Financement — bas droite
-                  Positioned(
-                    bottom: 8,
-                    right: 12,
-                    child: _FloatingFeatureCard(
-                      icon: Icons.savings_rounded,
-                      label: 'Financement',
-                      iconColor: const Color(0xFF1E9E5E),
-                    ),
-                  ),
-                ],
+              child: Center(
+                child: Image.asset(
+                  'design/image_onboarding4.png',
+                  height: size.height * 0.50,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
 
@@ -1178,50 +1128,6 @@ class _Slide4 extends StatelessWidget {
             const SizedBox(height: 28),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// Card feature flottante (slide 4)
-class _FloatingFeatureCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color iconColor;
-
-  const _FloatingFeatureCard({required this.icon, required this.label, required this.iconColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 96,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-          ),
-        ],
       ),
     );
   }
