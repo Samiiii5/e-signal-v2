@@ -381,116 +381,111 @@ class _Slide2 extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 28),
 
             // ── Zone téléphone + bulles flottantes ────────────────────────────
             Expanded(
-              child: LayoutBuilder(builder: (context, constraints) {
-                // Positions approximatives des centres de chaque ligne
-                // dans le mockup (depuis le haut du Container noir) :
-                // border(7) + notch(18) + statusPad(12) + header(38) + divider(1) = 76
-                // Chaque ligne ~52px
-                const double top = 76;
-                const double rH  = 52;
-                const c1 = top + rH * 0 + rH / 2; // ~102
-                const c2 = top + rH * 1 + rH / 2; // ~154
-                const c3 = top + rH * 2 + rH / 2; // ~206
-                const c4 = top + rH * 3 + rH / 2; // ~258
-                const c5 = top + rH * 4 + rH / 2; // ~310
-                const d   = 68.0; // diamètre bulle
-
-                return Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.topCenter,
-                  children: [
-                    // ── Mockup iPhone centré ──────────────────────────────────
-                    Center(
-                      child: Container(
-                        width: phoneW,
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(40),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 8)),
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2)),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(7),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(34),
-                            child: Container(
-                              color: Colors.white,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _PhoneStatusBar(),
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
-                                    child: Row(
-                                      children: const [
-                                        Text('Inbox', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                                        Spacer(),
-                                        Icon(Icons.search, size: 18, color: AppColors.textSecondary),
-                                        SizedBox(width: 12),
-                                        Icon(Icons.tune, size: 18, color: AppColors.textSecondary),
-                                      ],
-                                    ),
-                                  ),
-                                  const Divider(height: 1, thickness: 0.5, color: AppColors.borderLight),
-                                  ...List.generate(_convos.length, (i) => Column(
-                                    mainAxisSize: MainAxisSize.min,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.topCenter,
+                children: [
+                  // ── Mockup iPhone centré ──────────────────────────────────
+                  Center(
+                    child: Container(
+                      width: phoneW,
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(40),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 8)),
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                      child: Padding(
+                        // épaisseur bordure noire
+                        padding: const EdgeInsets.all(7),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(34),
+                          child: Container(
+                            color: Colors.white,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Notch + status bar
+                                _PhoneStatusBar(),
+                                // Header Inbox
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+                                  child: Row(
                                     children: [
-                                      _InboxRow(data: _convos[i]),
-                                      if (i < _convos.length - 1)
-                                        const Divider(height: 1, thickness: 0.5, indent: 54, color: AppColors.borderLight),
+                                      const Text('Inbox', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                      const Spacer(),
+                                      const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
+                                      const SizedBox(width: 12),
+                                      const Icon(Icons.tune, size: 18, color: AppColors.textSecondary),
                                     ],
-                                  )),
-                                  const SizedBox(height: 6),
-                                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.20), borderRadius: BorderRadius.circular(2)))),
-                                  const SizedBox(height: 6),
-                                ],
-                              ),
+                                  ),
+                                ),
+                                const Divider(height: 1, thickness: 0.5, color: AppColors.borderLight),
+                                // 5 conversations
+                                ...List.generate(_convos.length, (i) => Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _InboxRow(data: _convos[i]),
+                                    if (i < _convos.length - 1)
+                                      const Divider(height: 1, thickness: 0.5, indent: 54, color: AppColors.borderLight),
+                                  ],
+                                )),
+                                // Home indicator
+                                const SizedBox(height: 6),
+                                Center(
+                                  child: Container(
+                                    width: 40, height: 4,
+                                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.20), borderRadius: BorderRadius.circular(2)),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                              ],
                             ),
                           ),
                         ),
                       ),
                     ),
+                  ),
 
-                    // ── Bulles avec queues pointant vers les contacts ─────────
-                    // Contact 1 — WhatsApp vert, gauche
-                    Positioned(
-                      top: c1 - d / 2,
-                      left: 0,
-                      child: _SpeechBubble(color: const Color(0xFF25D366), icon: Icons.call, tailRight: true),
-                    ),
-                    // Contact 2 — Email violet, droite
-                    Positioned(
-                      top: c2 - d / 2,
-                      right: 0,
-                      child: _SpeechBubble(color: const Color(0xFF6C5CE7), icon: Icons.email_rounded, tailRight: false),
-                    ),
-                    // Contact 3 — Facebook bleu, gauche
-                    Positioned(
-                      top: c3 - d / 2,
-                      left: 0,
-                      child: _SpeechBubble(color: const Color(0xFF1877F2), icon: Icons.facebook, tailRight: true),
-                    ),
-                    // Contact 4 — SMS vert, droite
-                    Positioned(
-                      top: c4 - d / 2,
-                      right: 0,
-                      child: _SpeechBubble(color: const Color(0xFF25D366), icon: Icons.sms, tailRight: false),
-                    ),
-                    // Contact 5 — TikTok noir, gauche
-                    Positioned(
-                      top: c5 - d / 2,
-                      left: 0,
-                      child: _SpeechBubble(color: const Color(0xFF010101), icon: Icons.music_note, tailRight: true),
-                    ),
-                  ],
-                );
-              }),
+                  // ── Bulles flottantes AUTOUR du téléphone ────────────────
+                  // WhatsApp vert — haut gauche (déborde à gauche du téléphone)
+                  Positioned(
+                    top: 10,
+                    left: phoneMargin - 46,
+                    child: _ChannelBubble(color: const Color(0xFF25D366), icon: Icons.call, size: 68),
+                  ),
+                  // Facebook bleu — milieu gauche
+                  Positioned(
+                    top: 140,
+                    left: phoneMargin - 52,
+                    child: _ChannelBubble(color: const Color(0xFF1877F2), icon: Icons.facebook, size: 68),
+                  ),
+                  // Chat violet — bas gauche
+                  Positioned(
+                    top: 270,
+                    left: phoneMargin - 42,
+                    child: _ChannelBubble(color: const Color(0xFF6C5CE7), icon: Icons.chat_bubble_rounded, size: 62),
+                  ),
+                  // Email violet — haut droite
+                  Positioned(
+                    top: 10,
+                    right: phoneMargin - 46,
+                    child: _ChannelBubble(color: const Color(0xFF6C5CE7), icon: Icons.email_rounded, size: 68),
+                  ),
+                  // SMS orange — milieu droite
+                  Positioned(
+                    top: 155,
+                    right: phoneMargin - 52,
+                    child: _ChannelBubble(color: const Color(0xFFF59E0B), label: 'SMS', size: 68),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 20),
@@ -655,95 +650,33 @@ class _InboxRow extends StatelessWidget {
   }
 }
 
-// Bulle avec queue triangulaire pointant vers le téléphone
-class _SpeechBubble extends StatelessWidget {
+// Bulle canal flottante — cercle coloré avec ombre et icône/texte blanc
+class _ChannelBubble extends StatelessWidget {
   final Color color;
   final IconData? icon;
   final String? label;
-  final bool tailRight; // true = queue à droite (bulle côté gauche)
-  static const double _d = 68; // diamètre
-  static const double _tail = 20; // longueur de la queue
-
-  const _SpeechBubble({required this.color, this.icon, this.label, required this.tailRight});
+  final double size;
+  const _ChannelBubble({required this.color, this.icon, this.label, required this.size});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: _d + _tail,
-      height: _d,
-      child: Stack(
-        children: [
-          // Cercle + queue dessinés ensemble
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _SpeechBubblePainter(color: color, tailRight: tailRight),
-            ),
-          ),
-          // Icône / label centrés sur le cercle
-          Positioned(
-            left: tailRight ? 0 : _tail,
-            top: 0,
-            width: _d,
-            height: _d,
-            child: Center(
-              child: icon != null
-                  ? Icon(icon, color: Colors.white, size: _d * 0.46)
-                  : Text(label!, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: _d * 0.27)),
-            ),
-          ),
+    return Container(
+      width: size, height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 16, offset: const Offset(0, 6)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 4, offset: const Offset(0, 2)),
         ],
+      ),
+      child: Center(
+        child: icon != null
+            ? Icon(icon, color: Colors.white, size: size * 0.48)
+            : Text(label!, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: size * 0.27)),
       ),
     );
   }
-}
-
-class _SpeechBubblePainter extends CustomPainter {
-  final Color color;
-  final bool tailRight;
-  const _SpeechBubblePainter({required this.color, required this.tailRight});
-
-  static const double _d = 68;
-  static const double _tail = 20;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    // Ombre portée
-    final shadow = Paint()
-      ..color = color.withValues(alpha: 0.38)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-
-    final r = _d / 2;
-
-    if (tailRight) {
-      // Cercle à gauche, queue pointe à droite vers le téléphone
-      canvas.drawCircle(Offset(r, r), r, shadow);
-      canvas.drawCircle(Offset(r, r), r, paint);
-      final tri = Path()
-        ..moveTo(r * 1.1, r - 8)
-        ..lineTo(_d + _tail, r)
-        ..lineTo(r * 1.1, r + 8)
-        ..close();
-      canvas.drawPath(tri, paint);
-    } else {
-      // Cercle à droite, queue pointe à gauche vers le téléphone
-      final cx = _tail + r;
-      canvas.drawCircle(Offset(cx, r), r, shadow);
-      canvas.drawCircle(Offset(cx, r), r, paint);
-      final tri = Path()
-        ..moveTo(cx - r * 1.1, r - 8)
-        ..lineTo(0, r)
-        ..lineTo(cx - r * 1.1, r + 8)
-        ..close();
-      canvas.drawPath(tri, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
 // ── Slide 3 : Analytics (fond blanc) ─────────────────────────────────────────
