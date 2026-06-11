@@ -319,7 +319,7 @@ class _GeoDeco extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
-// ── Slide 2 : Inbox unifiée (fond blanc) ─────────────────────────────────────
+// ── Slide 2 : Inbox unifiée ───────────────────────────────────────────────────
 
 class _Slide2 extends StatelessWidget {
   final VoidCallback onNext;
@@ -328,148 +328,290 @@ class _Slide2 extends StatelessWidget {
 
   const _Slide2({required this.onNext, required this.onSkip, required this.currentPage});
 
+  // (initiales, nom, aperçu, heure, badge, couleurCanal, icôneCanal)
+  static const _convos = [
+    ('KY', 'Kouamé Yao',        'Bonjour, je suis intéressé...',        '09:41', 2, Color(0xFF25D366), Icons.chat_bubble),
+    ('AN', "Awa N'Guessan",     'Merci pour la proposition.',            '09:32', 1, Color(0xFF6C5CE7), Icons.email),
+    ('',   '+225 07 12 34 56 78','Disponible pour demain ?',              '08:15', 2, Color(0xFF006AFF), Icons.messenger_outline_sharp),
+    ('MK', 'Marc K.',           'Pouvez-vous m\'envoyer le catalogue ?', 'Hier',  1, Color(0xFF25D366), Icons.sms),
+    ('IC', 'Info Commande',     'Votre commande #1234 a été expédiée.',  'Lun.',  1, Color(0xFF010101), Icons.music_note),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Container(
-      color: AppColors.white,
+      color: const Color(0xFFF7F8FA),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 24),
-              // Titre
-              RichText(
-                textAlign: TextAlign.center,
-                text: const TextSpan(
-                  children: [
-                    TextSpan(text: 'Centralisez toutes vos\n', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w700, height: 1.3)),
-                    TextSpan(text: 'conversations', style: TextStyle(color: AppColors.green, fontSize: 24, fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'WhatsApp, SMS, Email, Facebook\net plus encore dans une seule inbox.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
-              ),
-              const SizedBox(height: 32),
-              // Mockup inbox simplifié
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))],
+        child: Stack(
+          children: [
+            // ── Contenu principal ────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 20),
+
+                  // Titre
+                  RichText(
+                    textAlign: TextAlign.center,
+                    text: const TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Centralisez toutes vos\n',
+                          style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w700, height: 1.3),
+                        ),
+                        TextSpan(
+                          text: 'conversations',
+                          style: TextStyle(color: AppColors.green, fontSize: 24, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      // Header
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                        child: const Row(
+                  const SizedBox(height: 8),
+                  const Text(
+                    'WhatsApp, SMS, Email, Facebook\net plus encore dans une seule inbox.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Mockup téléphone ────────────────────────────────────────
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 28, offset: const Offset(0, 10)),
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(28),
+                        child: Column(
                           children: [
-                            Text('Inbox', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                            Spacer(),
-                            Icon(Icons.search, size: 20, color: AppColors.textSecondary),
-                            SizedBox(width: 12),
-                            Icon(Icons.tune, size: 20, color: AppColors.textSecondary),
+                            // Barre de statut simulée
+                            Container(
+                              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                              child: const Row(
+                                children: [
+                                  Text('9:41', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                                  Spacer(),
+                                  Icon(Icons.signal_cellular_alt, size: 12, color: AppColors.textPrimary),
+                                  SizedBox(width: 3),
+                                  Icon(Icons.wifi, size: 12, color: AppColors.textPrimary),
+                                  SizedBox(width: 3),
+                                  Icon(Icons.battery_full, size: 12, color: AppColors.textPrimary),
+                                ],
+                              ),
+                            ),
+                            // Header Inbox
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                              child: Row(
+                                children: [
+                                  const Text('Inbox', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                  const Spacer(),
+                                  Icon(Icons.search, size: 20, color: AppColors.textSecondary),
+                                  const SizedBox(width: 14),
+                                  Icon(Icons.tune, size: 20, color: AppColors.textSecondary),
+                                ],
+                              ),
+                            ),
+                            const Divider(height: 1, thickness: 0.5, color: AppColors.borderLight),
+                            // 5 conversations
+                            Expanded(
+                              child: ListView.separated(
+                                physics: const NeverScrollableScrollPhysics(),
+                                padding: EdgeInsets.zero,
+                                itemCount: _convos.length,
+                                separatorBuilder: (_, __) => const Divider(
+                                  height: 1, thickness: 0.5,
+                                  indent: 60, color: AppColors.borderLight,
+                                ),
+                                itemBuilder: (_, i) => _InboxRow(data: _convos[i]),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const Divider(height: 1, color: AppColors.borderLight),
-                      // Conversations mockées
-                      ..._mockConvos.map((c) => _MiniConvo(data: c)),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Dots
+                  _Dots(current: currentPage, count: 4),
+
+                  const SizedBox(height: 16),
+
+                  // Boutons Passer / Suivant
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                        onPressed: onSkip,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Passer', style: TextStyle(fontSize: 15)),
+                      ),
+                      ElevatedButton(
+                        onPressed: onNext,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                            SizedBox(width: 6),
+                            Icon(Icons.arrow_forward_rounded, size: 16),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              ),
-              // Icônes canaux flottants (rangée)
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _ChannelBubble(label: 'WA', color: const Color(0xFF25D366)),
-                  _ChannelBubble(label: 'f', color: const Color(0xFF1877F2)),
-                  _ChannelBubble(label: 'SMS', color: const Color(0xFFF59E0B)),
-                  _ChannelBubble(label: '@', color: AppColors.primary),
-                  _ChannelBubble(label: 'IG', color: const Color(0xFFE1306C)),
+                  const SizedBox(height: 16),
                 ],
               ),
-              const SizedBox(height: 24),
-              _NavButtons(onSkip: onSkip, onNext: onNext, currentPage: currentPage),
-              const SizedBox(height: 24),
-            ],
-          ),
+            ),
+
+            // ── Bulles canaux flottantes autour du téléphone ─────────────────
+            // WhatsApp — haut gauche
+            Positioned(
+              top: size.height * 0.22,
+              left: 0,
+              child: _ChannelBubble(color: const Color(0xFF25D366), icon: Icons.chat_bubble, size: 62),
+            ),
+            // Facebook — milieu gauche
+            Positioned(
+              top: size.height * 0.42,
+              left: 0,
+              child: _ChannelBubble(color: const Color(0xFF1877F2), icon: Icons.facebook, size: 62),
+            ),
+            // Chat/TikTok — bas gauche
+            Positioned(
+              top: size.height * 0.60,
+              left: 4,
+              child: _ChannelBubble(color: const Color(0xFF6C5CE7), icon: Icons.chat_rounded, size: 58),
+            ),
+            // Email — haut droite
+            Positioned(
+              top: size.height * 0.22,
+              right: 0,
+              child: _ChannelBubble(color: const Color(0xFF6C5CE7), icon: Icons.email_rounded, size: 62),
+            ),
+            // SMS — milieu droite
+            Positioned(
+              top: size.height * 0.44,
+              right: 0,
+              child: _ChannelBubble(color: const Color(0xFFF59E0B), label: 'SMS', size: 62),
+            ),
+          ],
         ),
       ),
     );
   }
-
-  static const _mockConvos = [
-    ('KY', 'Kouamé Yao', 'Bonjour, je suis intéressé...', '09:41', 2, Color(0xFF25D366)),
-    ('AN', 'Awa N\'Guessan', 'Merci pour la proposition,', '09:32', 1, Color(0xFF25D366)),
-    ('MK', 'Marc K.', 'Pouvez-vous m\'envoyer le...', 'Hier', 3, Color(0xFF1877F2)),
-  ];
 }
 
-class _MiniConvo extends StatelessWidget {
-  final (String, String, String, String, int, Color) data;
-  const _MiniConvo({required this.data});
+// Ligne de conversation dans le mockup inbox
+class _InboxRow extends StatelessWidget {
+  final (String, String, String, String, int, Color, IconData) data;
+  const _InboxRow({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    final (initials, name, preview, time, unread, channelColor) = data;
+    final (initials, name, preview, time, badge, channelColor, channelIcon) = data;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Avatar + badge canal
           Stack(
             children: [
-              CircleAvatar(radius: 20, backgroundColor: AppColors.backgroundPage, child: Text(initials, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary))),
-              Positioned(bottom: 0, right: 0, child: CircleAvatar(radius: 7, backgroundColor: channelColor)),
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: channelColor.withValues(alpha: 0.12),
+                child: Text(
+                  initials.isEmpty ? '#' : initials,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: channelColor),
+                ),
+              ),
+              Positioned(
+                bottom: 0, right: 0,
+                child: Container(
+                  width: 14, height: 14,
+                  decoration: BoxDecoration(color: channelColor, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)),
+                  child: Icon(channelIcon, size: 8, color: Colors.white),
+                ),
+              ),
             ],
           ),
           const SizedBox(width: 10),
+          // Texte
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                  const Spacer(),
+                  Expanded(child: Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)),
+                  const SizedBox(width: 4),
                   Text(time, style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
                 ]),
                 const SizedBox(height: 2),
-                Text(preview, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(preview, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
-          if (unread > 0) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(radius: 10, backgroundColor: AppColors.primary, child: Text('$unread', style: const TextStyle(fontSize: 10, color: AppColors.white, fontWeight: FontWeight.w700))),
-          ],
+          const SizedBox(width: 8),
+          // Badge non-lus violet
+          Container(
+            width: 20, height: 20,
+            decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+            child: Center(child: Text('$badge', style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700))),
+          ),
         ],
       ),
     );
   }
 }
 
+// Bulle canal flottante (grand cercle coloré avec icône blanche)
 class _ChannelBubble extends StatelessWidget {
-  final String label;
   final Color color;
-  const _ChannelBubble({required this.label, required this.color});
+  final IconData? icon;
+  final String? label;
+  final double size;
+  const _ChannelBubble({required this.color, this.icon, this.label, required this.size});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 3))]),
-      child: Center(child: Text(label, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.w700, fontSize: 12))),
+      width: size, height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.40), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Center(
+        child: icon != null
+            ? Icon(icon, color: Colors.white, size: size * 0.46)
+            : Text(label!, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: size * 0.28)),
+      ),
     );
   }
 }
