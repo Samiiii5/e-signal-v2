@@ -4,7 +4,9 @@ import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
+import '../../shared/models/lien_paiement_model.dart';
 import '../../shared/services/inbox_service.dart';
+import '../payments/create_link_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String threadId;
@@ -52,6 +54,39 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _openCreateLink() async {
+    final lien = await Navigator.push<LienPaiement?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateLinkScreen(
+          contactName: _thread?.contactName ?? 'Client',
+        ),
+      ),
+    );
+    if (!mounted || lien == null) return;
+    // Ajoute la carte paiement dans la conversation
+    setState(() {
+      _messages.add(Message(
+        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+        threadId: widget.threadId,
+        content: lien.description,
+        isFromContact: false,
+        sentAt: DateTime.now(),
+        type: MessageType.paymentLink,
+        paymentAmount: lien.montantTotal.toString(),
+        paymentCurrency: 'FCFA',
+        paymentStatus: PaymentStatus.created,
+        paymentProvider: 'wave',
+      ));
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(AppSnackbar.success('Lien de paiement envoyé dans la conversation'));
+    }
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
@@ -94,7 +129,7 @@ class _ChatScreenState extends State<ChatScreen> {
             controller: _controller,
             isSending: _isSending,
             onSend: _send,
-            onPayment: () => ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Lien de paiement — bientôt disponible')),
+            onPayment: _openCreateLink,
           ),
         ],
       ),
