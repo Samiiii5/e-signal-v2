@@ -18,6 +18,12 @@ class _InboxScreenState extends State<InboxScreen> {
   bool _isLoading = true;
   List<Thread> _threads = [];
 
+  // Filtres du bottom sheet
+  Channel? _bsChannelFilter;
+  bool _bsUnreadOnly = false;
+
+  bool get _hasActiveSheetFilter => _bsChannelFilter != null || _bsUnreadOnly;
+
   @override
   void initState() {
     super.initState();
@@ -50,10 +56,40 @@ class _InboxScreenState extends State<InboxScreen> {
       case _Filter.unread: list = list.where((t) => t.unreadCount > 0).toList();
       case _Filter.all: break;
     }
+    if (_bsChannelFilter != null) {
+      list = list.where((t) => t.channel == _bsChannelFilter).toList();
+    }
+    if (_bsUnreadOnly) {
+      list = list.where((t) => t.unreadCount > 0).toList();
+    }
     if (_searchQuery.isNotEmpty) {
       list = list.where((t) => t.contactName.toLowerCase().contains(_searchQuery) || t.lastMessage.toLowerCase().contains(_searchQuery)).toList();
     }
     return list;
+  }
+
+  void _openFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _FilterSheet(
+        initialChannel: _bsChannelFilter,
+        initialUnreadOnly: _bsUnreadOnly,
+        onApply: (channel, unreadOnly) {
+          setState(() {
+            _bsChannelFilter = channel;
+            _bsUnreadOnly = unreadOnly;
+            if (channel != null) _activeFilter = _Filter.all;
+          });
+        },
+        onReset: () => setState(() {
+          _bsChannelFilter = null;
+          _bsUnreadOnly = false;
+          _activeFilter = _Filter.all;
+        }),
+      ),
+    );
   }
 
   int get _totalUnread => _threads.fold(0, (sum, t) => sum + t.unreadCount);
@@ -74,8 +110,24 @@ class _InboxScreenState extends State<InboxScreen> {
                 children: [
                   const Text('Inbox', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const Spacer(),
-                  IconButton(icon: const Icon(Icons.search, color: AppColors.textSecondary), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.tune, color: AppColors.textSecondary), onPressed: () {}),
+                  Stack(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.tune, color: _hasActiveSheetFilter ? AppColors.green : AppColors.textSecondary),
+                        onPressed: _openFilterSheet,
+                      ),
+                      if (_hasActiveSheetFilter)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -346,6 +398,213 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(query.isNotEmpty ? 'Aucun résultat pour "$query"' : 'Aucune conversation', style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
         ],
+      ),
+    );
+  }
+}
+
+// ── Bottom sheet filtres ──────────────────────────────────────────────────────
+
+class _FilterSheet extends StatefulWidget {
+  final Channel? initialChannel;
+  final bool initialUnreadOnly;
+  final void Function(Channel? channel, bool unreadOnly) onApply;
+  final VoidCallback onReset;
+
+  const _FilterSheet({
+    required this.initialChannel,
+    required this.initialUnreadOnly,
+    required this.onApply,
+    required this.onReset,
+  });
+
+  @override
+  State<_FilterSheet> createState() => _FilterSheetState();
+}
+
+class _FilterSheetState extends State<_FilterSheet> {
+  Channel? _channel;
+  bool _unreadOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _channel = widget.initialChannel;
+    _unreadOnly = widget.initialUnreadOnly;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Poignée
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          // Titre
+          const Text('Filtrer les conversations', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 20),
+
+          // Section Canal
+          const Text('Canal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          const SizedBox(height: 8),
+          _ChannelOption(label: 'Tous', value: null, groupValue: _channel, onChanged: (v) => setState(() => _channel = v)),
+          _ChannelOption(label: 'WhatsApp', value: Channel.whatsapp, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF25D366)),
+          _ChannelOption(label: 'SMS', value: Channel.sms, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF5C6BC0)),
+          _ChannelOption(label: 'Email', value: Channel.email, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFFEA4335)),
+          _ChannelOption(label: 'Facebook', value: Channel.facebook, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF1877F2)),
+          _ChannelOption(label: 'TikTok', value: Channel.tiktok, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF010101)),
+
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: AppColors.borderLight),
+          const SizedBox(height: 16),
+
+          // Section Statut
+          const Text('Statut', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          const SizedBox(height: 8),
+          _CheckOption(
+            label: 'Tous les messages',
+            checked: !_unreadOnly,
+            onTap: () => setState(() => _unreadOnly = false),
+          ),
+          _CheckOption(
+            label: 'Non lus seulement',
+            checked: _unreadOnly,
+            onTap: () => setState(() => _unreadOnly = true),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Boutons
+          Row(
+            children: [
+              TextButton(
+                onPressed: () {
+                  widget.onReset();
+                  Navigator.pop(context);
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                child: const Text('Réinitialiser', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    widget.onApply(_channel, _unreadOnly);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E9E5E),
+                    foregroundColor: AppColors.white,
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  child: const Text('Appliquer les filtres', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelOption extends StatelessWidget {
+  final String label;
+  final Channel? value;
+  final Channel? groupValue;
+  final ValueChanged<Channel?> onChanged;
+  final Color? color;
+
+  const _ChannelOption({
+    required this.label,
+    required this.value,
+    required this.groupValue,
+    required this.onChanged,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = value == groupValue;
+    return InkWell(
+      onTap: () => onChanged(value),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            if (color != null) ...[
+              Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              const SizedBox(width: 10),
+            ],
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary))),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: selected ? const Color(0xFF1E9E5E) : AppColors.borderLight, width: 2),
+                color: selected ? const Color(0xFF1E9E5E) : AppColors.white,
+              ),
+              child: selected ? const Icon(Icons.check, size: 12, color: AppColors.white) : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckOption extends StatelessWidget {
+  final String label;
+  final bool checked;
+  final VoidCallback onTap;
+
+  const _CheckOption({required this.label, required this.checked, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary))),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: checked ? const Color(0xFF1E9E5E) : AppColors.borderLight, width: 2),
+                color: checked ? const Color(0xFF1E9E5E) : AppColors.white,
+              ),
+              child: checked ? const Icon(Icons.check, size: 13, color: AppColors.white) : null,
+            ),
+          ],
+        ),
       ),
     );
   }
