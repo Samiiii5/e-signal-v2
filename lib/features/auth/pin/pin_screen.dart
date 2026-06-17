@@ -78,8 +78,9 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            children: [
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
               const SizedBox(height: 64),
 
               _Avatar(initials: mockUser.initials),
@@ -121,7 +122,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
                 ),
               ],
 
-              const Spacer(),
+              const SizedBox(height: 48),
 
               PinKeypad(onKey: _onKey, onDelete: _onDelete),
 
@@ -141,6 +142,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
 
               const SizedBox(height: 16),
             ],
+            ),
           ),
         ),
       ),
