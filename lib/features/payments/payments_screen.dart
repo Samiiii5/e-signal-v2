@@ -1,10 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:excel/excel.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../shared/mock/messages_mock.dart' show PaymentStatus;
 import '../../shared/mock/payments_mock.dart';
 import '../../shared/services/payment_service.dart';
 import 'create_link_sheet.dart';
+import 'transaction_detail_screen.dart';
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -23,8 +28,18 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   }
 
   void _refresh() => setState(() {
-        _future = paymentService.getPaymentLinks();
-      });
+    _future = paymentService.getPaymentLinks();
+  });
+
+  Future<void> _openExportSheet() async {
+    final links = await _future;
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ExportSheet(links: links),
+    );
+  }
 
   Future<void> _openCreateSheet() async {
     final created = await showModalBottomSheet<PaymentLink>(
@@ -51,6 +66,20 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                 children: [
                   Text('Paiements', style: AppTextStyles.h1),
                   const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: _openExportSheet,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      side: const BorderSide(color: AppColors.borderLight),
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.download_outlined, size: 16),
+                    label: const Text('Exporter', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: _openCreateSheet,
                     style: ElevatedButton.styleFrom(
@@ -90,7 +119,12 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                     itemCount: links.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) => _PaymentCard(link: links[i]),
+                    itemBuilder: (_, i) => GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => TransactionDetailScreen(link: links[i]),
+                      )),
+                      child: _PaymentCard(link: links[i]),
+                    ),
                   );
                 },
               ),
@@ -102,7 +136,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   }
 }
 
-// ─── Carte d'un lien de paiement ─────────────────────────────────────────────
+// ── Carte d'un lien de paiement ───────────────────────────────────────────────
 
 class _PaymentCard extends StatelessWidget {
   final PaymentLink link;
@@ -130,17 +164,14 @@ class _PaymentCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Icône produit sur fond coloré pâle
             _ProductIcon(description: link.description),
 
             const SizedBox(width: 12),
 
-            // Infos
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Nom contact + badge statut
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -159,7 +190,6 @@ class _PaymentCard extends StatelessWidget {
 
                   const SizedBox(height: 3),
 
-                  // Description
                   Text(
                     link.description,
                     style: AppTextStyles.small,
@@ -169,7 +199,6 @@ class _PaymentCard extends StatelessWidget {
 
                   const SizedBox(height: 8),
 
-                  // Montant + méthode + date
                   Row(
                     children: [
                       Text(
@@ -316,6 +345,188 @@ class _MethodPill extends StatelessWidget {
           fontWeight: FontWeight.w600,
           color: isWave ? const Color(0xFF1565C0) : const Color(0xFFE65100),
         ),
+      ),
+    );
+  }
+}
+
+// ── Export Sheet ──────────────────────────────────────────────────────────────
+
+class _ExportSheet extends StatefulWidget {
+  final List<PaymentLink> links;
+  const _ExportSheet({required this.links});
+
+  @override
+  State<_ExportSheet> createState() => _ExportSheetState();
+}
+
+class _ExportSheetState extends State<_ExportSheet> {
+  bool _loading = false;
+
+  String _formatDate(DateTime dt) {
+    const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  String _statusLabel(PaymentStatus s) => switch (s) {
+    PaymentStatus.paid    => 'Payé',
+    PaymentStatus.pending => 'En attente',
+    PaymentStatus.created => 'Créé',
+    PaymentStatus.expired => 'Expiré',
+  };
+
+  Future<void> _exportCsv() async {
+    setState(() => _loading = true);
+    try {
+      final buf = StringBuffer();
+      buf.writeln('Référence,Client,Description,Montant,Statut,Canal,Créé le,Expire le');
+      for (final l in widget.links) {
+        buf.writeln('"${l.id}","${l.contactName}","${l.description}",${l.amount},"${_statusLabel(l.status)}","${l.paymentMethod.label}","${_formatDate(l.createdAt)}","${_formatDate(l.expiresAt)}"');
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/transactions_esignal.csv');
+      await file.writeAsString(buf.toString());
+      await Share.shareXFiles([XFile(file.path)], subject: 'Export transactions e-Signal');
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.redAccent));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _exportExcel() async {
+    setState(() => _loading = true);
+    try {
+      final xcel = Excel.createExcel();
+      final sheet = xcel['Transactions'];
+
+      sheet.appendRow([
+        TextCellValue('Référence'),
+        TextCellValue('Client'),
+        TextCellValue('Description'),
+        TextCellValue('Montant (FCFA)'),
+        TextCellValue('Statut'),
+        TextCellValue('Canal'),
+        TextCellValue('Créé le'),
+        TextCellValue('Expire le'),
+      ]);
+
+      for (final l in widget.links) {
+        sheet.appendRow([
+          TextCellValue(l.id),
+          TextCellValue(l.contactName),
+          TextCellValue(l.description),
+          IntCellValue(l.amount),
+          TextCellValue(_statusLabel(l.status)),
+          TextCellValue(l.paymentMethod.label),
+          TextCellValue(_formatDate(l.createdAt)),
+          TextCellValue(_formatDate(l.expiresAt)),
+        ]);
+      }
+
+      final bytes = xcel.encode();
+      if (bytes == null) throw Exception('Erreur encodage Excel');
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/transactions_esignal.xlsx');
+      await file.writeAsBytes(bytes);
+      await Share.shareXFiles([XFile(file.path)], subject: 'Export transactions e-Signal');
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.redAccent));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          const Text('Exporter les transactions', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 6),
+          Text('${widget.links.length} transaction(s)', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const SizedBox(height: 24),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: CircularProgressIndicator(color: AppColors.green),
+            )
+          else
+            Column(children: [
+              _ExportOption(
+                icon: Icons.table_chart_outlined,
+                label: 'Exporter en CSV',
+                subtitle: 'Compatible Excel, Google Sheets',
+                color: AppColors.green,
+                onTap: _exportCsv,
+              ),
+              const SizedBox(height: 12),
+              _ExportOption(
+                icon: Icons.grid_on_outlined,
+                label: 'Exporter en Excel',
+                subtitle: 'Fichier .xlsx natif Microsoft Excel',
+                color: AppColors.primary,
+                onTap: _exportExcel,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                  child: const Text('Annuler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExportOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+  const _ExportOption({required this.icon, required this.label, required this.subtitle, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderLight, width: 0.5),
+        ),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const SizedBox(height: 2),
+            Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ])),
+          const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+        ]),
       ),
     );
   }
