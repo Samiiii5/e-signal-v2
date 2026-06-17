@@ -29,13 +29,17 @@ class NotificationService {
     );
 
     dev.log('[FCM] Permission: ${settings.authorizationStatus}', name: 'FCM');
-
     if (settings.authorizationStatus == AuthorizationStatus.denied) return;
 
     // Récupère et affiche le token FCM
     final token = await _messaging.getToken();
     dev.log('[FCM] Token: $token', name: 'FCM');
-    if (kDebugMode) debugPrint('FCM Token: $token');
+    // ignore: avoid_print
+    print('=============================');
+    // ignore: avoid_print
+    print('FCM Token: $token');
+    // ignore: avoid_print
+    print('=============================');
 
     // Rafraîchissement du token
     _messaging.onTokenRefresh.listen((newToken) {
