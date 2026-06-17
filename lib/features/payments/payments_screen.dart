@@ -120,9 +120,11 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                     itemCount: links.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (_, i) => GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => TransactionDetailScreen(link: links[i]),
-                      )),
+                      onTap: () => Navigator.of(context, rootNavigator: true).push(
+                        MaterialPageRoute(
+                          builder: (_) => TransactionDetailScreen(link: links[i]),
+                        ),
+                      ),
                       child: _PaymentCard(link: links[i]),
                     ),
                   );
