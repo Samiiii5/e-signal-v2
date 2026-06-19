@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -22,6 +23,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isSending = false;
   List<Message> _messages = [];
   Thread? _thread;
+  Message? _replyToMessage;
+  final Set<String> _starredIds = {};
 
   @override
   void initState() {
@@ -50,21 +53,165 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
-      _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
     }
   }
+
+  // ── Actions du menu contextuel ───────────────────────────────────────────────
+
+  void _showMessageOptions(Message msg) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _MessageOptionsSheet(
+        message: msg,
+        isStarred: _starredIds.contains(msg.id),
+        onCopy: () {
+          Navigator.pop(context);
+          Clipboard.setData(ClipboardData(text: msg.content));
+          ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message copié'));
+        },
+        onReply: () {
+          Navigator.pop(context);
+          setState(() => _replyToMessage = msg);
+        },
+        onStar: () {
+          Navigator.pop(context);
+          setState(() {
+            if (_starredIds.contains(msg.id)) {
+              _starredIds.remove(msg.id);
+            } else {
+              _starredIds.add(msg.id);
+            }
+          });
+        },
+        onPayment: msg.isFromContact
+            ? () {
+                Navigator.pop(context);
+                _openCreateLink();
+              }
+            : null,
+        onEdit: !msg.isFromContact
+            ? () {
+                Navigator.pop(context);
+                _showEditDialog(msg);
+              }
+            : null,
+        onDelete: () {
+          Navigator.pop(context);
+          _showDeleteConfirm(msg);
+        },
+      ),
+    );
+  }
+
+  void _showEditDialog(Message msg) {
+    final editController = TextEditingController(text: msg.content);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Modifier le message', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: editController,
+          maxLines: 4,
+          minLines: 1,
+          autofocus: true,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: AppColors.backgroundPage,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            contentPadding: const EdgeInsets.all(12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newText = editController.text.trim();
+              if (newText.isEmpty) return;
+              setState(() {
+                final idx = _messages.indexWhere((m) => m.id == msg.id);
+                if (idx != -1) {
+                  _messages[idx] = Message(
+                    id: msg.id,
+                    threadId: msg.threadId,
+                    content: newText,
+                    isFromContact: msg.isFromContact,
+                    sentAt: msg.sentAt,
+                    type: msg.type,
+                    paymentAmount: msg.paymentAmount,
+                    paymentCurrency: msg.paymentCurrency,
+                    paymentStatus: msg.paymentStatus,
+                    paymentProvider: msg.paymentProvider,
+                  );
+                }
+              });
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message modifié'));
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.green,
+              foregroundColor: AppColors.white,
+              shape: const StadiumBorder(),
+              elevation: 0,
+            ),
+            child: const Text('Modifier'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirm(Message msg) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Supprimer ce message ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: const Text('Cette action est irréversible.', style: TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() => _messages.removeWhere((m) => m.id == msg.id));
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message supprimé'));
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: AppColors.white,
+              shape: const StadiumBorder(),
+              elevation: 0,
+            ),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Lien de paiement ─────────────────────────────────────────────────────────
 
   Future<void> _openCreateLink() async {
     final lien = await Navigator.push<LienPaiement?>(
       context,
       MaterialPageRoute(
-        builder: (_) => CreateLinkScreen(
-          contactName: _thread?.contactName ?? 'Client',
-        ),
+        builder: (_) => CreateLinkScreen(contactName: _thread?.contactName ?? 'Client'),
       ),
     );
     if (!mounted || lien == null) return;
-    // Ajoute la carte paiement dans la conversation
     setState(() {
       _messages.add(Message(
         id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
@@ -90,8 +237,12 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
+    final reply = _replyToMessage;
     _controller.clear();
-    setState(() => _isSending = true);
+    setState(() {
+      _isSending = true;
+      _replyToMessage = null;
+    });
     try {
       await inboxService.sendMessage(widget.threadId, text);
       await _load();
@@ -99,6 +250,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
+    _ = reply; // reply quoted — intégration réelle à faire côté API
   }
 
   @override
@@ -119,9 +271,19 @@ class _ChatScreenState extends State<ChatScreen> {
               itemBuilder: (_, i) {
                 if (i == 0) return const _SecurityBanner();
                 final msg = _messages[i - 1];
-                return msg.type == MessageType.paymentLink
-                    ? _PaymentBubble(message: msg)
-                    : _MessageBubble(message: msg);
+                if (msg.type == MessageType.paymentLink) {
+                  return GestureDetector(
+                    onLongPress: () => _showMessageOptions(msg),
+                    child: _PaymentBubble(message: msg),
+                  );
+                }
+                return GestureDetector(
+                  onLongPress: () => _showMessageOptions(msg),
+                  child: _MessageBubble(
+                    message: msg,
+                    isStarred: _starredIds.contains(msg.id),
+                  ),
+                );
               },
             ),
           ),
@@ -130,6 +292,8 @@ class _ChatScreenState extends State<ChatScreen> {
             isSending: _isSending,
             onSend: _send,
             onPayment: _openCreateLink,
+            replyTo: _replyToMessage,
+            onCancelReply: () => setState(() => _replyToMessage = null),
           ),
         ],
       ),
@@ -160,7 +324,6 @@ class _ChatAppBar extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textPrimary),
                 onPressed: () => context.pop(),
               ),
-              // Avatar
               CircleAvatar(
                 radius: 20,
                 backgroundColor: AppColors.backgroundPage,
@@ -191,10 +354,10 @@ class _ChatAppBar extends StatelessWidget {
   String _channelLabel(Channel? ch) => switch (ch) {
     Channel.whatsapp => 'WhatsApp',
     Channel.facebook => 'Facebook',
-    Channel.sms => 'SMS',
-    Channel.tiktok => 'TikTok',
-    Channel.email => 'Email',
-    null => '...',
+    Channel.sms      => 'SMS',
+    Channel.tiktok   => 'TikTok',
+    Channel.email    => 'Email',
+    null             => '...',
   };
 }
 
@@ -233,45 +396,67 @@ class _SecurityBanner extends StatelessWidget {
 
 class _MessageBubble extends StatelessWidget {
   final Message message;
-  const _MessageBubble({required this.message});
+  final bool isStarred;
+  const _MessageBubble({required this.message, this.isStarred = false});
 
   @override
   Widget build(BuildContext context) {
     final fromContact = message.isFromContact;
     return Align(
       alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
-      child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: fromContact ? AppColors.white : AppColors.primary,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(fromContact ? 4 : 18),
-            bottomRight: Radius.circular(fromContact ? 18 : 4),
-          ),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: fromContact ? 0.06 : 0.12), blurRadius: 6, offset: const Offset(0, 2))],
-          border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(message.content, style: TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4)),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: fromContact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        children: [
+          // Étoile si marqué
+          if (isStarred)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: 2,
+                left: fromContact ? 4 : 0,
+                right: fromContact ? 0 : 4,
+              ),
+              child: const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+            ),
+          Container(
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: fromContact ? AppColors.white : AppColors.primary,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(fromContact ? 4 : 18),
+                bottomRight: Radius.circular(fromContact ? 18 : 4),
+              ),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: fromContact ? 0.06 : 0.12), blurRadius: 6, offset: const Offset(0, 2))],
+              border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(_formatTime(message.sentAt), style: TextStyle(fontSize: 10, color: fromContact ? AppColors.textHint : AppColors.white.withValues(alpha: 0.65))),
-                if (!fromContact) ...[
-                  const SizedBox(width: 4),
-                  Icon(Icons.done_all, size: 12, color: AppColors.white.withValues(alpha: 0.65)),
-                ],
+                Text(
+                  message.content,
+                  style: TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatTime(message.sentAt),
+                      style: TextStyle(fontSize: 10, color: fromContact ? AppColors.textHint : AppColors.white.withValues(alpha: 0.65)),
+                    ),
+                    if (!fromContact) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.done_all, size: 12, color: AppColors.white.withValues(alpha: 0.65)),
+                    ],
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -301,7 +486,6 @@ class _PaymentBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header vert pâle
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: const BoxDecoration(
@@ -318,7 +502,6 @@ class _PaymentBubble extends StatelessWidget {
                 ],
               ),
             ),
-            // Montant
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
               child: Text(
@@ -330,7 +513,6 @@ class _PaymentBubble extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(14, 0, 14, 12),
               child: Text('Valide 7 jours', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
             ),
-            // Bouton
             if (message.paymentStatus != PaymentStatus.paid)
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -363,7 +545,7 @@ class _PaymentStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, text, label) = switch (status) {
-      PaymentStatus.paid => (AppColors.statusPaidBg, AppColors.statusPaidText, 'Payé'),
+      PaymentStatus.paid    => (AppColors.statusPaidBg,    AppColors.statusPaidText,    'Payé'),
       PaymentStatus.pending => (AppColors.statusPendingBg, AppColors.statusPendingText, 'En attente'),
       PaymentStatus.created => (AppColors.statusCreatedBg, AppColors.statusCreatedText, 'Créé'),
       PaymentStatus.expired => (AppColors.statusExpiredBg, AppColors.statusExpiredText, 'Expiré'),
@@ -376,6 +558,183 @@ class _PaymentStatusBadge extends StatelessWidget {
   }
 }
 
+// ── Menu contextuel (long press) ──────────────────────────────────────────────
+
+class _MessageOptionsSheet extends StatelessWidget {
+  final Message message;
+  final bool isStarred;
+  final VoidCallback onCopy;
+  final VoidCallback onReply;
+  final VoidCallback onStar;
+  final VoidCallback? onPayment;
+  final VoidCallback? onEdit;
+  final VoidCallback onDelete;
+
+  const _MessageOptionsSheet({
+    required this.message,
+    required this.isStarred,
+    required this.onCopy,
+    required this.onReply,
+    required this.onStar,
+    required this.onDelete,
+    this.onPayment,
+    this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Poignée
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Titre discret
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Text('Options du message', style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: AppColors.borderLight),
+          const SizedBox(height: 4),
+
+          // Aperçu du message
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundPage,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                message.content,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          // Options
+          _OptionTile(
+            icon: Icons.content_copy_outlined,
+            iconColor: AppColors.primary,
+            label: 'Copier',
+            onTap: onCopy,
+          ),
+          _OptionTile(
+            icon: Icons.reply_outlined,
+            iconColor: AppColors.green,
+            label: 'Répondre',
+            onTap: onReply,
+          ),
+          _OptionTile(
+            icon: isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
+            iconColor: const Color(0xFFF59E0B),
+            label: isStarred ? 'Retirer le marquage' : 'Marquer',
+            onTap: onStar,
+          ),
+
+          // Actions spécifiques selon émetteur
+          if (onPayment != null)
+            _OptionTile(
+              icon: Icons.credit_card_outlined,
+              iconColor: AppColors.primary,
+              label: 'Créer un lien de paiement',
+              onTap: onPayment!,
+            ),
+          if (onEdit != null)
+            _OptionTile(
+              icon: Icons.edit_outlined,
+              iconColor: AppColors.textSecondary,
+              label: 'Modifier',
+              onTap: onEdit!,
+            ),
+
+          const Divider(height: 16, indent: 20, endIndent: 20, color: AppColors.borderLight),
+
+          _OptionTile(
+            icon: Icons.delete_outline,
+            iconColor: Colors.redAccent,
+            label: 'Supprimer',
+            labelColor: Colors.redAccent,
+            onTap: onDelete,
+          ),
+
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+}
+
+class _OptionTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final Color? labelColor;
+  final VoidCallback onTap;
+
+  const _OptionTile({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.onTap,
+    this.labelColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 18, color: iconColor),
+            ),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: labelColor ?? AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Barre de saisie ───────────────────────────────────────────────────────────
 
 class _InputBar extends StatelessWidget {
@@ -383,8 +742,17 @@ class _InputBar extends StatelessWidget {
   final bool isSending;
   final VoidCallback onSend;
   final VoidCallback onPayment;
+  final Message? replyTo;
+  final VoidCallback onCancelReply;
 
-  const _InputBar({required this.controller, required this.isSending, required this.onSend, required this.onPayment});
+  const _InputBar({
+    required this.controller,
+    required this.isSending,
+    required this.onSend,
+    required this.onPayment,
+    required this.onCancelReply,
+    this.replyTo,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -399,6 +767,46 @@ class _InputBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Bandeau de réponse citée
+          if (replyTo != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundPage,
+                borderRadius: BorderRadius.circular(10),
+                border: const Border(left: BorderSide(color: AppColors.green, width: 3)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          replyTo!.isFromContact ? 'Contact' : 'Vous',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.green),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          replyTo!.content,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
+                    onPressed: onCancelReply,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+
           Row(
             children: [
               Expanded(
@@ -419,7 +827,6 @@ class _InputBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Mic ou Send
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
                 child: hasText
@@ -427,8 +834,7 @@ class _InputBar extends StatelessWidget {
                         key: const ValueKey('send'),
                         onTap: isSending ? null : onSend,
                         child: Container(
-                          width: 44,
-                          height: 44,
+                          width: 44, height: 44,
                           decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
                           child: isSending
                               ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
@@ -439,8 +845,7 @@ class _InputBar extends StatelessWidget {
                         key: const ValueKey('mic'),
                         onTap: () {},
                         child: Container(
-                          width: 44,
-                          height: 44,
+                          width: 44, height: 44,
                           decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                           child: const Icon(Icons.mic, color: AppColors.white, size: 20),
                         ),
@@ -449,7 +854,6 @@ class _InputBar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // Bouton paiement
           GestureDetector(
             onTap: onPayment,
             child: Container(
