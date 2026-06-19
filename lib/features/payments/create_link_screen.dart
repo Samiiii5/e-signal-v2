@@ -4,11 +4,12 @@ import '../../core/constants/app_colors.dart';
 import '../../shared/models/livreur_model.dart';
 import '../../shared/models/lien_paiement_model.dart';
 import '../../shared/services/livreur_service.dart';
+import '../../shared/mock/threads_mock.dart';
 
 class CreateLinkScreen extends StatefulWidget {
-  final String contactName;
+  final String? contactName;
 
-  const CreateLinkScreen({super.key, required this.contactName});
+  const CreateLinkScreen({super.key, this.contactName});
 
   @override
   State<CreateLinkScreen> createState() => _CreateLinkScreenState();
@@ -16,6 +17,11 @@ class CreateLinkScreen extends StatefulWidget {
 
 class _CreateLinkScreenState extends State<CreateLinkScreen> {
   int _step = 1;
+
+  // Contact sélectionné
+  Thread? _selectedContact;
+  String get _effectiveContactName =>
+      _selectedContact?.contactName ?? widget.contactName ?? '';
 
   // Étape 1 — Destination
   final _destinationController = TextEditingController();
@@ -66,7 +72,7 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
     try {
       final lien = await livreurService.genererLienPaiement(
         CreateLienDto(
-          contactNom: widget.contactName,
+          contactNom: _effectiveContactName,
           description: _descController.text.trim().isEmpty
               ? 'Commande client'
               : _descController.text.trim(),
@@ -140,6 +146,8 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
                   controller: _destinationController,
                   isLoading: _isSearching,
                   onNext: _searchLivreurs,
+                  selectedContact: _selectedContact,
+                  onSelectContact: (t) => setState(() => _selectedContact = t),
                 ),
               2 => _Step2(
                   destination: _destinationController.text.trim(),
@@ -231,11 +239,15 @@ class _Step1 extends StatelessWidget {
   final TextEditingController controller;
   final bool isLoading;
   final VoidCallback onNext;
+  final Thread? selectedContact;
+  final ValueChanged<Thread> onSelectContact;
 
   const _Step1({
     required this.controller,
     required this.isLoading,
     required this.onNext,
+    required this.selectedContact,
+    required this.onSelectContact,
   });
 
   @override
@@ -254,7 +266,23 @@ class _Step1 extends StatelessWidget {
             'Renseignez l\'adresse du client pour trouver les livreurs disponibles à proximité.',
             style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
+
+          const _FieldLabel('Client'),
+          _ContactSelector(
+            selected: selectedContact,
+            onTap: () async {
+              final picked = await showModalBottomSheet<Thread>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const _ContactPickerSheet(),
+              );
+              if (picked != null) onSelectContact(picked);
+            },
+          ),
+
+          const SizedBox(height: 16),
           const _FieldLabel('Adresse de livraison du client'),
           _InputField(
             controller: controller,
@@ -292,6 +320,266 @@ class _Step1 extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Sélecteur de contact ──────────────────────────────────────────────────────
+
+class _ContactSelector extends StatelessWidget {
+  final Thread? selected;
+  final VoidCallback onTap;
+  const _ContactSelector({required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F8FA),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Row(
+          children: [
+            if (selected != null) ...[
+              _ContactAvatar(initials: selected!.contactInitials, channel: selected!.channel, size: 32),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(selected!.contactName,
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    Text(_channelLabel(selected!.channel),
+                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+            ] else ...[
+              const Icon(Icons.person_outline, size: 18, color: AppColors.textHint),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('Sélectionner un client',
+                    style: TextStyle(fontSize: 14, color: AppColors.textHint)),
+              ),
+            ],
+            const Icon(Icons.keyboard_arrow_right, size: 18, color: AppColors.textHint),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _channelLabel(Channel c) => switch (c) {
+    Channel.whatsapp  => 'WhatsApp',
+    Channel.facebook  => 'Facebook',
+    Channel.sms       => 'SMS',
+    Channel.tiktok    => 'TikTok',
+    Channel.email     => 'Email',
+  };
+}
+
+// ── BottomSheet sélection contact ─────────────────────────────────────────────
+
+class _ContactPickerSheet extends StatefulWidget {
+  const _ContactPickerSheet();
+
+  @override
+  State<_ContactPickerSheet> createState() => _ContactPickerSheetState();
+}
+
+class _ContactPickerSheetState extends State<_ContactPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<Thread> get _filtered {
+    if (_query.isEmpty) return mockThreads;
+    final q = _query.toLowerCase();
+    return mockThreads.where((t) => t.contactName.toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            const SizedBox(height: 12),
+            Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+
+            // Titre
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Choisir un client',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Barre de recherche
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FA),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderLight),
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => setState(() => _query = v),
+                  style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                  decoration: const InputDecoration(
+                    hintText: 'Rechercher un contact...',
+                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 14),
+                    prefixIcon: Icon(Icons.search, size: 18, color: AppColors.textHint),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Liste
+            Expanded(
+              child: ListView.builder(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: _filtered.length,
+                itemBuilder: (_, i) {
+                  final t = _filtered[i];
+                  return _ContactTile(
+                    thread: t,
+                    onTap: () => Navigator.pop(context, t),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactTile extends StatelessWidget {
+  final Thread thread;
+  final VoidCallback onTap;
+  const _ContactTile({required this.thread, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            _ContactAvatar(initials: thread.contactInitials, channel: thread.channel, size: 44),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(thread.contactName,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                      ),
+                      _ChannelBadge(channel: thread.channel),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(thread.lastMessage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactAvatar extends StatelessWidget {
+  final String initials;
+  final Channel channel;
+  final double size;
+  const _ContactAvatar({required this.initials, required this.channel, required this.size});
+
+  static const _colors = [
+    Color(0xFF6C5CE7),
+    Color(0xFF1E9E5E),
+    Color(0xFFF59E0B),
+    Color(0xFF3B82F6),
+    Color(0xFFEC4899),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colors[initials.hashCode.abs() % _colors.length];
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(initials,
+            style: TextStyle(fontSize: size * 0.33, fontWeight: FontWeight.w700, color: color)),
+      ),
+    );
+  }
+}
+
+class _ChannelBadge extends StatelessWidget {
+  final Channel channel;
+  const _ChannelBadge({required this.channel});
+
+  static const _meta = {
+    Channel.whatsapp : (Color(0xFF25D366), Color(0xFFE8FBF0), 'WhatsApp'),
+    Channel.facebook : (Color(0xFF1877F2), Color(0xFFE8F0FE), 'Facebook'),
+    Channel.sms      : (Color(0xFF6B7280), Color(0xFFF3F4F6), 'SMS'),
+    Channel.tiktok   : (Color(0xFF1A1A1A), Color(0xFFF3F4F6), 'TikTok'),
+    Channel.email    : (Color(0xFFEA4335), Color(0xFFFEEBE9), 'Email'),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final (textColor, bgColor, label) = _meta[channel]!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(8)),
+      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: textColor)),
     );
   }
 }
