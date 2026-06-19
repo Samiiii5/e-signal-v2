@@ -237,7 +237,6 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
-    final reply = _replyToMessage;
     _controller.clear();
     setState(() {
       _isSending = true;
@@ -250,7 +249,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
-    _ = reply; // reply quoted — intégration réelle à faire côté API
   }
 
   @override
