@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
@@ -234,6 +236,138 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  // ── Helpers message ──────────────────────────────────────────────────────────
+
+  void _addMessage(Message msg) {
+    setState(() => _messages.add(msg));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  void _sendTextMessage(String content) {
+    _addMessage(Message(
+      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      threadId: widget.threadId,
+      content: content,
+      isFromContact: false,
+      sentAt: DateTime.now(),
+    ));
+  }
+
+  // ── Pièce jointe ─────────────────────────────────────────────────────────────
+
+  void _showAttachmentSheet() {
+    final contactName = _thread?.contactName ?? 'le client';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _AttachmentSheet(
+        onPayment: () { Navigator.pop(context); _openCreateLink(); },
+        onLocation: () {
+          Navigator.pop(context);
+          _addMessage(Message(
+            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+            threadId: widget.threadId,
+            content: 'Boutique Score360 Africa\nCocody Riviera 3, Abidjan\n5.356, -3.987',
+            isFromContact: false,
+            sentAt: DateTime.now(),
+            type: MessageType.location,
+          ));
+        },
+        onCatalogue: () { Navigator.pop(context); _showCatalogueSheet(); },
+        onDevis: () { Navigator.pop(context); _showDevisSheet(); },
+        onPromotion: () {
+          Navigator.pop(context);
+          _sendTextMessage(
+            '🎁 Offre spéciale pour vous, $contactName !\n'
+            'Robe ankara taille M à 15 000 FCFA\n'
+            'Valable jusqu\'au ${_fmtDate(DateTime.now().add(const Duration(days: 7)))}.\n'
+            'Intéressé(e) ? Répondez-nous 😊',
+          );
+        },
+        onTracking: () {
+          Navigator.pop(context);
+          _addMessage(Message(
+            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+            threadId: widget.threadId,
+            content: 'CMD-${DateTime.now().millisecondsSinceEpoch % 100000}',
+            isFromContact: false,
+            sentAt: DateTime.now(),
+            type: MessageType.orderTracking,
+          ));
+        },
+        onReview: () {
+          Navigator.pop(context);
+          _sendTextMessage(
+            'Bonjour $contactName 😊\n'
+            'Êtes-vous satisfait(e) de votre commande ?\n'
+            'Notez-nous : ⭐⭐⭐⭐⭐\n'
+            'Votre avis compte beaucoup pour nous !',
+          );
+        },
+        onPhoto: () { Navigator.pop(context); _pickImage(); },
+      ),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final xFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (xFile == null || !mounted) return;
+      _addMessage(Message(
+        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+        threadId: widget.threadId,
+        content: 'Photo produit',
+        isFromContact: false,
+        sentAt: DateTime.now(),
+        type: MessageType.image,
+        imagePath: xFile.path,
+      ));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Impossible d\'accéder à la galerie'));
+    }
+  }
+
+  void _showCatalogueSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _CatalogueSheet(
+        onSend: (product) {
+          Navigator.pop(context);
+          _sendTextMessage(
+            '📦 *${product.name}*\n'
+            '${product.emoji}  ${product.description}\n'
+            'Prix : ${product.price} FCFA\n'
+            'Intéressé(e) ? Répondez-nous !',
+          );
+        },
+      ),
+    );
+  }
+
+  void _showDevisSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _DevisSheet(
+        contactName: _thread?.contactName ?? 'Client',
+        onSend: (msg) {
+          Navigator.pop(context);
+          _sendTextMessage(msg);
+        },
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime dt) {
+    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
@@ -269,18 +403,16 @@ class _ChatScreenState extends State<ChatScreen> {
               itemBuilder: (_, i) {
                 if (i == 0) return const _SecurityBanner();
                 final msg = _messages[i - 1];
-                if (msg.type == MessageType.paymentLink) {
-                  return GestureDetector(
-                    onLongPress: () => _showMessageOptions(msg),
-                    child: _PaymentBubble(message: msg),
-                  );
-                }
+                Widget bubble = switch (msg.type) {
+                  MessageType.paymentLink   => _PaymentBubble(message: msg),
+                  MessageType.location      => _LocationBubble(message: msg),
+                  MessageType.orderTracking => _OrderTrackingBubble(message: msg),
+                  MessageType.image         => _ImageBubble(message: msg),
+                  _                         => _MessageBubble(message: msg, isStarred: _starredIds.contains(msg.id)),
+                };
                 return GestureDetector(
                   onLongPress: () => _showMessageOptions(msg),
-                  child: _MessageBubble(
-                    message: msg,
-                    isStarred: _starredIds.contains(msg.id),
-                  ),
+                  child: bubble,
                 );
               },
             ),
@@ -290,6 +422,7 @@ class _ChatScreenState extends State<ChatScreen> {
             isSending: _isSending,
             onSend: _send,
             onPayment: _openCreateLink,
+            onAttachment: _showAttachmentSheet,
             replyTo: _replyToMessage,
             onCancelReply: () => setState(() => _replyToMessage = null),
           ),
@@ -733,6 +866,615 @@ class _OptionTile extends StatelessWidget {
   }
 }
 
+// ── Bulle localisation ────────────────────────────────────────────────────────
+
+class _LocationBubble extends StatelessWidget {
+  final Message message;
+  const _LocationBubble({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderLight, width: 0.5),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Carte mock
+            Container(
+              height: 110,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F4F0),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              ),
+              child: Stack(
+                children: [
+                  // Grille de rues simulée
+                  CustomPaint(size: const Size(double.infinity, 110), painter: _MapGridPainter()),
+                  // Pin central
+                  const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.location_pin, size: 32, color: Color(0xFFE53E3E)),
+                        SizedBox(height: 2),
+                        Text('Boutique', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.store_outlined, size: 14, color: AppColors.green),
+                      SizedBox(width: 6),
+                      Text('Boutique Score360 Africa', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  const Text('Cocody Riviera 3, Abidjan', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                      style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xFFCDE8DC)..strokeWidth = 1;
+    for (double x = 0; x < size.width; x += 28) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y < size.height; y += 22) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+  @override bool shouldRepaint(covariant CustomPainter o) => false;
+}
+
+// ── Bulle suivi commande ──────────────────────────────────────────────────────
+
+class _OrderTrackingBubble extends StatelessWidget {
+  final Message message;
+  const _OrderTrackingBubble({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = [
+      (Icons.check_circle_rounded, 'Commandé', true),
+      (Icons.inventory_2_outlined, 'En préparation', true),
+      (Icons.local_shipping_outlined, 'En livraison', false),
+      (Icons.home_outlined, 'Livré', false),
+    ];
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE0E7FF), width: 1.5),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: const BoxDecoration(
+                color: Color(0xFFEEF2FF),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.local_shipping_outlined, size: 14, color: Color(0xFF4F46E5)),
+                  const SizedBox(width: 6),
+                  const Text('Suivi commande', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4F46E5))),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(color: const Color(0xFFE0E7FF), borderRadius: BorderRadius.circular(8)),
+                    child: Text('CMD-${message.content}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF4F46E5))),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Column(
+                children: List.generate(steps.length, (i) {
+                  final (icon, label, done) = steps[i];
+                  final isLast = i == steps.length - 1;
+                  final isCurrent = !done && (i == 0 || steps[i - 1].$3);
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        children: [
+                          Icon(icon, size: 20, color: done ? AppColors.green : (isCurrent ? const Color(0xFFF59E0B) : AppColors.borderLight)),
+                          if (!isLast) Container(width: 2, height: 22, color: done ? AppColors.green.withValues(alpha: 0.3) : AppColors.borderLight),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Text(label, style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: (done || isCurrent) ? FontWeight.w600 : FontWeight.w400,
+                          color: done ? AppColors.green : (isCurrent ? const Color(0xFFF59E0B) : AppColors.textHint),
+                        )),
+                      ),
+                      if (isCurrent) ...[
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
+                          child: const Text('En cours', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFD97706))),
+                        ),
+                      ],
+                    ],
+                  );
+                }),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                  style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bulle image ───────────────────────────────────────────────────────────────
+
+class _ImageBubble extends StatelessWidget {
+  final Message message;
+  const _ImageBubble({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              Image.file(
+                File(message.imagePath!),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 200,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 160,
+                  color: AppColors.backgroundPage,
+                  child: const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textHint, size: 40)),
+                ),
+              ),
+              Positioned(
+                bottom: 6, right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(8)),
+                  child: Text(
+                    '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                    style: const TextStyle(fontSize: 10, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── BottomSheet pièce jointe ──────────────────────────────────────────────────
+
+typedef _VoidCb = VoidCallback;
+
+class _AttachmentSheet extends StatelessWidget {
+  final _VoidCb onPayment;
+  final _VoidCb onLocation;
+  final _VoidCb onCatalogue;
+  final _VoidCb onDevis;
+  final _VoidCb onPromotion;
+  final _VoidCb onTracking;
+  final _VoidCb onReview;
+  final _VoidCb onPhoto;
+
+  const _AttachmentSheet({
+    required this.onPayment,
+    required this.onLocation,
+    required this.onCatalogue,
+    required this.onDevis,
+    required this.onPromotion,
+    required this.onTracking,
+    required this.onReview,
+    required this.onPhoto,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final options = [
+      _AttachOpt(Icons.credit_card_outlined,    const Color(0xFF6C5CE7), const Color(0xFFF0EEFF), 'Paiement',       onPayment),
+      _AttachOpt(Icons.location_on_outlined,    AppColors.green,         AppColors.greenLight,    'Localisation',   onLocation),
+      _AttachOpt(Icons.grid_view_outlined,      const Color(0xFFF97316), const Color(0xFFFFF3E0), 'Catalogue',      onCatalogue),
+      _AttachOpt(Icons.receipt_long_outlined,   const Color(0xFF3B82F6), const Color(0xFFEFF6FF), 'Devis rapide',   onDevis),
+      _AttachOpt(Icons.local_offer_outlined,    const Color(0xFFEC4899), const Color(0xFFFDF2F8), 'Promotion',      onPromotion),
+      _AttachOpt(Icons.local_shipping_outlined, const Color(0xFF4F46E5), const Color(0xFFEEF2FF), 'Suivi commande', onTracking),
+      _AttachOpt(Icons.star_outline_rounded,    const Color(0xFFF59E0B), const Color(0xFFFEF3C7), 'Avis client',    onReview),
+      _AttachOpt(Icons.photo_camera_outlined,   const Color(0xFF059669), const Color(0xFFECFDF5), 'Photo produit',  onPhoto),
+    ];
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 18),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Raccourcis', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          ),
+          const SizedBox(height: 20),
+          GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 20,
+            crossAxisSpacing: 8,
+            childAspectRatio: 0.80,
+            children: options.map((o) => _AttachItem(opt: o)).toList(),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachOpt {
+  final IconData icon;
+  final Color color;
+  final Color bg;
+  final String label;
+  final VoidCallback onTap;
+  const _AttachOpt(this.icon, this.color, this.bg, this.label, this.onTap);
+}
+
+class _AttachItem extends StatelessWidget {
+  final _AttachOpt opt;
+  const _AttachItem({required this.opt});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: opt.onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56, height: 56,
+            decoration: BoxDecoration(color: opt.bg, shape: BoxShape.circle),
+            child: Icon(opt.icon, size: 24, color: opt.color),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            opt.label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── BottomSheet catalogue ─────────────────────────────────────────────────────
+
+class _CatalogueProduct {
+  final String name;
+  final String emoji;
+  final String description;
+  final int price;
+  const _CatalogueProduct(this.name, this.emoji, this.description, this.price);
+}
+
+class _CatalogueSheet extends StatelessWidget {
+  final void Function(_CatalogueProduct) onSend;
+  const _CatalogueSheet({required this.onSend});
+
+  static const _products = [
+    _CatalogueProduct('Robe ankara', '👗', 'Taille S/M/L • Coton premium', 25000),
+    _CatalogueProduct('Sac en cuir', '👜', 'Cuir véritable • Marron/Noir', 45000),
+    _CatalogueProduct('Ensemble bogolan', '🎽', 'Tissu traditionnel • Unisexe', 18000),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 18),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Catalogue produits', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          ),
+          const SizedBox(height: 4),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Appuyez sur un produit pour l\'envoyer', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          ),
+          const SizedBox(height: 16),
+          ..._products.map((p) => _ProductTile(product: p, onTap: () => onSend(p))),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductTile extends StatelessWidget {
+  final _CatalogueProduct product;
+  final VoidCallback onTap;
+  const _ProductTile({required this.product, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderLight, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52, height: 52,
+              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.borderLight)),
+              child: Center(child: Text(product.emoji, style: const TextStyle(fontSize: 26))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(product.description, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${_fmt(product.price)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
+                const Text('FCFA', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+              ],
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.send_rounded, size: 18, color: AppColors.green),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fmt(int n) {
+    final s = n.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
+}
+
+// ── BottomSheet devis rapide ──────────────────────────────────────────────────
+
+class _DevisSheet extends StatefulWidget {
+  final String contactName;
+  final void Function(String) onSend;
+  const _DevisSheet({required this.contactName, required this.onSend});
+
+  @override
+  State<_DevisSheet> createState() => _DevisSheetState();
+}
+
+class _DevisSheetState extends State<_DevisSheet> {
+  final _prodCtrl = TextEditingController();
+  final _qtyCtrl  = TextEditingController(text: '1');
+  final _prixCtrl = TextEditingController();
+
+  @override
+  void dispose() { _prodCtrl.dispose(); _qtyCtrl.dispose(); _prixCtrl.dispose(); super.dispose(); }
+
+  int get _qty   => int.tryParse(_qtyCtrl.text) ?? 0;
+  int get _prix  => int.tryParse(_prixCtrl.text.replaceAll(' ', '')) ?? 0;
+  int get _total => _qty * _prix;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 18),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Devis rapide', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            ),
+            const SizedBox(height: 16),
+            _DevisField('Produit / service', _prodCtrl, TextInputType.text),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: _DevisField('Quantité', _qtyCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
+              const SizedBox(width: 10),
+              Expanded(child: _DevisField('Prix unitaire (FCFA)', _prixCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
+            ]),
+            if (_total > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
+                    Text('${_fmtN(_total)} FCFA', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.greenDark)),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: (_prodCtrl.text.trim().isNotEmpty && _total > 0)
+                    ? () => widget.onSend(
+                          '📋 *Devis pour ${widget.contactName}*\n\n'
+                          '• Produit : ${_prodCtrl.text.trim()}\n'
+                          '• Quantité : $_qty\n'
+                          '• Prix unitaire : ${_fmtN(_prix)} FCFA\n'
+                          '━━━━━━━━━━━━━━\n'
+                          '💰 *Total : ${_fmtN(_total)} FCFA*\n\n'
+                          'Pour valider, envoyez-nous un message. 🙏',
+                        )
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.green,
+                  foregroundColor: AppColors.white,
+                  shape: const StadiumBorder(),
+                  elevation: 0,
+                  disabledBackgroundColor: AppColors.green.withValues(alpha: 0.4),
+                ),
+                icon: const Icon(Icons.send_rounded, size: 16),
+                label: const Text('Envoyer le devis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fmtN(int n) {
+    final s = n.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
+}
+
+class _DevisField extends StatelessWidget {
+  final String hint;
+  final TextEditingController ctrl;
+  final TextInputType kbType;
+  final ValueChanged<String>? onChanged;
+  const _DevisField(this.hint, this.ctrl, this.kbType, {this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.backgroundPage,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: TextField(
+        controller: ctrl,
+        keyboardType: kbType,
+        onChanged: onChanged,
+        style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Barre de saisie ───────────────────────────────────────────────────────────
 
 class _InputBar extends StatelessWidget {
@@ -740,6 +1482,7 @@ class _InputBar extends StatelessWidget {
   final bool isSending;
   final VoidCallback onSend;
   final VoidCallback onPayment;
+  final VoidCallback onAttachment;
   final Message? replyTo;
   final VoidCallback onCancelReply;
 
@@ -748,6 +1491,7 @@ class _InputBar extends StatelessWidget {
     required this.isSending,
     required this.onSend,
     required this.onPayment,
+    required this.onAttachment,
     required this.onCancelReply,
     this.replyTo,
   });
@@ -807,6 +1551,20 @@ class _InputBar extends StatelessWidget {
 
           Row(
             children: [
+              // Icône trombone
+              GestureDetector(
+                onTap: onAttachment,
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.backgroundPage,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: const Icon(Icons.attach_file, size: 18, color: AppColors.textSecondary),
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(24)),

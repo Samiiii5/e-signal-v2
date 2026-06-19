@@ -1,5 +1,5 @@
 // Type d'un message dans la conversation
-enum MessageType { text, paymentLink }
+enum MessageType { text, paymentLink, location, orderTracking, image }
 
 // Statut d'un lien de paiement
 enum PaymentStatus { created, pending, paid, expired }
@@ -18,6 +18,9 @@ class Message {
   final PaymentStatus? paymentStatus;
   final String? paymentProvider; // "wave" | "orange_money"
 
+  // Champ spécifique aux images (type == image)
+  final String? imagePath;
+
   const Message({
     required this.id,
     required this.threadId,
@@ -29,6 +32,7 @@ class Message {
     this.paymentCurrency,
     this.paymentStatus,
     this.paymentProvider,
+    this.imagePath,
   });
 }
 
