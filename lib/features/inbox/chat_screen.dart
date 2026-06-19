@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
@@ -22,7 +23,11 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  final _searchController = TextEditingController();
   bool _isSending = false;
+  bool _isMuted = false;
+  bool _isSearching = false;
+  String _searchQuery = '';
   List<Message> _messages = [];
   Thread? _thread;
   Message? _replyToMessage;
@@ -39,6 +44,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -202,6 +208,120 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  // ── Menu 3 points ────────────────────────────────────────────────────────────
+
+  void _toggleSearch() {
+    setState(() {
+      _isSearching = !_isSearching;
+      if (!_isSearching) { _searchController.clear(); _searchQuery = ''; }
+    });
+  }
+
+  void _showStarredMessages() {
+    final starred = _messages.where((m) => _starredIds.contains(m.id)).toList();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _StarredMessagesSheet(messages: starred, thread: _thread),
+    );
+  }
+
+  void _showClientProfile() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ClientProfileSheet(
+        thread: _thread,
+        messageCount: _messages.length,
+        onPayment: () { Navigator.pop(context); _openCreateLink(); },
+      ),
+    );
+  }
+
+  void _showConversationStats() {
+    final sent     = _messages.where((m) => !m.isFromContact).length;
+    final received = _messages.where((m) =>  m.isFromContact).length;
+    final links    = _messages.where((m) => m.type == MessageType.paymentLink).length;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ConversationStatsSheet(
+        total: _messages.length,
+        sent: sent,
+        received: received,
+        links: links,
+      ),
+    );
+  }
+
+  void _toggleMute() {
+    setState(() => _isMuted = !_isMuted);
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success(
+      _isMuted ? 'Conversation mise en sourdine' : 'Sourdine désactivée',
+    ));
+  }
+
+  void _showBlockDialog() {
+    final name = _thread?.contactName ?? 'ce contact';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Bloquer le contact ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text('Bloquer $name ? Vous ne recevrez plus ses messages.', style: const TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary))),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('$name a été bloqué'));
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: AppColors.white, shape: const StadiumBorder(), elevation: 0),
+            child: const Text('Bloquer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConversationDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Supprimer la conversation ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: const Text('Cette action est irréversible.', style: TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary))),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.pop();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: AppColors.white, shape: const StadiumBorder(), elevation: 0),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportConversation() async {
+    final buf = StringBuffer();
+    buf.writeln('Conversation — ${_thread?.contactName ?? 'Inconnu'}');
+    buf.writeln('Exportée le ${_fmtDate(DateTime.now())}');
+    buf.writeln('─' * 40);
+    for (final m in _messages) {
+      final who = m.isFromContact ? (_thread?.contactName ?? 'Contact') : 'Vous';
+      final time = '${m.sentAt.day.toString().padLeft(2,'0')}/${m.sentAt.month.toString().padLeft(2,'0')}/${m.sentAt.year} ${m.sentAt.hour.toString().padLeft(2,'0')}:${m.sentAt.minute.toString().padLeft(2,'0')}';
+      buf.writeln('[$time] $who : ${m.content}');
+    }
+    await Share.share(buf.toString(), subject: 'Conversation ${_thread?.contactName ?? ''}');
   }
 
   // ── Lien de paiement ─────────────────────────────────────────────────────────
@@ -387,11 +507,29 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final displayed = _searchQuery.isEmpty
+        ? _messages
+        : _messages.where((m) => m.content.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
-        child: _ChatAppBar(thread: _thread),
+        preferredSize: Size.fromHeight(_isSearching ? 60 : 64),
+        child: _ChatAppBar(
+          thread: _thread,
+          isMuted: _isMuted,
+          isSearching: _isSearching,
+          searchController: _searchController,
+          onSearchChanged: (v) => setState(() => _searchQuery = v),
+          onToggleSearch: _toggleSearch,
+          onStarred: _showStarredMessages,
+          onProfile: _showClientProfile,
+          onStats: _showConversationStats,
+          onMute: _toggleMute,
+          onBlock: _showBlockDialog,
+          onDeleteConversation: _showDeleteConversationDialog,
+          onExport: _exportConversation,
+        ),
       ),
       body: Column(
         children: [
@@ -399,16 +537,22 @@ class _ChatScreenState extends State<ChatScreen> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: _messages.isEmpty ? 1 : _messages.length + 1,
+              itemCount: displayed.isEmpty ? 1 : displayed.length + 1,
               itemBuilder: (_, i) {
-                if (i == 0) return const _SecurityBanner();
-                final msg = _messages[i - 1];
+                if (i == 0) return _searchQuery.isNotEmpty && displayed.isEmpty
+                    ? const _NoResultsBanner()
+                    : const _SecurityBanner();
+                final msg = displayed[i - 1];
                 Widget bubble = switch (msg.type) {
                   MessageType.paymentLink   => _PaymentBubble(message: msg),
                   MessageType.location      => _LocationBubble(message: msg),
                   MessageType.orderTracking => _OrderTrackingBubble(message: msg),
                   MessageType.image         => _ImageBubble(message: msg),
-                  _                         => _MessageBubble(message: msg, isStarred: _starredIds.contains(msg.id)),
+                  _                         => _MessageBubble(
+                      message: msg,
+                      isStarred: _starredIds.contains(msg.id),
+                      searchQuery: _searchQuery,
+                    ),
                 };
                 return GestureDetector(
                   onLongPress: () => _showMessageOptions(msg),
@@ -436,7 +580,34 @@ class _ChatScreenState extends State<ChatScreen> {
 
 class _ChatAppBar extends StatelessWidget {
   final Thread? thread;
-  const _ChatAppBar({required this.thread});
+  final bool isMuted;
+  final bool isSearching;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onToggleSearch;
+  final VoidCallback onStarred;
+  final VoidCallback onProfile;
+  final VoidCallback onStats;
+  final VoidCallback onMute;
+  final VoidCallback onBlock;
+  final VoidCallback onDeleteConversation;
+  final VoidCallback onExport;
+
+  const _ChatAppBar({
+    required this.thread,
+    required this.isMuted,
+    required this.isSearching,
+    required this.searchController,
+    required this.onSearchChanged,
+    required this.onToggleSearch,
+    required this.onStarred,
+    required this.onProfile,
+    required this.onStats,
+    required this.onMute,
+    required this.onBlock,
+    required this.onDeleteConversation,
+    required this.onExport,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -449,35 +620,123 @@ class _ChatAppBar extends StatelessWidget {
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
+          child: isSearching ? _searchRow(context) : _normalRow(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _normalRow(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textPrimary),
+          onPressed: () => context.pop(),
+        ),
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: AppColors.backgroundPage,
+          child: Text(
+            thread?.contactInitials ?? '?',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textPrimary),
-                onPressed: () => context.pop(),
-              ),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.backgroundPage,
-                child: Text(
-                  thread?.contactInitials ?? '?',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(thread?.contactName ?? '...', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                    Text(_channelLabel(thread?.channel), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Row(
+                children: [
+                  Flexible(child: Text(thread?.contactName ?? '...', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)),
+                  if (isMuted) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.volume_off, size: 14, color: AppColors.textHint),
                   ],
-                ),
+                ],
               ),
-              IconButton(icon: const Icon(Icons.more_vert, color: AppColors.textSecondary), onPressed: () {}),
+              Text(_channelLabel(thread?.channel), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
             ],
           ),
         ),
+        // Menu 3 points
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
+          color: AppColors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: 8,
+          onSelected: (v) {
+            switch (v) {
+              case 'search'  : onToggleSearch();
+              case 'starred' : onStarred();
+              case 'profile' : onProfile();
+              case 'stats'   : onStats();
+              case 'mute'    : onMute();
+              case 'block'   : onBlock();
+              case 'delete'  : onDeleteConversation();
+              case 'export'  : onExport();
+            }
+          },
+          itemBuilder: (_) => [
+            _menuItem('search',  Icons.search_outlined,           AppColors.green,         'Rechercher'),
+            _menuItem('starred', Icons.star_outline_rounded,      const Color(0xFFF59E0B), 'Messages importants'),
+            _menuItem('profile', Icons.person_outline,            AppColors.primary,       'Profil du client'),
+            _menuItem('stats',   Icons.bar_chart_outlined,        const Color(0xFF3B82F6), 'Statistiques'),
+            const PopupMenuDivider(),
+            _menuItem('mute',    isMuted ? Icons.volume_up_outlined : Icons.volume_off_outlined,
+                                                                   AppColors.textSecondary, isMuted ? 'Réactiver' : 'Mettre en sourdine'),
+            _menuItem('export',  Icons.upload_outlined,           AppColors.textSecondary, 'Exporter'),
+            const PopupMenuDivider(),
+            _menuItem('block',   Icons.block_outlined,            Colors.redAccent,        'Bloquer le contact'),
+            _menuItem('delete',  Icons.delete_outline,            Colors.redAccent,        'Supprimer la conversation'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _searchRow(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textPrimary),
+          onPressed: onToggleSearch,
+        ),
+        Expanded(
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(20)),
+            child: TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              autofocus: true,
+              style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'Rechercher dans la conversation...',
+                hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
+                prefixIcon: Icon(Icons.search, size: 18, color: AppColors.textHint),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  static PopupMenuItem<String> _menuItem(String value, IconData icon, Color color, String label) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Container(width: 32, height: 32, decoration: BoxDecoration(color: color.withValues(alpha: 0.10), shape: BoxShape.circle),
+              child: Icon(icon, size: 16, color: color)),
+          const SizedBox(width: 12),
+          Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+        ],
       ),
     );
   }
@@ -528,7 +787,8 @@ class _SecurityBanner extends StatelessWidget {
 class _MessageBubble extends StatelessWidget {
   final Message message;
   final bool isStarred;
-  const _MessageBubble({required this.message, this.isStarred = false});
+  final String searchQuery;
+  const _MessageBubble({required this.message, this.isStarred = false, this.searchQuery = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -566,9 +826,11 @@ class _MessageBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  message.content,
-                  style: TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4),
+                _HighlightText(
+                  text: message.content,
+                  query: searchQuery,
+                  baseStyle: TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4),
+                  highlightColor: fromContact ? const Color(0xFFFFE082) : const Color(0xFFFFF176),
                 ),
                 const SizedBox(height: 4),
                 Row(
@@ -861,6 +1123,366 @@ class _OptionTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Bannière aucun résultat ───────────────────────────────────────────────────
+
+class _NoResultsBanner extends StatelessWidget {
+  const _NoResultsBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 24),
+      child: const Column(
+        children: [
+          Icon(Icons.search_off_rounded, size: 40, color: AppColors.textHint),
+          SizedBox(height: 8),
+          Text('Aucun message trouvé', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Texte surligné pour la recherche ─────────────────────────────────────────
+
+class _HighlightText extends StatelessWidget {
+  final String text;
+  final String query;
+  final TextStyle baseStyle;
+  final Color highlightColor;
+  const _HighlightText({required this.text, required this.query, required this.baseStyle, required this.highlightColor});
+
+  @override
+  Widget build(BuildContext context) {
+    if (query.isEmpty) return Text(text, style: baseStyle);
+    final lower = text.toLowerCase();
+    final q = query.toLowerCase();
+    final spans = <TextSpan>[];
+    int start = 0;
+    int idx;
+    while ((idx = lower.indexOf(q, start)) != -1) {
+      if (idx > start) spans.add(TextSpan(text: text.substring(start, idx)));
+      spans.add(TextSpan(
+        text: text.substring(idx, idx + q.length),
+        style: TextStyle(backgroundColor: highlightColor, fontWeight: FontWeight.w700),
+      ));
+      start = idx + q.length;
+    }
+    if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
+    return RichText(text: TextSpan(style: baseStyle, children: spans));
+  }
+}
+
+// ── BottomSheet messages importants ──────────────────────────────────────────
+
+class _StarredMessagesSheet extends StatelessWidget {
+  final List<Message> messages;
+  final Thread? thread;
+  const _StarredMessagesSheet({required this.messages, required this.thread});
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  const Icon(Icons.star_rounded, size: 20, color: Color(0xFFF59E0B)),
+                  const SizedBox(width: 8),
+                  const Text('Messages importants', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(10)),
+                    child: Text('${messages.length}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: AppColors.borderLight),
+            Expanded(
+              child: messages.isEmpty
+                  ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.star_border_rounded, size: 44, color: AppColors.textHint),
+                      SizedBox(height: 8),
+                      Text('Aucun message marqué', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                    ]))
+                  : ListView.separated(
+                      controller: ctrl,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.borderLight),
+                      itemBuilder: (_, i) {
+                        final m = messages[i];
+                        final fromContact = m.isFromContact;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 16,
+                                backgroundColor: fromContact ? AppColors.backgroundPage : AppColors.greenLight,
+                                child: Text(fromContact ? (thread?.contactInitials ?? '?') : 'Moi',
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                                        color: fromContact ? AppColors.textPrimary : AppColors.greenDark)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(fromContact ? (thread?.contactName ?? '') : 'Vous',
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                    const SizedBox(height: 3),
+                                    Text(m.content, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── BottomSheet profil client ─────────────────────────────────────────────────
+
+class _ClientProfileSheet extends StatelessWidget {
+  final Thread? thread;
+  final int messageCount;
+  final VoidCallback onPayment;
+  const _ClientProfileSheet({required this.thread, required this.messageCount, required this.onPayment});
+
+  @override
+  Widget build(BuildContext context) {
+    const avatarColors = [Color(0xFF6C5CE7), AppColors.green, Color(0xFFF59E0B), Color(0xFF3B82F6), Color(0xFFEC4899)];
+    final color = thread == null ? AppColors.green : avatarColors[(thread!.contactInitials.hashCode.abs()) % avatarColors.length];
+    final channelLabel = switch (thread?.channel) {
+      Channel.whatsapp => 'WhatsApp', Channel.facebook => 'Facebook',
+      Channel.sms => 'SMS', Channel.tiktok => 'TikTok', Channel.email => 'Email', null => '—',
+    };
+
+    return Container(
+      decoration: const BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 24),
+          // Avatar
+          Container(
+            width: 72, height: 72,
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
+            child: Center(child: Text(thread?.contactInitials ?? '?',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: color))),
+          ),
+          const SizedBox(height: 12),
+          Text(thread?.contactName ?? 'Inconnu', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(12)),
+            child: Text(channelLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          ),
+          const SizedBox(height: 24),
+          // Infos
+          Container(
+            decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight, width: 0.5)),
+            child: Column(
+              children: [
+                _ProfileInfoRow(Icons.chat_bubble_outline, 'Messages échangés', '$messageCount', isFirst: true),
+                _ProfileInfoRow(Icons.calendar_today_outlined, 'Premier contact', '15 Jan 2025'),
+                _ProfileInfoRow(Icons.link_outlined, 'Liens de paiement', '2 envoyés', isLast: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: onPayment,
+              icon: const Icon(Icons.credit_card_outlined, size: 16),
+              label: const Text('Créer un lien de paiement', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isFirst;
+  final bool isLast;
+  const _ProfileInfoRow(this.icon, this.label, this.value, {this.isFirst = false, this.isLast = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: AppColors.textSecondary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+              Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            ],
+          ),
+        ),
+        if (!isLast) const Divider(height: 1, color: AppColors.borderLight, indent: 16, endIndent: 16),
+      ],
+    );
+  }
+}
+
+// ── BottomSheet statistiques ──────────────────────────────────────────────────
+
+class _ConversationStatsSheet extends StatelessWidget {
+  final int total;
+  final int sent;
+  final int received;
+  final int links;
+  const _ConversationStatsSheet({required this.total, required this.sent, required this.received, required this.links});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 20),
+          const Row(
+            children: [
+              Icon(Icons.bar_chart_outlined, size: 20, color: Color(0xFF3B82F6)),
+              SizedBox(width: 8),
+              Text('Statistiques', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Grille de métriques 2x2
+          Row(children: [
+            Expanded(child: _StatCard('Total messages', '$total', Icons.chat_bubble_outline, const Color(0xFF3B82F6))),
+            const SizedBox(width: 12),
+            Expanded(child: _StatCard('Envoyés', '$sent', Icons.send_outlined, AppColors.green)),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _StatCard('Reçus', '$received', Icons.inbox_outlined, const Color(0xFF6C5CE7))),
+            const SizedBox(width: 12),
+            Expanded(child: _StatCard('Liens paiement', '$links', Icons.link_outlined, const Color(0xFFF59E0B))),
+          ]),
+          const SizedBox(height: 16),
+          // Carte taux de réponse
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF1E9E5E), Color(0xFF1A6B3A)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.timer_outlined, size: 20, color: Colors.white),
+                SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Temps de réponse moyen', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                    SizedBox(height: 2),
+                    Text('~5 min', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ],
+                ),
+                Spacer(),
+                Text('🏆', style: TextStyle(fontSize: 24)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight)),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Montant encaissé', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                Text('45 000 FCFA', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.green)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  const _StatCard(this.label, this.value, this.icon, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: 8),
+          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ],
       ),
     );
   }
