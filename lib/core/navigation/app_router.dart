@@ -8,7 +8,9 @@ import '../../features/auth/pin/pin_setup_screen.dart';
 import '../../features/inbox/chat_screen.dart';
 import '../../features/inbox/inbox_screen.dart';
 import '../../features/payments/payments_screen.dart';
+import '../../features/payments/transaction_detail_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../shared/mock/payments_mock.dart';
 import '../../features/stats/stats_screen.dart';
 import '../../core/services/session_service.dart';
 import 'app_shell.dart';
@@ -81,6 +83,14 @@ GoRouter buildRouter() {
             pageBuilder: (context, state) => _fadePage(state, const PinSetupScreen()),
           ),
         ],
+      ),
+      // Route hors shell — s'affiche plein écran sans bottom nav bar
+      GoRoute(
+        path: '/payment-detail',
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          TransactionDetailScreen(link: state.extra as PaymentLink),
+        ),
       ),
       StatefulShellRoute.indexedStack(
         // Pas de transition entre onglets : l'état est préservé (indexedStack)

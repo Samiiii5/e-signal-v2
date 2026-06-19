@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../shared/mock/messages_mock.dart' show PaymentStatus;
 import '../../shared/mock/payments_mock.dart';
 import '../../shared/services/payment_service.dart';
 import 'create_link_sheet.dart';
-import 'transaction_detail_screen.dart';
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -147,12 +147,8 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                     itemCount: links.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) => GestureDetector(
-                      onTap: () => Navigator.of(context, rootNavigator: true).push(
-                        MaterialPageRoute(
-                          builder: (_) => TransactionDetailScreen(link: links[i]),
-                        ),
-                      ),
+                    itemBuilder: (ctx, i) => GestureDetector(
+                      onTap: () => ctx.push('/payment-detail', extra: links[i]),
                       child: _PaymentItem(link: links[i]),
                     ),
                   );
