@@ -929,33 +929,6 @@ class _DonutCard extends StatelessWidget {
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final String growth;
-  const _MetricCard({required this.label, required this.value, required this.growth});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.backgroundPage,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.2)),
-          const SizedBox(height: 4),
-          Text(growth, style: const TextStyle(fontSize: 10, color: AppColors.green, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}
 
 class _DonutPainter extends CustomPainter {
   @override
@@ -1135,49 +1108,3 @@ class _Slide4 extends StatelessWidget {
 
 // ── Boutons nav Passer / Suivant ──────────────────────────────────────────────
 
-class _NavButtons extends StatelessWidget {
-  final VoidCallback onSkip;
-  final VoidCallback onNext;
-  final int currentPage;
-  const _NavButtons({required this.onSkip, required this.onNext, required this.currentPage});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _Dots(current: currentPage, count: 4),
-        Row(
-          children: [
-            TextButton(
-              onPressed: onSkip,
-              style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
-              child: const Text('Passer', style: TextStyle(fontSize: 14)),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: onNext,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.white,
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                elevation: 0,
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600)),
-                  SizedBox(width: 6),
-                  Icon(Icons.arrow_forward, size: 16),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}

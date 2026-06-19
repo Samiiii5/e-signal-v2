@@ -141,7 +141,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(_formatAmount(mockRevenue) + ' FCFA', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                      Text('${_formatAmount(mockRevenue)} FCFA', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                       const SizedBox(height: 16),
                       SizedBox(
                         height: 120,
@@ -325,7 +325,7 @@ class _LineChartPainter extends CustomPainter {
 
     // Fill under curve
     final fillPath = Path()..moveTo(pts.first.dx, size.height);
-    for (final p in pts) fillPath.lineTo(p.dx, p.dy);
+    for (final p in pts) { fillPath.lineTo(p.dx, p.dy); }
     fillPath..lineTo(pts.last.dx, size.height)..close();
     canvas.drawPath(fillPath, Paint()
       ..shader = LinearGradient(

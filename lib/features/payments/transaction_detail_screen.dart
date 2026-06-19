@@ -188,7 +188,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final divider = PdfColor.fromHex('#E5E7EB');
 
     final (_, statusColor, statusLabel, _) = _statusMeta(widget.link.status);
-    final pdfStatus = PdfColor(statusColor.red / 255, statusColor.green / 255, statusColor.blue / 255);
+    final pdfStatus = PdfColor(
+      (statusColor.r * 255.0).round() & 0xff,
+      (statusColor.g * 255.0).round() & 0xff,
+      (statusColor.b * 255.0).round() & 0xff,
+    );
 
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4,

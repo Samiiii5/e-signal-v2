@@ -418,7 +418,7 @@ class _LivreurCard extends StatelessWidget {
                     Text(livreur.tempsEstime, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                     const SizedBox(width: 10),
                     Text(
-                      _fmt(livreur.tarif) + ' FCFA',
+                      '${_fmt(livreur.tarif)} FCFA',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.green),
                     ),
                   ],
