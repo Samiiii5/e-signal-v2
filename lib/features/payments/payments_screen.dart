@@ -75,37 +75,47 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
                 children: [
-                  Text('Paiements', style: AppTextStyles.h1),
-                  const Spacer(),
-                  // Bouton Exporter
-                  OutlinedButton.icon(
-                    onPressed: _openExportSheet,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      side: const BorderSide(color: AppColors.borderLight),
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  Expanded(
+                    child: Text('Paiements', style: AppTextStyles.h1, overflow: TextOverflow.ellipsis),
+                  ),
+                  // Bouton Exporter — icône + texte compact
+                  GestureDetector(
+                    onTap: _openExportSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.borderLight),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.download_outlined, size: 14, color: AppColors.textSecondary),
+                          SizedBox(width: 4),
+                          Text('Exporter', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                        ],
+                      ),
                     ),
-                    icon: const Icon(Icons.download_outlined, size: 16),
-                    label: const Text('Exporter', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(width: 8),
-                  // Bouton Nouveau
-                  ElevatedButton.icon(
-                    onPressed: _openCreateSheet,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      elevation: 0,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  // Bouton Nouveau — compact
+                  GestureDetector(
+                    onTap: _openCreateSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.add, size: 14, color: AppColors.white),
+                          SizedBox(width: 4),
+                          Text('Nouveau', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.white)),
+                        ],
+                      ),
                     ),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Nouveau', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
