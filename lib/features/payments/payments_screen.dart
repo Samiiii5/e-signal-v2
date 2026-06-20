@@ -1,5 +1,10 @@
+import 'dart:io';
+import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../shared/mock/messages_mock.dart' show PaymentStatus;
@@ -36,19 +41,16 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     if (created != null) _refresh();
   }
 
-  void _openExportSheet() {
+  Future<void> _openExportSheet() async {
+    final links = await paymentService.getPaymentLinks();
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => _ExportSheet(
-        onCsv: () {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(_snack('Export CSV en cours...'));
-        },
-        onExcel: () {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(_snack('Export Excel en cours...'));
-        },
+        allLinks: links,
+        onDone: (msg) => ScaffoldMessenger.of(context).showSnackBar(_snack(msg)),
       ),
     );
   }
@@ -274,49 +276,223 @@ class _PaymentItem extends StatelessWidget {
 
 // ── Bottom sheet Export ───────────────────────────────────────────────────────
 
-class _ExportSheet extends StatelessWidget {
-  final VoidCallback onCsv;
-  final VoidCallback onExcel;
-  const _ExportSheet({required this.onCsv, required this.onExcel});
+enum _ExportFilter { all, paid, pending, thisMonth, thisQuarter }
+
+class _ExportSheet extends StatefulWidget {
+  final List<PaymentLink> allLinks;
+  final void Function(String) onDone;
+  const _ExportSheet({required this.allLinks, required this.onDone});
+
+  @override
+  State<_ExportSheet> createState() => _ExportSheetState();
+}
+
+class _ExportSheetState extends State<_ExportSheet> {
+  _ExportFilter _filter = _ExportFilter.all;
+  bool _exporting = false;
+
+  List<PaymentLink> get _filtered {
+    final now = DateTime.now();
+    return switch (_filter) {
+      _ExportFilter.all         => widget.allLinks,
+      _ExportFilter.paid        => widget.allLinks.where((l) => l.status == PaymentStatus.paid).toList(),
+      _ExportFilter.pending     => widget.allLinks.where((l) => l.status == PaymentStatus.pending).toList(),
+      _ExportFilter.thisMonth   => widget.allLinks.where((l) => l.createdAt.year == now.year && l.createdAt.month == now.month).toList(),
+      _ExportFilter.thisQuarter => widget.allLinks.where((l) {
+          final q = (now.month - 1) ~/ 3;
+          final lq = (l.createdAt.month - 1) ~/ 3;
+          return l.createdAt.year == now.year && lq == q;
+        }).toList(),
+    };
+  }
+
+  String _dateTag() {
+    final now = DateTime.now();
+    return '${now.year}${now.month.toString().padLeft(2,'0')}${now.day.toString().padLeft(2,'0')}';
+  }
+
+  String _fmtDate(DateTime dt) {
+    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    return '${dt.day} ${m[dt.month-1]} ${dt.year}';
+  }
+
+  Future<File> _saveFile(String name, List<int> bytes) async {
+    final dl = Directory('/storage/emulated/0/Download');
+    final dir = await dl.exists() ? dl : await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/$name');
+    await file.writeAsBytes(bytes);
+    return file;
+  }
+
+  Future<void> _exportCsv() async {
+    setState(() => _exporting = true);
+    try {
+      final links = _filtered;
+      final buf = StringBuffer();
+      buf.writeln('Référence,Client,Description,Montant (FCFA),Statut,Canal,Date création,Date expiration');
+      for (final l in links) {
+        final status = switch (l.status) {
+          PaymentStatus.paid    => 'Payé',
+          PaymentStatus.pending => 'En attente',
+          PaymentStatus.created => 'Créé',
+          PaymentStatus.expired => 'Expiré',
+        };
+        buf.writeln('"${l.id.toUpperCase()}","${l.contactName}","${l.description}",${l.amount},"$status","${l.paymentMethod.label}","${_fmtDate(l.createdAt)}","${_fmtDate(l.expiresAt)}"');
+      }
+      final name = 'esignal_transactions_${_dateTag()}.csv';
+      final file = await _saveFile(name, buf.toString().codeUnits);
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone('✅ Fichier CSV sauvegardé dans Téléchargements');
+      await OpenFile.open(file.path);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone('Erreur export CSV : $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _exportExcel() async {
+    setState(() => _exporting = true);
+    try {
+      final links = _filtered;
+      final excel = Excel.createExcel();
+      final sheet = excel['Transactions'];
+
+      // Style en-tête
+      final headerStyle = CellStyle(
+        bold: true,
+        fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
+        backgroundColorHex: ExcelColor.fromHexString('#1E9E5E'),
+        horizontalAlign: HorizontalAlign.Center,
+      );
+
+      // En-têtes
+      final headers = ['Référence', 'Client', 'Description', 'Montant (FCFA)', 'Statut', 'Canal', 'Date création', 'Date expiration'];
+      for (var c = 0; c < headers.length; c++) {
+        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0));
+        cell.value = TextCellValue(headers[c]);
+        cell.cellStyle = headerStyle;
+      }
+
+      // Données
+      for (var r = 0; r < links.length; r++) {
+        final l = links[r];
+        final status = switch (l.status) {
+          PaymentStatus.paid    => 'Payé',
+          PaymentStatus.pending => 'En attente',
+          PaymentStatus.created => 'Créé',
+          PaymentStatus.expired => 'Expiré',
+        };
+        final row = [l.id.toUpperCase(), l.contactName, l.description, l.amount, status, l.paymentMethod.label, _fmtDate(l.createdAt), _fmtDate(l.expiresAt)];
+        for (var c = 0; c < row.length; c++) {
+          final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r + 1));
+          final v = row[c];
+          cell.value = v is int ? IntCellValue(v) : TextCellValue(v.toString());
+        }
+      }
+
+      // Largeur colonnes
+      for (var c = 0; c < headers.length; c++) {
+        sheet.setColumnWidth(c, 20);
+      }
+
+      final bytes = excel.encode()!;
+      final name = 'esignal_transactions_${_dateTag()}.xlsx';
+      final file = await _saveFile(name, bytes);
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone('✅ Fichier Excel sauvegardé dans Téléchargements');
+      await OpenFile.open(file.path);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone('Erreur export Excel : $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final count = _filtered.length;
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 36, height: 4,
-            decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)),
-          ),
+          // Handle
+          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 20),
-          const Text('Exporter les transactions', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-          const SizedBox(height: 24),
+
+          // Titre + compteur
+          Row(
+            children: [
+              const Text('Exporter les transactions', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(12)),
+                child: Text('$count transaction${count > 1 ? 's' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Filtres
+          const Align(alignment: Alignment.centerLeft, child: Text('Filtrer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _FilterChip(label: 'Toutes', active: _filter == _ExportFilter.all,         onTap: () => setState(() => _filter = _ExportFilter.all)),
+                const SizedBox(width: 6),
+                _FilterChip(label: 'Payées',        active: _filter == _ExportFilter.paid,        onTap: () => setState(() => _filter = _ExportFilter.paid)),
+                const SizedBox(width: 6),
+                _FilterChip(label: 'En attente',    active: _filter == _ExportFilter.pending,      onTap: () => setState(() => _filter = _ExportFilter.pending)),
+                const SizedBox(width: 6),
+                _FilterChip(label: 'Ce mois',       active: _filter == _ExportFilter.thisMonth,    onTap: () => setState(() => _filter = _ExportFilter.thisMonth)),
+                const SizedBox(width: 6),
+                _FilterChip(label: 'Ce trimestre',  active: _filter == _ExportFilter.thisQuarter,  onTap: () => setState(() => _filter = _ExportFilter.thisQuarter)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // CSV
           _ExportTile(
             icon: Icons.table_chart_outlined,
             label: 'Exporter en CSV',
             subtitle: 'Compatible Excel, Google Sheets',
             color: AppColors.green,
-            onTap: onCsv,
+            loading: _exporting,
+            onTap: _exporting ? null : _exportCsv,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+
+          // Excel
           _ExportTile(
             icon: Icons.grid_on_outlined,
             label: 'Exporter en Excel',
-            subtitle: 'Fichier .xlsx natif Microsoft Excel',
-            color: AppColors.primary,
-            onTap: onExcel,
+            subtitle: 'Fichier .xlsx — en-têtes en gras vert',
+            color: const Color(0xFF217346),
+            loading: _exporting,
+            onTap: _exporting ? null : _exportExcel,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+
+          // Annuler
           SizedBox(
             width: double.infinity,
             child: TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: _exporting ? null : () => Navigator.pop(context),
               style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
               child: const Text('Annuler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             ),
@@ -327,41 +503,66 @@ class _ExportSheet extends StatelessWidget {
   }
 }
 
-class _ExportTile extends StatelessWidget {
-  final IconData icon;
+class _FilterChip extends StatelessWidget {
   final String label;
-  final String subtitle;
-  final Color color;
+  final bool active;
   final VoidCallback onTap;
-  const _ExportTile({required this.icon, required this.label, required this.subtitle, required this.color, required this.onTap});
+  const _FilterChip({required this.label, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? AppColors.green : AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: active ? AppColors.green : AppColors.borderLight),
+        ),
+        child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: active ? AppColors.white : AppColors.textSecondary)),
+      ),
+    );
+  }
+}
+
+class _ExportTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final bool loading;
+  final VoidCallback? onTap;
+  const _ExportTile({required this.icon, required this.label, required this.subtitle, required this.color, required this.loading, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.backgroundPage,
+          color: onTap == null ? AppColors.backgroundPage.withValues(alpha: 0.5) : AppColors.backgroundPage,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.borderLight, width: 0.5),
         ),
         child: Row(children: [
           Container(
             width: 40, height: 40,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 20),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+            child: loading
+                ? Padding(padding: const EdgeInsets.all(10), child: CircularProgressIndicator(color: color, strokeWidth: 2))
+                : Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: onTap == null ? AppColors.textHint : AppColors.textPrimary)),
             const SizedBox(height: 2),
             Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
           ])),
-          const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+          Icon(Icons.chevron_right, color: onTap == null ? AppColors.borderLight : AppColors.textSecondary, size: 20),
         ]),
       ),
     );
