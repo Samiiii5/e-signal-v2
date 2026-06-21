@@ -4,6 +4,9 @@ enum MessageType { text, paymentLink, location, orderTracking, image }
 // Statut d'un lien de paiement
 enum PaymentStatus { created, pending, paid, expired }
 
+// Statut de livraison d'un message
+enum MessageStatus { sent, delivered, read }
+
 class Message {
   final String id;
   final String threadId;
