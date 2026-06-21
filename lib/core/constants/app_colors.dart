@@ -10,6 +10,7 @@ class AppColors {
 
   // Violet (paiements uniquement)
   static const Color purple = Color(0xFF6C5CE7);
+  static const Color primary = purple; // alias pour compatibilité
   static const Color purpleDark = Color(0xFF4A3DB5);
   static const Color purpleLight = Color(0xFFF0EEFF);
 
