@@ -30,10 +30,10 @@ class AppTheme {
           centerTitle: false,
         ),
 
-        // Bouton principal — vert, pill shape
+        // Bouton principal — violet foncé, pill shape
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.green,
+            backgroundColor: AppColors.primary,
             foregroundColor: AppColors.white,
             shape: const StadiumBorder(),
             padding: const EdgeInsets.symmetric(vertical: 16),
