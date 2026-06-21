@@ -682,9 +682,11 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: displayed.isEmpty ? 1 : displayed.length + 1,
               itemBuilder: (_, i) {
-                if (i == 0) return _searchQuery.isNotEmpty && displayed.isEmpty
-                    ? const _NoResultsBanner()
-                    : const _SecurityBanner();
+                if (i == 0) {
+                  return _searchQuery.isNotEmpty && displayed.isEmpty
+                      ? const _NoResultsBanner()
+                      : const _SecurityBanner();
+                }
                 final msg = displayed[i - 1];
                 final isSelected = _selectedIds.contains(msg.id);
                 Widget bubble = switch (msg.type) {
@@ -1014,7 +1016,7 @@ class _MessageBubble extends StatelessWidget {
             ),
           Container(
             constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
-            margin: const EdgeInsets.only(bottom: reactions.isNotEmpty ? 4 : 8),
+            margin: EdgeInsets.only(bottom: reactions.isNotEmpty ? 4 : 8),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: fromContact ? AppColors.white : AppColors.primary,
@@ -2154,7 +2156,7 @@ class _ProductTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('${_fmt(product.price)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
+                Text(_fmt(product.price), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
                 const Text('FCFA', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
               ],
             ),
