@@ -152,7 +152,7 @@ class _ESignalLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Image.asset(
       'design/logo_onboarding.png',
-      height: 80,
+      height: 120,
       fit: BoxFit.contain,
     );
   }

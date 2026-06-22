@@ -108,7 +108,7 @@ class _InboxScreenState extends State<InboxScreen> {
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
                 children: [
-                  Image.asset('design/logo_onboarding.png', height: 32, fit: BoxFit.contain),
+                  Image.asset('design/logo_onboarding.png', height: 45, fit: BoxFit.contain),
                   const Spacer(),
                   Stack(
                     children: [

@@ -2417,21 +2417,34 @@ class _InputBar extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              // Icône trombone
-              GestureDetector(
-                onTap: onAttachment,
+              const SizedBox(width: 8),
+              // Champ de saisie avec trombone intégré à droite
+              Expanded(
                 child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.backgroundPage,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.borderLight),
+                  decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(24)),
+                  child: TextField(
+                    controller: controller,
+                    maxLines: 4,
+                    minLines: 1,
+                    style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Écrire un message...',
+                      hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      suffixIcon: GestureDetector(
+                        onTap: onAttachment,
+                        child: const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: Icon(Icons.attach_file, size: 20, color: AppColors.textSecondary),
+                        ),
+                      ),
+                      suffixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    ),
                   ),
-                  child: const Icon(Icons.attach_file, size: 18, color: AppColors.textSecondary),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               // Caméra
               GestureDetector(
                 onTap: onCamera,
@@ -2446,24 +2459,7 @@ class _InputBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(24)),
-                  child: TextField(
-                    controller: controller,
-                    maxLines: 4,
-                    minLines: 1,
-                    style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      hintText: 'Écrire un message...',
-                      hintStyle: TextStyle(color: AppColors.textHint, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
+              // Micro / Envoi
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
                 child: hasText
@@ -2489,26 +2485,6 @@ class _InputBar extends StatelessWidget {
                       ),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: onPayment,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.greenLight,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add, size: 16, color: AppColors.greenDark),
-                  SizedBox(width: 6),
-                  Text('Paiement', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
-                ],
-              ),
-            ),
           ),
         ],
       ),
