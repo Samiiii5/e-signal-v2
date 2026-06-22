@@ -92,6 +92,14 @@ GoRouter buildRouter() {
           TransactionDetailScreen(link: state.extra as PaymentLink),
         ),
       ),
+      // Route hors shell — conversation (sans bottom nav bar)
+      GoRoute(
+        path: '/inbox/:threadId',
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          ChatScreen(threadId: state.pathParameters['threadId']!),
+        ),
+      ),
       StatefulShellRoute.indexedStack(
         // Pas de transition entre onglets : l'état est préservé (indexedStack)
         pageBuilder: (context, state, shell) => NoTransitionPage(
@@ -102,15 +110,6 @@ GoRouter buildRouter() {
             GoRoute(
               path: '/inbox',
               builder: (context, state) => const InboxScreen(),
-              routes: [
-                GoRoute(
-                  path: ':threadId',
-                  pageBuilder: (context, state) => _slidePage(
-                    state,
-                    ChatScreen(threadId: state.pathParameters['threadId']!),
-                  ),
-                ),
-              ],
             ),
           ]),
           StatefulShellBranch(routes: [
