@@ -531,10 +531,73 @@ class _ChatScreenState extends State<ChatScreen> {
     ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('$count message(s) supprimé(s)'));
   }
 
+  void _replySelected() {
+    if (_selectedIds.isEmpty) return;
+    final msgId = _selectedIds.first;
+    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    _exitSelectionMode();
+    setState(() => _replyToMessage = msg);
+  }
+
+  void _starSelected() {
+    setState(() {
+      for (final id in _selectedIds) {
+        if (_starredIds.contains(id)) {
+          _starredIds.remove(id);
+        } else {
+          _starredIds.add(id);
+        }
+      }
+    });
+    _exitSelectionMode();
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Favori mis à jour'));
+  }
+
+  void _copySelected() {
+    final msgs = _messages.where((m) => _selectedIds.contains(m.id)).toList();
+    final text = msgs.map((m) => m.content).join('\n');
+    Clipboard.setData(ClipboardData(text: text));
+    _exitSelectionMode();
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message copié'));
+  }
+
   void _forwardSelected() {
+    _doForwardSelected();
+  }
+
+  Future<void> _doForwardSelected() async {
+    final threads = await inboxService.getThreads();
+    if (!mounted) return;
     final count = _selectedIds.length;
     _exitSelectionMode();
-    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('$count message(s) à transférer (fonctionnalité à venir)'));
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ForwardSheet(
+        threads: threads,
+        currentThreadId: widget.threadId,
+        onForward: (thread) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            AppSnackbar.success('$count message(s) transféré(s) à ${thread.contactName}'),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showInfoSelected() {
+    if (_selectedIds.isEmpty) return;
+    final msgId = _selectedIds.first;
+    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    final status = _msgStatus[msgId];
+    _exitSelectionMode();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MessageInfoSheet(message: msg, status: status),
+    );
   }
 
   // ── Réactions emoji ──────────────────────────────────────────────────────────
@@ -653,8 +716,12 @@ class _ChatScreenState extends State<ChatScreen> {
             ? _SelectionAppBar(
                 count: _selectedIds.length,
                 onClose: _exitSelectionMode,
-                onDelete: _deleteSelected,
+                onReply: _replySelected,
+                onStar: _starSelected,
+                onCopy: _copySelected,
                 onForward: _forwardSelected,
+                onDelete: _deleteSelected,
+                onInfo: _showInfoSelected,
               )
             : _ChatAppBar(
                 thread: _thread,
@@ -730,7 +797,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     _showReactionPicker(msg, pos);
                   },
                   child: Container(
-                    color: isSelected ? AppColors.green.withValues(alpha: 0.08) : Colors.transparent,
+                    color: _isSelectionMode
+                        ? (isSelected
+                            ? AppColors.green.withValues(alpha: 0.10)
+                            : Colors.black.withValues(alpha: 0.30))
+                        : Colors.transparent,
                     child: bubble,
                   ),
                 );
@@ -2497,51 +2568,57 @@ class _InputBar extends StatelessWidget {
 class _SelectionAppBar extends StatelessWidget {
   final int count;
   final VoidCallback onClose;
-  final VoidCallback onDelete;
+  final VoidCallback onReply;
+  final VoidCallback onStar;
+  final VoidCallback onCopy;
   final VoidCallback onForward;
+  final VoidCallback onDelete;
+  final VoidCallback onInfo;
 
   const _SelectionAppBar({
     required this.count,
     required this.onClose,
-    required this.onDelete,
+    required this.onReply,
+    required this.onStar,
+    required this.onCopy,
     required this.onForward,
+    required this.onDelete,
+    required this.onInfo,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 0.5)),
-      ),
+      color: AppColors.white,
       child: SafeArea(
         bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.close, size: 22, color: AppColors.textPrimary),
-                onPressed: onClose,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 22, color: AppColors.textPrimary),
+                    onPressed: onClose,
+                  ),
+                  Text(
+                    '$count sélectionné${count > 1 ? 's' : ''}',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  ),
+                  const Spacer(),
+                  IconButton(icon: const Icon(Icons.reply, size: 22, color: AppColors.textSecondary), onPressed: onReply, tooltip: 'Répondre'),
+                  IconButton(icon: const Icon(Icons.star_border_rounded, size: 22, color: Color(0xFFF59E0B)), onPressed: onStar, tooltip: 'Favori'),
+                  IconButton(icon: const Icon(Icons.content_copy_outlined, size: 20, color: AppColors.textSecondary), onPressed: onCopy, tooltip: 'Copier'),
+                  IconButton(icon: const Icon(Icons.forward, size: 22, color: AppColors.textSecondary), onPressed: onForward, tooltip: 'Transférer'),
+                  IconButton(icon: const Icon(Icons.delete_outline, size: 22, color: Colors.redAccent), onPressed: onDelete, tooltip: 'Supprimer'),
+                  IconButton(icon: const Icon(Icons.info_outline, size: 22, color: AppColors.textSecondary), onPressed: onInfo, tooltip: 'Infos'),
+                ],
               ),
-              Expanded(
-                child: Text(
-                  '$count sélectionné${count > 1 ? 's' : ''}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.forward_outlined, size: 22, color: AppColors.textSecondary),
-                onPressed: onForward,
-                tooltip: 'Transférer',
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 22, color: Colors.redAccent),
-                onPressed: onDelete,
-                tooltip: 'Supprimer',
-              ),
-            ],
-          ),
+            ),
+            const Divider(height: 1, thickness: 0.5, color: AppColors.borderLight),
+          ],
         ),
       ),
     );
@@ -2687,6 +2764,133 @@ class _FullscreenImageViewer extends StatelessWidget {
                 )
               : const Icon(Icons.broken_image, color: Colors.white54, size: 64),
         ),
+      ),
+    );
+  }
+}
+
+// ── Infos message ─────────────────────────────────────────────────────────────
+
+class _MessageInfoSheet extends StatelessWidget {
+  final Message message;
+  final MessageStatus? status;
+
+  const _MessageInfoSheet({required this.message, this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final dt = message.sentAt;
+    final timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    final (statusLabel, statusColor, statusIcon) = switch (status) {
+      null                  => ('En attente', AppColors.textHint,      Icons.access_time),
+      MessageStatus.sent    => ('Envoyé',     AppColors.textSecondary, Icons.done),
+      MessageStatus.delivered => ('Livré',    AppColors.textSecondary, Icons.done_all),
+      MessageStatus.read    => ('Lu',         AppColors.green,         Icons.done_all),
+    };
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+          ),
+          const SizedBox(height: 20),
+          const Text('Infos du message', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 20),
+          _InfoRow(icon: Icons.schedule_outlined, label: 'Envoyé le', value: '$dateStr à $timeStr'),
+          const SizedBox(height: 14),
+          _InfoRow(icon: statusIcon, label: 'Statut', value: statusLabel, valueColor: statusColor),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Ligne info ────────────────────────────────────────────────────────────────
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _InfoRow({required this.icon, required this.label, required this.value, this.valueColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: valueColor ?? AppColors.textSecondary),
+        const SizedBox(width: 14),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            const SizedBox(height: 2),
+            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: valueColor ?? AppColors.textPrimary)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── Transfert de message ──────────────────────────────────────────────────────
+
+class _ForwardSheet extends StatelessWidget {
+  final List<Thread> threads;
+  final String currentThreadId;
+  final void Function(Thread) onForward;
+
+  const _ForwardSheet({required this.threads, required this.currentThreadId, required this.onForward});
+
+  @override
+  Widget build(BuildContext context) {
+    final others = threads.where((t) => t.id != currentThreadId).toList();
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+          ),
+          const SizedBox(height: 20),
+          const Text('Transférer à...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 12),
+          if (others.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text('Aucune autre conversation.', style: TextStyle(color: AppColors.textSecondary)),
+            )
+          else
+            ...others.map((t) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.backgroundPage,
+                child: Text(t.contactInitials, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              ),
+              title: Text(t.contactName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              subtitle: Text(t.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              trailing: const Icon(Icons.send_outlined, size: 18, color: AppColors.green),
+              onTap: () => onForward(t),
+            )),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
