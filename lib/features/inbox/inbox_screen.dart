@@ -100,12 +100,14 @@ class _InboxScreenState extends State<InboxScreen> {
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
+        top: true,
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Row(
                 children: [
                   Image.asset('design/logo_onboarding.png', height: 60, fit: BoxFit.contain),
@@ -133,7 +135,7 @@ class _InboxScreenState extends State<InboxScreen> {
             ),
             // Search bar
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Container(
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(color: const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(30)),
@@ -152,7 +154,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             // Filter chips
             SizedBox(
               height: 36,
