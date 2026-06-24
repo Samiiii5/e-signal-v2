@@ -108,7 +108,7 @@ class _InboxScreenState extends State<InboxScreen> {
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
                 children: [
-                  Image.asset('design/logo_onboarding.png', height: 45, fit: BoxFit.contain),
+                  Image.asset('design/logo_onboarding.png', height: 60, fit: BoxFit.contain),
                   const Spacer(),
                   Stack(
                     children: [
@@ -135,7 +135,7 @@ class _InboxScreenState extends State<InboxScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
               child: Container(
-                decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(30)),
                 child: TextField(
                   controller: _searchController,
                   style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
