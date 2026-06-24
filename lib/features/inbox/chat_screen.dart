@@ -2648,12 +2648,16 @@ class _SelectionAppBar extends StatelessWidget {
     required this.onPin,
   });
 
-  static const _bg = Color(0xFF1F2C34);
+  static const _iconColor = AppColors.textPrimary;
+
+  static const _btnConstraints = BoxConstraints(minWidth: 36, minHeight: 36);
+  static const _btnPadding = EdgeInsets.all(8);
 
   @override
   Widget build(BuildContext context) {
+    final single = count == 1;
     return Container(
-      color: _bg,
+      color: AppColors.white,
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -2661,64 +2665,66 @@ class _SelectionAppBar extends StatelessWidget {
           child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.close, size: 20, color: Colors.white),
+              icon: const Icon(Icons.close, size: 20, color: _iconColor),
               onPressed: onClose,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              padding: _btnPadding,
+              constraints: _btnConstraints,
             ),
             Text(
               '$count',
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _iconColor),
             ),
             const Spacer(),
+            if (single)
+              IconButton(
+                icon: const Icon(Icons.reply, size: 20, color: _iconColor),
+                onPressed: onReply,
+                padding: _btnPadding,
+                constraints: _btnConstraints,
+                tooltip: 'Répondre',
+              ),
             IconButton(
-              icon: const Icon(Icons.reply, size: 20, color: Colors.white),
-              onPressed: onReply,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-              tooltip: 'Répondre',
-            ),
-            IconButton(
-              icon: const Icon(Icons.star_border_rounded, size: 20, color: Colors.white),
+              icon: const Icon(Icons.star_border_rounded, size: 20, color: _iconColor),
               onPressed: onStar,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              padding: _btnPadding,
+              constraints: _btnConstraints,
               tooltip: 'Favori',
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20, color: Colors.white),
+              icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.textSecondary),
               onPressed: onDelete,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              padding: _btnPadding,
+              constraints: _btnConstraints,
               tooltip: 'Supprimer',
             ),
             IconButton(
-              icon: const Icon(Icons.forward, size: 20, color: Colors.white),
+              icon: const Icon(Icons.forward, size: 20, color: _iconColor),
               onPressed: onForward,
-              padding: const EdgeInsets.all(8),
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              padding: _btnPadding,
+              constraints: _btnConstraints,
               tooltip: 'Transférer',
             ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
-              padding: const EdgeInsets.all(8),
-              color: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              onSelected: (value) {
-                switch (value) {
-                  case 'info':   onInfo();   break;
-                  case 'copy':   onCopy();   break;
-                  case 'edit':   onEdit();   break;
-                  case 'pin':    onPin();    break;
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'info',  child: Text('Infos',     style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                PopupMenuItem(value: 'copy',  child: Text('Copier',    style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                PopupMenuItem(value: 'edit',  child: Text('Modifier',  style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                PopupMenuItem(value: 'pin',   child: Text('Épingler',  style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-              ],
-            ),
+            if (single)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: _iconColor, size: 20),
+                padding: _btnPadding,
+                color: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'info':   onInfo();   break;
+                    case 'copy':   onCopy();   break;
+                    case 'edit':   onEdit();   break;
+                    case 'pin':    onPin();    break;
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'info',  child: Text('Infos',    style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'copy',  child: Text('Copier',   style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'edit',  child: Text('Modifier', style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'pin',   child: Text('Épingler', style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                ],
+              ),
           ],
           ),
         ),
