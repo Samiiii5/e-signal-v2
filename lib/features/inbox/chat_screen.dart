@@ -62,6 +62,11 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _messages = messages;
       _thread = threads.where((t) => t.id == widget.threadId).firstOrNull;
+      for (final m in messages) {
+        if (m.initialStatus != null && !_msgStatus.containsKey(m.id)) {
+          _msgStatus[m.id] = m.initialStatus!;
+        }
+      }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
@@ -114,6 +119,12 @@ class _ChatScreenState extends State<ChatScreen> {
         onEdit: !msg.isFromContact
             ? () {
                 Navigator.pop(context);
+                if (_msgStatus[msg.id] == MessageStatus.read) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    AppSnackbar.error('Ce message a déjà été lu et ne peut plus être modifié'),
+                  );
+                  return;
+                }
                 _showEditDialog(msg);
               }
             : null,
@@ -620,6 +631,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final msgId = _selectedIds.first;
     final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
     _exitSelectionMode();
+    if (_msgStatus[msgId] == MessageStatus.read) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Ce message a déjà été lu et ne peut plus être modifié'),
+      );
+      return;
+    }
     _showEditDialog(msg);
   }
 

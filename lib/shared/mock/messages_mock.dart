@@ -24,6 +24,9 @@ class Message {
   // Champ spécifique aux images (type == image)
   final String? imagePath;
 
+  // Statut de livraison initial (null = pas encore envoyé par le commerçant)
+  final MessageStatus? initialStatus;
+
   const Message({
     required this.id,
     required this.threadId,
@@ -36,6 +39,7 @@ class Message {
     this.paymentStatus,
     this.paymentProvider,
     this.imagePath,
+    this.initialStatus,
   });
 }
 
@@ -54,6 +58,7 @@ final mockMessagesThread001 = <Message>[
     content: 'Bonjour Awa 👋 Oui, il est encore disponible !',
     isFromContact: false,
     sentAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 40)),
+    initialStatus: MessageStatus.read,
   ),
   Message(
     id: 'msg_003',
@@ -68,6 +73,7 @@ final mockMessagesThread001 = <Message>[
     content: 'Il est à 25 000 FCFA. Livraison gratuite à Abidjan pour toute commande ce mois-ci.',
     isFromContact: false,
     sentAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 35)),
+    initialStatus: MessageStatus.read,
   ),
   Message(
     id: 'msg_005',
@@ -82,6 +88,7 @@ final mockMessagesThread001 = <Message>[
     content: 'Bien sûr ! Je vous génère un lien de paiement maintenant.',
     isFromContact: false,
     sentAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 28)),
+    initialStatus: MessageStatus.read,
   ),
   // Lien de paiement Wave
   Message(
@@ -95,6 +102,7 @@ final mockMessagesThread001 = <Message>[
     paymentCurrency: 'FCFA',
     paymentStatus: PaymentStatus.paid,
     paymentProvider: 'wave',
+    initialStatus: MessageStatus.read,
   ),
   Message(
     id: 'msg_008',
@@ -116,6 +124,7 @@ final mockMessagesThread001 = <Message>[
     content: 'Prenez votre temps, le lien est valable 24h.',
     isFromContact: false,
     sentAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 12)),
+    initialStatus: MessageStatus.read,
   ),
   Message(
     id: 'msg_011',
@@ -130,6 +139,7 @@ final mockMessagesThread001 = <Message>[
     content: 'Paiement reçu ✅ Merci Awa ! Votre commande est confirmée.',
     isFromContact: false,
     sentAt: DateTime.now().subtract(const Duration(hours: 3, minutes: 3)),
+    initialStatus: MessageStatus.read,
   ),
   Message(
     id: 'msg_013',
@@ -144,6 +154,7 @@ final mockMessagesThread001 = <Message>[
     content: 'Sous 24-48h ouvrées. Notre livreur vous contactera avant de passer.',
     isFromContact: false,
     sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 45)),
+    initialStatus: MessageStatus.delivered,
   ),
   Message(
     id: 'msg_015',
