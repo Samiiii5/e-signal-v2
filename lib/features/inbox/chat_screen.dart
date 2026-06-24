@@ -823,10 +823,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     _showReactionPicker(msg, pos);
                   },
                   child: Container(
-                    color: _isSelectionMode
-                        ? (isSelected
-                            ? AppColors.green.withValues(alpha: 0.10)
-                            : Colors.black.withValues(alpha: 0.30))
+                    color: (isSelected && _isSelectionMode)
+                        ? const Color(0xFFE8F8F0)
                         : Colors.transparent,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -2659,58 +2657,69 @@ class _SelectionAppBar extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
           child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.close, size: 22, color: Colors.white),
-                onPressed: onClose,
-              ),
-              Text(
-                '$count',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.reply, size: 22, color: Colors.white),
-                onPressed: onReply,
-                tooltip: 'Répondre',
-              ),
-              IconButton(
-                icon: const Icon(Icons.star_border_rounded, size: 22, color: Colors.white),
-                onPressed: onStar,
-                tooltip: 'Favori',
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 22, color: Colors.white),
-                onPressed: onDelete,
-                tooltip: 'Supprimer',
-              ),
-              IconButton(
-                icon: const Icon(Icons.forward, size: 22, color: Colors.white),
-                onPressed: onForward,
-                tooltip: 'Transférer',
-              ),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Colors.white, size: 22),
-                color: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                onSelected: (value) {
-                  switch (value) {
-                    case 'info':   onInfo();   break;
-                    case 'copy':   onCopy();   break;
-                    case 'edit':   onEdit();   break;
-                    case 'pin':    onPin();    break;
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'info',  child: Text('Infos',     style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                  PopupMenuItem(value: 'copy',  child: Text('Copier',    style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                  PopupMenuItem(value: 'edit',  child: Text('Modifier',  style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                  PopupMenuItem(value: 'pin',   child: Text('Épingler',  style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                ],
-              ),
-            ],
+          children: [
+            IconButton(
+              icon: const Icon(Icons.close, size: 20, color: Colors.white),
+              onPressed: onClose,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
+            Text(
+              '$count',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.reply, size: 20, color: Colors.white),
+              onPressed: onReply,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              tooltip: 'Répondre',
+            ),
+            IconButton(
+              icon: const Icon(Icons.star_border_rounded, size: 20, color: Colors.white),
+              onPressed: onStar,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              tooltip: 'Favori',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20, color: Colors.white),
+              onPressed: onDelete,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              tooltip: 'Supprimer',
+            ),
+            IconButton(
+              icon: const Icon(Icons.forward, size: 20, color: Colors.white),
+              onPressed: onForward,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              tooltip: 'Transférer',
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
+              padding: const EdgeInsets.all(8),
+              color: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              onSelected: (value) {
+                switch (value) {
+                  case 'info':   onInfo();   break;
+                  case 'copy':   onCopy();   break;
+                  case 'edit':   onEdit();   break;
+                  case 'pin':    onPin();    break;
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'info',  child: Text('Infos',     style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                PopupMenuItem(value: 'copy',  child: Text('Copier',    style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                PopupMenuItem(value: 'edit',  child: Text('Modifier',  style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                PopupMenuItem(value: 'pin',   child: Text('Épingler',  style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+              ],
+            ),
+          ],
           ),
         ),
       ),
