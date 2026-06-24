@@ -135,6 +135,7 @@ class _InboxScreenState extends State<InboxScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
               child: Container(
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(color: const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(30)),
                 child: TextField(
                   controller: _searchController,
