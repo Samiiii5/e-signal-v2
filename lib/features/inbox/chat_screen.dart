@@ -749,6 +749,7 @@ class _ChatScreenState extends State<ChatScreen> {
         : _messages.where((m) => m.content.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.white,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(_isSelectionMode ? 60 : (_isSearching ? 60 : 64)),
@@ -874,17 +875,20 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-          _InputBar(
-            controller: _controller,
-            isSending: _isSending,
-            onSend: _send,
-            onPayment: _openCreateLink,
-            onAttachment: _showAttachmentSheet,
-            replyTo: _replyToMessage,
-            onCancelReply: () => setState(() => _replyToMessage = null),
-            showEmojiPicker: _showEmojiPicker,
-            onEmojiToggle: () => setState(() => _showEmojiPicker = !_showEmojiPicker),
-            onCamera: _pickImage,
+          Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+            child: _InputBar(
+              controller: _controller,
+              isSending: _isSending,
+              onSend: _send,
+              onPayment: _openCreateLink,
+              onAttachment: _showAttachmentSheet,
+              replyTo: _replyToMessage,
+              onCancelReply: () => setState(() => _replyToMessage = null),
+              showEmojiPicker: _showEmojiPicker,
+              onEmojiToggle: () => setState(() => _showEmojiPicker = !_showEmojiPicker),
+              onCamera: _pickImage,
+            ),
           ),
         ],
       ),
