@@ -33,6 +33,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Thread? _thread;
   Message? _replyToMessage;
   final Set<String> _starredIds = {};
+  final Set<String> _pinnedIds = {};
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
   final Map<String, List<String>> _reactions = {};
@@ -600,6 +601,28 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _pinSelected() {
+    setState(() {
+      for (final id in _selectedIds) {
+        if (_pinnedIds.contains(id)) {
+          _pinnedIds.remove(id);
+        } else {
+          _pinnedIds.add(id);
+        }
+      }
+    });
+    _exitSelectionMode();
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message épinglé'));
+  }
+
+  void _editSelected() {
+    if (_selectedIds.isEmpty) return;
+    final msgId = _selectedIds.first;
+    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    _exitSelectionMode();
+    _showEditDialog(msg);
+  }
+
   // ── Réactions emoji ──────────────────────────────────────────────────────────
 
   void _toggleReaction(String msgId, String emoji) {
@@ -718,10 +741,12 @@ class _ChatScreenState extends State<ChatScreen> {
                 onClose: _exitSelectionMode,
                 onReply: _replySelected,
                 onStar: _starSelected,
-                onCopy: _copySelected,
-                onForward: _forwardSelected,
                 onDelete: _deleteSelected,
+                onForward: _forwardSelected,
                 onInfo: _showInfoSelected,
+                onCopy: _copySelected,
+                onEdit: _editSelected,
+                onPin: _pinSelected,
               )
             : _ChatAppBar(
                 thread: _thread,
@@ -770,6 +795,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   _                         => _MessageBubble(
                       message: msg,
                       isStarred: _starredIds.contains(msg.id),
+                      isPinned: _pinnedIds.contains(msg.id),
                       searchQuery: _searchQuery,
                       reactions: _reactions[msg.id] ?? [],
                       status: _msgStatus[msg.id],
@@ -802,7 +828,32 @@ class _ChatScreenState extends State<ChatScreen> {
                             ? AppColors.green.withValues(alpha: 0.10)
                             : Colors.black.withValues(alpha: 0.30))
                         : Colors.transparent,
-                    child: bubble,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        if (_isSelectionMode)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isSelected ? AppColors.green : Colors.transparent,
+                                border: Border.all(
+                                  color: isSelected ? AppColors.green : Colors.grey.withValues(alpha: 0.5),
+                                  width: 2,
+                                ),
+                              ),
+                              child: isSelected
+                                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                  : null,
+                            ),
+                          ),
+                        Expanded(child: bubble),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -1053,6 +1104,7 @@ class _SecurityBanner extends StatelessWidget {
 class _MessageBubble extends StatelessWidget {
   final Message message;
   final bool isStarred;
+  final bool isPinned;
   final String searchQuery;
   final List<String> reactions;
   final MessageStatus? status;
@@ -1061,6 +1113,7 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     this.isStarred = false,
+    this.isPinned = false,
     this.searchQuery = '',
     this.reactions = const [],
     this.status,
@@ -1076,14 +1129,21 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment: fromContact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
           // Étoile si marqué
-          if (isStarred)
+          if (isStarred || isPinned)
             Padding(
               padding: EdgeInsets.only(
                 bottom: 2,
                 left: fromContact ? 4 : 0,
                 right: fromContact ? 0 : 4,
               ),
-              child: const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isStarred) const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+                  if (isStarred && isPinned) const SizedBox(width: 4),
+                  if (isPinned) const Icon(Icons.push_pin, size: 13, color: AppColors.textSecondary),
+                ],
+              ),
             ),
           Container(
             constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
@@ -2574,6 +2634,8 @@ class _SelectionAppBar extends StatelessWidget {
   final VoidCallback onForward;
   final VoidCallback onDelete;
   final VoidCallback onInfo;
+  final VoidCallback onEdit;
+  final VoidCallback onPin;
 
   const _SelectionAppBar({
     required this.count,
@@ -2584,41 +2646,72 @@ class _SelectionAppBar extends StatelessWidget {
     required this.onForward,
     required this.onDelete,
     required this.onInfo,
+    required this.onEdit,
+    required this.onPin,
   });
+
+  static const _bg = Color(0xFF1F2C34);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.white,
+      color: _bg,
       child: SafeArea(
         bottom: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 22, color: AppColors.textPrimary),
-                    onPressed: onClose,
-                  ),
-                  Text(
-                    '$count sélectionné${count > 1 ? 's' : ''}',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                  ),
-                  const Spacer(),
-                  IconButton(icon: const Icon(Icons.reply, size: 22, color: AppColors.textSecondary), onPressed: onReply, tooltip: 'Répondre'),
-                  IconButton(icon: const Icon(Icons.star_border_rounded, size: 22, color: Color(0xFFF59E0B)), onPressed: onStar, tooltip: 'Favori'),
-                  IconButton(icon: const Icon(Icons.content_copy_outlined, size: 20, color: AppColors.textSecondary), onPressed: onCopy, tooltip: 'Copier'),
-                  IconButton(icon: const Icon(Icons.forward, size: 22, color: AppColors.textSecondary), onPressed: onForward, tooltip: 'Transférer'),
-                  IconButton(icon: const Icon(Icons.delete_outline, size: 22, color: Colors.redAccent), onPressed: onDelete, tooltip: 'Supprimer'),
-                  IconButton(icon: const Icon(Icons.info_outline, size: 22, color: AppColors.textSecondary), onPressed: onInfo, tooltip: 'Infos'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.close, size: 22, color: Colors.white),
+                onPressed: onClose,
+              ),
+              Text(
+                '$count',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.reply, size: 22, color: Colors.white),
+                onPressed: onReply,
+                tooltip: 'Répondre',
+              ),
+              IconButton(
+                icon: const Icon(Icons.star_border_rounded, size: 22, color: Colors.white),
+                onPressed: onStar,
+                tooltip: 'Favori',
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 22, color: Colors.white),
+                onPressed: onDelete,
+                tooltip: 'Supprimer',
+              ),
+              IconButton(
+                icon: const Icon(Icons.forward, size: 22, color: Colors.white),
+                onPressed: onForward,
+                tooltip: 'Transférer',
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.white, size: 22),
+                color: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'info':   onInfo();   break;
+                    case 'copy':   onCopy();   break;
+                    case 'edit':   onEdit();   break;
+                    case 'pin':    onPin();    break;
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'info',  child: Text('Infos',     style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'copy',  child: Text('Copier',    style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'edit',  child: Text('Modifier',  style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'pin',   child: Text('Épingler',  style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
                 ],
               ),
-            ),
-            const Divider(height: 1, thickness: 0.5, color: AppColors.borderLight),
-          ],
+            ],
+          ),
         ),
       ),
     );
