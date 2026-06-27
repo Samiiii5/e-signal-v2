@@ -9,8 +9,10 @@ import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
+import '../../shared/mock/products_mock.dart';
+import '../../shared/models/lien_paiement_model.dart';
 import '../../shared/services/inbox_service.dart';
-import '../payments/create_link_sheet.dart';
+import '../payments/create_link_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String threadId;
@@ -32,6 +34,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Thread? _thread;
   Message? _replyToMessage;
   final Set<String> _starredIds = {};
+  final Set<String> _pinnedIds = {};
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
   final Map<String, List<String>> _reactions = {};
@@ -60,6 +63,11 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _messages = messages;
       _thread = threads.where((t) => t.id == widget.threadId).firstOrNull;
+      for (final m in messages) {
+        if (m.initialStatus != null && !_msgStatus.containsKey(m.id)) {
+          _msgStatus[m.id] = m.initialStatus!;
+        }
+      }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
@@ -112,6 +120,12 @@ class _ChatScreenState extends State<ChatScreen> {
         onEdit: !msg.isFromContact
             ? () {
                 Navigator.pop(context);
+                if (_msgStatus[msg.id] == MessageStatus.read) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    AppSnackbar.error('Ce message a déjà été lu et ne peut plus être modifié'),
+                  );
+                  return;
+                }
                 _showEditDialog(msg);
               }
             : null,
@@ -332,28 +346,51 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Lien de paiement ─────────────────────────────────────────────────────────
 
   Future<void> _openCreateLink() async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => const CreateLinkSheet(),
+    final result = await Navigator.push<CreateLinkResult?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateLinkScreen(contactName: _thread?.contactName ?? 'Client'),
+      ),
     );
-    if (!mounted || result != true) return;
-    setState(() {
-      _messages.add(Message(
-        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-        threadId: widget.threadId,
-        content: 'Lien de paiement envoyé',
-        isFromContact: false,
-        sentAt: DateTime.now(),
-        type: MessageType.paymentLink,
-        paymentAmount: '0',
-        paymentCurrency: 'FCFA',
-        paymentStatus: PaymentStatus.created,
-        paymentProvider: 'wave',
-      ));
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (!mounted || result == null) return;
+
+    _addMessage(Message(
+      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      threadId: widget.threadId,
+      content: result.lien.description,
+      isFromContact: false,
+      sentAt: DateTime.now(),
+      type: MessageType.paymentLink,
+      paymentAmount: result.lien.montantTotal.toString(),
+      paymentCurrency: 'FCFA',
+      paymentStatus: PaymentStatus.created,
+      paymentProvider: 'wave',
+    ));
+
+    if (result.hasDelivery) {
+      final addr = '${result.deliveryCommune}, ${result.deliveryQuartier}, ${result.deliverySecteur}';
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
+        _addMessage(Message(
+          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+          threadId: widget.threadId,
+          content: '🚚 Livraison à domicile confirmée\nAdresse : $addr\nUn livreur vous sera assigné sous peu.',
+          isFromContact: false,
+          sentAt: DateTime.now(),
+        ));
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!mounted) return;
+          _addMessage(Message(
+            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+            threadId: widget.threadId,
+            content: '✅ Livreur assigné : Koné Ibrahima\n📅 Livraison prévue : Demain entre 14h-16h\n📞 Contact : +225 07 58 32 14 96',
+            isFromContact: false,
+            sentAt: DateTime.now(),
+          ));
+        });
+      });
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -463,10 +500,9 @@ class _ChatScreenState extends State<ChatScreen> {
         onSend: (product) {
           Navigator.pop(context);
           _sendTextMessage(
-            '📦 *${product.name}*\n'
-            '${product.emoji}  ${product.description}\n'
+            '📦 ${product.emoji} *${product.name}*\n'
             'Prix : ${product.price} FCFA\n'
-            'Intéressé(e) ? Répondez-nous !',
+            'Intéressé(e) ? Répondez OUI pour commander !',
           );
         },
       ),
@@ -530,10 +566,101 @@ class _ChatScreenState extends State<ChatScreen> {
     ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('$count message(s) supprimé(s)'));
   }
 
+  void _replySelected() {
+    if (_selectedIds.isEmpty) return;
+    final msgId = _selectedIds.first;
+    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    _exitSelectionMode();
+    setState(() => _replyToMessage = msg);
+  }
+
+  void _starSelected() {
+    setState(() {
+      for (final id in _selectedIds) {
+        if (_starredIds.contains(id)) {
+          _starredIds.remove(id);
+        } else {
+          _starredIds.add(id);
+        }
+      }
+    });
+    _exitSelectionMode();
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Favori mis à jour'));
+  }
+
+  void _copySelected() {
+    final msgs = _messages.where((m) => _selectedIds.contains(m.id)).toList();
+    final text = msgs.map((m) => m.content).join('\n');
+    Clipboard.setData(ClipboardData(text: text));
+    _exitSelectionMode();
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message copié'));
+  }
+
   void _forwardSelected() {
+    _doForwardSelected();
+  }
+
+  Future<void> _doForwardSelected() async {
+    final threads = await inboxService.getThreads();
+    if (!mounted) return;
     final count = _selectedIds.length;
     _exitSelectionMode();
-    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('$count message(s) à transférer (fonctionnalité à venir)'));
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ForwardSheet(
+        threads: threads,
+        currentThreadId: widget.threadId,
+        onForward: (thread) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            AppSnackbar.success('$count message(s) transféré(s) à ${thread.contactName}'),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showInfoSelected() {
+    if (_selectedIds.isEmpty) return;
+    final msgId = _selectedIds.first;
+    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    final status = _msgStatus[msgId];
+    _exitSelectionMode();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MessageInfoSheet(message: msg, status: status),
+    );
+  }
+
+  void _pinSelected() {
+    setState(() {
+      for (final id in _selectedIds) {
+        if (_pinnedIds.contains(id)) {
+          _pinnedIds.remove(id);
+        } else {
+          _pinnedIds.add(id);
+        }
+      }
+    });
+    _exitSelectionMode();
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message épinglé'));
+  }
+
+  void _editSelected() {
+    if (_selectedIds.isEmpty) return;
+    final msgId = _selectedIds.first;
+    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    _exitSelectionMode();
+    if (_msgStatus[msgId] == MessageStatus.read) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Ce message a déjà été lu et ne peut plus être modifié'),
+      );
+      return;
+    }
+    _showEditDialog(msg);
   }
 
   // ── Réactions emoji ──────────────────────────────────────────────────────────
@@ -645,92 +772,135 @@ class _ChatScreenState extends State<ChatScreen> {
         : _messages.where((m) => m.content.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.white,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(_isSelectionMode ? 60 : (_isSearching ? 60 : 64)),
-        child: _ChatAppBar(
-          thread: _thread,
-          isMuted: _isMuted,
-          isSearching: _isSearching,
-          isSelectionMode: _isSelectionMode,
-          selectionCount: _selectedIds.length,
-          searchController: _searchController,
-          onSearchChanged: (v) => setState(() => _searchQuery = v),
-          onToggleSearch: _toggleSearch,
-          onStarred: _showStarredMessages,
-          onProfile: _showClientProfile,
-          onStats: _showConversationStats,
-          onMute: _toggleMute,
-          onBlock: _showBlockDialog,
-          onDeleteConversation: _showDeleteConversationDialog,
-          onExport: _exportConversation,
-          onCall: _onCall,
-          onVideoCall: _onVideoCall,
-          onAvatarTap: _showClientProfile,
-          onExitSelection: _exitSelectionMode,
-          onDeleteSelected: _deleteSelected,
-          onForwardSelected: _forwardSelected,
-        ),
+        child: _isSelectionMode
+            ? _SelectionAppBar(
+                count: _selectedIds.length,
+                onClose: _exitSelectionMode,
+                onReply: _replySelected,
+                onStar: _starSelected,
+                onDelete: _deleteSelected,
+                onForward: _forwardSelected,
+                onInfo: _showInfoSelected,
+                onCopy: _copySelected,
+                onEdit: _editSelected,
+                onPin: _pinSelected,
+              )
+            : _ChatAppBar(
+                thread: _thread,
+                isMuted: _isMuted,
+                isSearching: _isSearching,
+                searchController: _searchController,
+                onSearchChanged: (v) => setState(() => _searchQuery = v),
+                onToggleSearch: _toggleSearch,
+                onStarred: _showStarredMessages,
+                onProfile: _showClientProfile,
+                onStats: _showConversationStats,
+                onMute: _toggleMute,
+                onBlock: _showBlockDialog,
+                onDeleteConversation: _showDeleteConversationDialog,
+                onExport: _exportConversation,
+                onCall: _onCall,
+                onVideoCall: _onVideoCall,
+              ),
       ),
       body: Column(
         children: [
           Expanded(
-            child: GestureDetector(
-              onTap: _isSelectionMode ? _exitSelectionMode : null,
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                itemCount: displayed.isEmpty ? 1 : displayed.length + 1,
-                itemBuilder: (_, i) {
-                  if (i == 0) return _searchQuery.isNotEmpty && displayed.isEmpty
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              itemCount: displayed.isEmpty ? 1 : displayed.length + 1,
+              itemBuilder: (_, i) {
+                if (i == 0) {
+                  return _searchQuery.isNotEmpty && displayed.isEmpty
                       ? const _NoResultsBanner()
                       : const _SecurityBanner();
-                  final msg = displayed[i - 1];
-                  final isSelected = _selectedIds.contains(msg.id);
-                  Widget bubble = switch (msg.type) {
-                    MessageType.paymentLink => _PaymentBubble(
+                }
+                final msg = displayed[i - 1];
+                final isSelected = _selectedIds.contains(msg.id);
+                Widget bubble = switch (msg.type) {
+                  MessageType.paymentLink   => _PaymentBubble(
                       message: msg,
-                      onTap: () => context.push('/payments'),
+                      onTap: () => _launchUrl('https://pay.wave.com/mock'),
                     ),
-                    MessageType.location      => _LocationBubble(message: msg),
-                    MessageType.orderTracking => _OrderTrackingBubble(message: msg),
-                    MessageType.image         => _ImageBubble(
+                  MessageType.location      => _LocationBubble(message: msg),
+                  MessageType.orderTracking => _OrderTrackingBubble(message: msg),
+                  MessageType.image         => _ImageBubble(
                       message: msg,
                       onTap: () => _showFullscreenImage(msg),
                     ),
-                    _ => _MessageBubble(
+                  _                         => _MessageBubble(
                       message: msg,
                       isStarred: _starredIds.contains(msg.id),
+                      isPinned: _pinnedIds.contains(msg.id),
                       searchQuery: _searchQuery,
-                      isSelected: isSelected,
-                      isSelectionMode: _isSelectionMode,
-                      reactions: _reactions[msg.id] ?? const [],
+                      reactions: _reactions[msg.id] ?? [],
                       status: _msgStatus[msg.id],
-                      onLongPress: () => _isSelectionMode ? _toggleSelection(msg.id) : _enterSelectionMode(msg.id),
-                      onTap: () {
-                        if (_isSelectionMode) { _toggleSelection(msg.id); return; }
-                        _showMessageOptions(msg);
-                      },
-                      onDoubleTap: (pos) => _showReactionPicker(msg, pos),
-                      onSwipeReply: () => setState(() => _replyToMessage = msg),
-                      onReactionToggle: (e) => _toggleReaction(msg.id, e),
-                      onUrlTap: _launchUrl,
+                      onReactionTap: (emoji) => _toggleReaction(msg.id, emoji),
                     ),
-                  };
-
-                  if (msg.type != MessageType.text) {
-                    return GestureDetector(
-                      onLongPress: () => _isSelectionMode ? _toggleSelection(msg.id) : _showMessageOptions(msg),
-                      child: bubble,
-                    );
-                  }
-                  return bubble;
-                },
-              ),
+                };
+                return GestureDetector(
+                  onLongPress: () {
+                    if (_isSelectionMode) {
+                      _toggleSelection(msg.id);
+                    } else {
+                      _enterSelectionMode(msg.id);
+                    }
+                  },
+                  onTap: () {
+                    if (_isSelectionMode) {
+                      _toggleSelection(msg.id);
+                    } else {
+                      _showMessageOptions(msg);
+                    }
+                  },
+                  onDoubleTap: () {
+                    final box = context.findRenderObject() as RenderBox?;
+                    final pos = box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                    _showReactionPicker(msg, pos);
+                  },
+                  child: Container(
+                    color: (isSelected && _isSelectionMode)
+                        ? const Color(0xFFE8F8F0)
+                        : Colors.transparent,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        if (_isSelectionMode)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isSelected ? AppColors.green : Colors.transparent,
+                                border: Border.all(
+                                  color: isSelected ? AppColors.green : Colors.grey.withValues(alpha: 0.5),
+                                  width: 2,
+                                ),
+                              ),
+                              child: isSelected
+                                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                  : null,
+                            ),
+                          ),
+                        Expanded(child: bubble),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-          if (!_isSelectionMode)
-            _InputBar(
+          Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+            child: _InputBar(
               controller: _controller,
               isSending: _isSending,
               onSend: _send,
@@ -740,22 +910,9 @@ class _ChatScreenState extends State<ChatScreen> {
               onCancelReply: () => setState(() => _replyToMessage = null),
               showEmojiPicker: _showEmojiPicker,
               onEmojiToggle: () => setState(() => _showEmojiPicker = !_showEmojiPicker),
-              onCamera: () async {
-                setState(() => _showEmojiPicker = false);
-                final picker = ImagePicker();
-                final xFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
-                if (xFile == null || !mounted) return;
-                _addMessage(Message(
-                  id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-                  threadId: widget.threadId,
-                  content: 'Photo',
-                  isFromContact: false,
-                  sentAt: DateTime.now(),
-                  type: MessageType.image,
-                  imagePath: xFile.path,
-                ));
-              },
+              onCamera: _pickImage,
             ),
+          ),
         ],
       ),
     );
@@ -768,8 +925,6 @@ class _ChatAppBar extends StatelessWidget {
   final Thread? thread;
   final bool isMuted;
   final bool isSearching;
-  final bool isSelectionMode;
-  final int selectionCount;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onToggleSearch;
@@ -782,17 +937,11 @@ class _ChatAppBar extends StatelessWidget {
   final VoidCallback onExport;
   final VoidCallback onCall;
   final VoidCallback onVideoCall;
-  final VoidCallback onAvatarTap;
-  final VoidCallback onExitSelection;
-  final VoidCallback onDeleteSelected;
-  final VoidCallback onForwardSelected;
 
   const _ChatAppBar({
     required this.thread,
     required this.isMuted,
     required this.isSearching,
-    required this.isSelectionMode,
-    required this.selectionCount,
     required this.searchController,
     required this.onSearchChanged,
     required this.onToggleSearch,
@@ -805,10 +954,6 @@ class _ChatAppBar extends StatelessWidget {
     required this.onExport,
     required this.onCall,
     required this.onVideoCall,
-    required this.onAvatarTap,
-    required this.onExitSelection,
-    required this.onDeleteSelected,
-    required this.onForwardSelected,
   });
 
   @override
@@ -822,43 +967,9 @@ class _ChatAppBar extends StatelessWidget {
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: isSelectionMode
-              ? _selectionRow(context)
-              : (isSearching ? _searchRow(context) : _normalRow(context)),
+          child: isSearching ? _searchRow(context) : _normalRow(context),
         ),
       ),
-    );
-  }
-
-  Widget _selectionRow(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.close, size: 22, color: AppColors.textPrimary),
-          onPressed: onExitSelection,
-        ),
-        Expanded(
-          child: Text(
-            '$selectionCount sélectionné${selectionCount > 1 ? 's' : ''}',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.share_outlined, size: 22, color: AppColors.textSecondary),
-          onPressed: onForwardSelected,
-          tooltip: 'Transférer',
-        ),
-        IconButton(
-          icon: const Icon(Icons.star_outline_rounded, size: 22, color: Color(0xFFF59E0B)),
-          onPressed: () {},
-          tooltip: 'Marquer',
-        ),
-        IconButton(
-          icon: const Icon(Icons.delete_outline, size: 22, color: Colors.redAccent),
-          onPressed: onDeleteSelected,
-          tooltip: 'Supprimer',
-        ),
-      ],
     );
   }
 
@@ -869,46 +980,42 @@ class _ChatAppBar extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
-        GestureDetector(
-          onTap: onAvatarTap,
-          child: CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.backgroundPage,
-            child: Text(
-              thread?.contactInitials ?? '?',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-            ),
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: AppColors.backgroundPage,
+          child: Text(
+            thread?.contactInitials ?? '?',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: GestureDetector(
-            onTap: onAvatarTap,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  children: [
-                    Flexible(child: Text(thread?.contactName ?? '...', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)),
-                    if (isMuted) ...[
-                      const SizedBox(width: 6),
-                      const Icon(Icons.volume_off, size: 14, color: AppColors.textHint),
-                    ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Flexible(child: Text(thread?.contactName ?? '...', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)),
+                  if (isMuted) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.volume_off, size: 14, color: AppColors.textHint),
                   ],
-                ),
-                Text(_channelLabel(thread?.channel), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-              ],
-            ),
+                ],
+              ),
+              Text(_channelLabel(thread?.channel), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            ],
           ),
         ),
+        // Appel audio
         IconButton(
-          icon: const Icon(Icons.phone_outlined, size: 20, color: AppColors.textSecondary),
+          icon: const Icon(Icons.call_outlined, size: 20, color: AppColors.green),
           onPressed: onCall,
-          tooltip: 'Appel',
+          tooltip: 'Appel audio',
         ),
+        // Appel vidéo
         IconButton(
-          icon: const Icon(Icons.videocam_outlined, size: 22, color: AppColors.textSecondary),
+          icon: const Icon(Icons.videocam_outlined, size: 22, color: AppColors.green),
           onPressed: onVideoCall,
           tooltip: 'Appel vidéo',
         ),
@@ -1036,279 +1143,107 @@ class _SecurityBanner extends StatelessWidget {
 
 // ── Bulle message ─────────────────────────────────────────────────────────────
 
-class _MessageBubble extends StatefulWidget {
+class _MessageBubble extends StatelessWidget {
   final Message message;
   final bool isStarred;
+  final bool isPinned;
   final String searchQuery;
-  final bool isSelected;
-  final bool isSelectionMode;
   final List<String> reactions;
   final MessageStatus? status;
-  final VoidCallback? onLongPress;
-  final VoidCallback? onTap;
-  final void Function(Offset)? onDoubleTap;
-  final VoidCallback? onSwipeReply;
-  final void Function(String)? onReactionToggle;
-  final void Function(String)? onUrlTap;
+  final void Function(String emoji)? onReactionTap;
 
   const _MessageBubble({
     required this.message,
     this.isStarred = false,
+    this.isPinned = false,
     this.searchQuery = '',
-    this.isSelected = false,
-    this.isSelectionMode = false,
     this.reactions = const [],
     this.status,
-    this.onLongPress,
-    this.onTap,
-    this.onDoubleTap,
-    this.onSwipeReply,
-    this.onReactionToggle,
-    this.onUrlTap,
+    this.onReactionTap,
   });
 
   @override
-  State<_MessageBubble> createState() => _MessageBubbleState();
-}
-
-class _MessageBubbleState extends State<_MessageBubble> {
-  double _dragOffset = 0;
-  bool _swipeTriggered = false;
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  void _onDragUpdate(DragUpdateDetails d) {
-    if (d.delta.dx > 0) {
-      setState(() => _dragOffset = (_dragOffset + d.delta.dx).clamp(0.0, 64.0));
-      if (_dragOffset >= 48 && !_swipeTriggered) {
-        _swipeTriggered = true;
-        HapticFeedback.lightImpact();
-      }
-    }
-  }
-
-  void _onDragEnd(DragEndDetails d) {
-    if (_swipeTriggered) { widget.onSwipeReply?.call(); }
-    _swipeTriggered = false;
-    setState(() => _dragOffset = 0);
-  }
-
-  static final _urlRegex = RegExp(r'https?://[^\s]+', caseSensitive: false);
-
-  @override
   Widget build(BuildContext context) {
-    final fromContact = widget.message.isFromContact;
-    return GestureDetector(
-      onLongPress: widget.onLongPress,
-      onTap: widget.onTap,
-      onDoubleTapDown: (d) => widget.onDoubleTap?.call(d.globalPosition),
-      onDoubleTap: () {},
-      onHorizontalDragUpdate: widget.isSelectionMode ? null : _onDragUpdate,
-      onHorizontalDragEnd: widget.isSelectionMode ? null : _onDragEnd,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        color: widget.isSelected ? AppColors.green.withValues(alpha: 0.08) : Colors.transparent,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 1),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Cercle de sélection (gauche)
-              if (widget.isSelectionMode)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, right: 6, bottom: 8),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 22, height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: widget.isSelected ? AppColors.green : Colors.transparent,
-                      border: Border.all(
-                        color: widget.isSelected ? AppColors.green : AppColors.textHint,
-                        width: 2,
-                      ),
-                    ),
-                    child: widget.isSelected
-                        ? const Icon(Icons.check, size: 13, color: AppColors.white)
-                        : null,
-                  ),
-                ),
-
-              Expanded(
-                child: Transform.translate(
-                  offset: Offset(_dragOffset, 0),
-                  child: Align(
-                    alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Column(
-                          crossAxisAlignment: fromContact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-                          children: [
-                            // Étoile si marqué
-                            if (widget.isStarred)
-                              Padding(
-                                padding: EdgeInsets.only(
-                                  bottom: 2,
-                                  left: fromContact ? 4 : 0,
-                                  right: fromContact ? 0 : 4,
-                                ),
-                                child: const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
-                              ),
-                            Container(
-                              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
-                              margin: EdgeInsets.only(bottom: widget.reactions.isNotEmpty ? 20 : 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: fromContact ? AppColors.white : AppColors.primary,
-                                borderRadius: BorderRadius.only(
-                                  topLeft: const Radius.circular(18),
-                                  topRight: const Radius.circular(18),
-                                  bottomLeft: Radius.circular(fromContact ? 4 : 18),
-                                  bottomRight: Radius.circular(fromContact ? 18 : 4),
-                                ),
-                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: fromContact ? 0.06 : 0.12), blurRadius: 6, offset: const Offset(0, 2))],
-                                border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  _buildContent(fromContact),
-                                  const SizedBox(height: 4),
-                                  _buildTimestamp(fromContact),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        // Réactions
-                        if (widget.reactions.isNotEmpty)
-                          Positioned(
-                            bottom: 6,
-                            left: fromContact ? 8 : null,
-                            right: fromContact ? null : 8,
-                            child: _ReactionBar(
-                              reactions: widget.reactions,
-                              onToggle: widget.onReactionToggle,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
+    final fromContact = message.isFromContact;
+    return Align(
+      alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
+      child: Column(
+        crossAxisAlignment: fromContact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        children: [
+          // Étoile si marqué
+          if (isStarred || isPinned)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: 2,
+                left: fromContact ? 4 : 0,
+                right: fromContact ? 0 : 4,
               ),
-
-              // Icône swipe reply
-              if (_dragOffset > 16)
-                Padding(
-                  padding: const EdgeInsets.only(right: 4, bottom: 8),
-                  child: Opacity(
-                    opacity: (_dragOffset / 48).clamp(0.0, 1.0),
-                    child: const Icon(Icons.reply, size: 20, color: AppColors.textHint),
-                  ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isStarred) const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+                  if (isStarred && isPinned) const SizedBox(width: 4),
+                  if (isPinned) const Icon(Icons.push_pin, size: 13, color: AppColors.textSecondary),
+                ],
+              ),
+            ),
+          Container(
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+            margin: EdgeInsets.only(bottom: reactions.isNotEmpty ? 4 : 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: fromContact ? AppColors.white : AppColors.primary,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(fromContact ? 4 : 18),
+                bottomRight: Radius.circular(fromContact ? 18 : 4),
+              ),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: fromContact ? 0.06 : 0.12), blurRadius: 6, offset: const Offset(0, 2))],
+              border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _HighlightText(
+                  text: message.content,
+                  query: searchQuery,
+                  baseStyle: TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4),
+                  highlightColor: fromContact ? const Color(0xFFFFE082) : const Color(0xFFFFF176),
                 ),
-            ],
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatTime(message.sentAt),
+                      style: TextStyle(fontSize: 10, color: fromContact ? AppColors.textHint : AppColors.white.withValues(alpha: 0.65)),
+                    ),
+                    if (!fromContact) ...[
+                      const SizedBox(width: 4),
+                      _StatusTicks(status: status),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContent(bool fromContact) {
-    final text = widget.message.content;
-    final urlMatch = _urlRegex.firstMatch(text);
-    if (urlMatch != null && widget.onUrlTap != null) {
-      final url = urlMatch.group(0)!;
-      final before = text.substring(0, urlMatch.start);
-      final after = text.substring(urlMatch.end);
-      final baseStyle = TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4);
-      return RichText(
-        text: TextSpan(style: baseStyle, children: [
-          if (before.isNotEmpty) TextSpan(text: before),
-          WidgetSpan(child: GestureDetector(
-            onTap: () => widget.onUrlTap!(url),
-            child: Text(url, style: baseStyle.copyWith(decoration: TextDecoration.underline, color: fromContact ? AppColors.green : Colors.white70)),
-          )),
-          if (after.isNotEmpty) TextSpan(text: after),
-        ]),
-      );
-    }
-    return _HighlightText(
-      text: text,
-      query: widget.searchQuery,
-      baseStyle: TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4),
-      highlightColor: fromContact ? const Color(0xFFFFE082) : const Color(0xFFFFF176),
-    );
-  }
-
-  Widget _buildTimestamp(bool fromContact) {
-    final status = widget.status;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          _formatTime(widget.message.sentAt),
-          style: TextStyle(fontSize: 10, color: fromContact ? AppColors.textHint : AppColors.white.withValues(alpha: 0.65)),
-        ),
-        if (!fromContact) ...[
-          const SizedBox(width: 4),
-          _StatusTicks(status: status),
+          // Réactions
+          if (reactions.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: 8,
+                left: fromContact ? 4 : 0,
+                right: fromContact ? 0 : 4,
+              ),
+              child: _ReactionBar(reactions: reactions, onTap: onReactionTap),
+            ),
         ],
-      ],
+      ),
     );
   }
 
   String _formatTime(DateTime dt) => '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-}
-
-class _StatusTicks extends StatelessWidget {
-  final MessageStatus? status;
-  const _StatusTicks({this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    if (status == null) {
-      return Icon(Icons.check, size: 12, color: AppColors.white.withValues(alpha: 0.5));
-    }
-    return switch (status!) {
-      MessageStatus.sent      => Icon(Icons.check, size: 12, color: AppColors.white.withValues(alpha: 0.65)),
-      MessageStatus.delivered => Icon(Icons.done_all, size: 12, color: AppColors.white.withValues(alpha: 0.65)),
-      MessageStatus.read      => const Icon(Icons.done_all, size: 12, color: Color(0xFF64FFDA)),
-    };
-  }
-}
-
-class _ReactionBar extends StatelessWidget {
-  final List<String> reactions;
-  final void Function(String)? onToggle;
-  const _ReactionBar({required this.reactions, this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 4, offset: const Offset(0, 1))],
-        border: Border.all(color: AppColors.borderLight, width: 0.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: reactions.map((e) => GestureDetector(
-          onTap: () => onToggle?.call(e),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(e, style: const TextStyle(fontSize: 14)),
-          ),
-        )).toList(),
-      ),
-    );
-  }
 }
 
 // ── Bulle paiement ────────────────────────────────────────────────────────────
@@ -2005,12 +1940,32 @@ class _LocationBubble extends StatelessWidget {
                   const SizedBox(height: 3),
                   const Text('Cocody Riviera 3, Abidjan', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                   const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
-                      style: const TextStyle(fontSize: 10, color: AppColors.textHint),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onTap: () async {
+                          final uri = Uri.parse('https://maps.google.com/?q=5.3600,-4.0083');
+                          if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(8)),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.map_outlined, size: 13, color: AppColors.greenDark),
+                              SizedBox(width: 4),
+                              Text('Voir sur la carte', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                        style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2149,47 +2104,47 @@ class _ImageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
+    return GestureDetector(
+      onTap: onTap,
+      child: Align(
       alignment: Alignment.centerRight,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 6, offset: const Offset(0, 2))],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              children: [
-                Image.file(
-                  File(message.imagePath!),
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: 200,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 160,
-                    color: AppColors.backgroundPage,
-                    child: const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textHint, size: 40)),
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              Image.file(
+                File(message.imagePath!),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 200,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 160,
+                  color: AppColors.backgroundPage,
+                  child: const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textHint, size: 40)),
+                ),
+              ),
+              Positioned(
+                bottom: 6, right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(8)),
+                  child: Text(
+                    '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                    style: const TextStyle(fontSize: 10, color: Colors.white),
                   ),
                 ),
-                Positioned(
-                  bottom: 6, right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(8)),
-                    child: Text(
-                      '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
-                      style: const TextStyle(fontSize: 10, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -2307,23 +2262,9 @@ class _AttachItem extends StatelessWidget {
 
 // ── BottomSheet catalogue ─────────────────────────────────────────────────────
 
-class _CatalogueProduct {
-  final String name;
-  final String emoji;
-  final String description;
-  final int price;
-  const _CatalogueProduct(this.name, this.emoji, this.description, this.price);
-}
-
 class _CatalogueSheet extends StatelessWidget {
-  final void Function(_CatalogueProduct) onSend;
+  final void Function(Product) onSend;
   const _CatalogueSheet({required this.onSend});
-
-  static const _products = [
-    _CatalogueProduct('Robe ankara', '👗', 'Taille S/M/L • Coton premium', 25000),
-    _CatalogueProduct('Sac en cuir', '👜', 'Cuir véritable • Marron/Noir', 45000),
-    _CatalogueProduct('Ensemble bogolan', '🎽', 'Tissu traditionnel • Unisexe', 18000),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -2348,7 +2289,7 @@ class _CatalogueSheet extends StatelessWidget {
             child: Text('Appuyez sur un produit pour l\'envoyer', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           ),
           const SizedBox(height: 16),
-          ..._products.map((p) => _ProductTile(product: p, onTap: () => onSend(p))),
+          ...mockProducts.map((p) => _ProductTile(product: p, onTap: () => onSend(p))),
         ],
       ),
     );
@@ -2356,7 +2297,7 @@ class _CatalogueSheet extends StatelessWidget {
 }
 
 class _ProductTile extends StatelessWidget {
-  final _CatalogueProduct product;
+  final Product product;
   final VoidCallback onTap;
   const _ProductTile({required this.product, required this.onTap});
 
@@ -2387,14 +2328,14 @@ class _ProductTile extends StatelessWidget {
                 children: [
                   Text(product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
-                  Text(product.description, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  Text(product.category, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('${_fmt(product.price)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
+                Text(_fmt(product.price), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
                 const Text('FCFA', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
               ],
             ),
@@ -2429,16 +2370,23 @@ class _DevisSheet extends StatefulWidget {
 }
 
 class _DevisSheetState extends State<_DevisSheet> {
-  final _prodCtrl = TextEditingController();
-  final _qtyCtrl  = TextEditingController(text: '1');
+  Product? _selectedProduct;
+  final _qtyCtrl  = TextEditingController();
   final _prixCtrl = TextEditingController();
 
   @override
-  void dispose() { _prodCtrl.dispose(); _qtyCtrl.dispose(); _prixCtrl.dispose(); super.dispose(); }
+  void dispose() { _qtyCtrl.dispose(); _prixCtrl.dispose(); super.dispose(); }
 
   int get _qty   => int.tryParse(_qtyCtrl.text) ?? 0;
   int get _prix  => int.tryParse(_prixCtrl.text.replaceAll(' ', '')) ?? 0;
   int get _total => _qty * _prix;
+
+  void _selectProduct(Product p) {
+    setState(() {
+      _selectedProduct = p;
+      _prixCtrl.text = p.price.toString();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2460,10 +2408,79 @@ class _DevisSheetState extends State<_DevisSheet> {
               child: Text('Devis rapide', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
             ),
             const SizedBox(height: 16),
-            _DevisField('Produit / service', _prodCtrl, TextInputType.text),
+            // Product selector
+            GestureDetector(
+              onTap: () async {
+                final p = await showModalBottomSheet<Product>(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => Container(
+                    decoration: const BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+                        const SizedBox(height: 14),
+                        const Align(alignment: Alignment.centerLeft, child: Text('Choisir un produit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary))),
+                        const SizedBox(height: 12),
+                        ...mockProducts.map((p) => InkWell(
+                          onTap: () => Navigator.pop(context, p),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.backgroundPage,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.borderLight, width: 0.5),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                                const SizedBox(width: 12),
+                                Expanded(child: Text(p.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+                                Text('${p.price} FCFA', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.green)),
+                              ],
+                            ),
+                          ),
+                        )),
+                      ],
+                    ),
+                  ),
+                );
+                if (p != null) _selectProduct(p);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundPage,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _selectedProduct != null ? AppColors.green : AppColors.borderLight),
+                ),
+                child: Row(
+                  children: [
+                    if (_selectedProduct != null) ...[
+                      Text(_selectedProduct!.emoji, style: const TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(_selectedProduct!.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+                      Text('${_selectedProduct!.price} FCFA', style: const TextStyle(fontSize: 12, color: AppColors.green, fontWeight: FontWeight.w700)),
+                    ] else ...[
+                      const Icon(Icons.shopping_bag_outlined, size: 18, color: AppColors.textHint),
+                      const SizedBox(width: 10),
+                      const Expanded(child: Text('Sélectionner un produit', style: TextStyle(fontSize: 14, color: AppColors.textHint))),
+                    ],
+                    const Icon(Icons.chevron_right, size: 18, color: AppColors.textSecondary),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 10),
             Row(children: [
-              Expanded(child: _DevisField('Quantité', _qtyCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
+              Expanded(child: _DevisField('Quantité', _qtyCtrl, TextInputType.number, placeholder: 'ex: 2', onChanged: (_) => setState(() {}))),
               const SizedBox(width: 10),
               Expanded(child: _DevisField('Prix unitaire (FCFA)', _prixCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
             ]),
@@ -2486,10 +2503,10 @@ class _DevisSheetState extends State<_DevisSheet> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: (_prodCtrl.text.trim().isNotEmpty && _total > 0)
+                onPressed: (_selectedProduct != null && _qty > 0)
                     ? () => widget.onSend(
                           '📋 *Devis pour ${widget.contactName}*\n\n'
-                          '• Produit : ${_prodCtrl.text.trim()}\n'
+                          '• Produit : ${_selectedProduct!.emoji} ${_selectedProduct!.name}\n'
                           '• Quantité : $_qty\n'
                           '• Prix unitaire : ${_fmtN(_prix)} FCFA\n'
                           '━━━━━━━━━━━━━━\n'
@@ -2526,11 +2543,12 @@ class _DevisSheetState extends State<_DevisSheet> {
 }
 
 class _DevisField extends StatelessWidget {
-  final String hint;
+  final String label;
+  final String? placeholder;
   final TextEditingController ctrl;
   final TextInputType kbType;
   final ValueChanged<String>? onChanged;
-  const _DevisField(this.hint, this.ctrl, this.kbType, {this.onChanged});
+  const _DevisField(this.label, this.ctrl, this.kbType, {this.onChanged, this.placeholder});
 
   @override
   Widget build(BuildContext context) {
@@ -2546,7 +2564,7 @@ class _DevisField extends StatelessWidget {
         onChanged: onChanged,
         style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
         decoration: InputDecoration(
-          hintText: hint,
+          hintText: placeholder ?? label,
           hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
@@ -2583,8 +2601,6 @@ class _InputBar extends StatelessWidget {
     this.replyTo,
   });
 
-  static const _quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-
   @override
   Widget build(BuildContext context) {
     final hasText = controller.text.trim().isNotEmpty;
@@ -2598,38 +2614,6 @@ class _InputBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Emoji picker inline
-          if (showEmojiPicker)
-            Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.backgroundPage,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.borderLight, width: 0.5),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: _quickEmojis.map((e) => GestureDetector(
-                  onTap: () {
-                    final sel = controller.selection;
-                    final text = controller.text;
-                    final newText = text.substring(0, sel.baseOffset < 0 ? text.length : sel.baseOffset)
-                        + e
-                        + text.substring(sel.extentOffset < 0 ? text.length : sel.extentOffset);
-                    controller.value = TextEditingValue(
-                      text: newText,
-                      selection: TextSelection.collapsed(offset: (sel.baseOffset < 0 ? text.length : sel.baseOffset) + e.length),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Text(e, style: const TextStyle(fontSize: 26)),
-                  ),
-                )).toList(),
-              ),
-            ),
-
           // Bandeau de réponse citée
           if (replyTo != null)
             Container(
@@ -2676,30 +2660,21 @@ class _InputBar extends StatelessWidget {
               GestureDetector(
                 onTap: onEmojiToggle,
                 child: Container(
-                  width: 38, height: 38,
+                  width: 36, height: 36,
                   decoration: BoxDecoration(
                     color: showEmojiPicker ? AppColors.greenLight : AppColors.backgroundPage,
                     shape: BoxShape.circle,
-                    border: Border.all(color: showEmojiPicker ? AppColors.green.withValues(alpha: 0.4) : AppColors.borderLight),
+                    border: Border.all(color: showEmojiPicker ? AppColors.green : AppColors.borderLight),
                   ),
-                  child: Center(child: Text(showEmojiPicker ? '⌨️' : '😊', style: const TextStyle(fontSize: 18))),
-                ),
-              ),
-              const SizedBox(width: 6),
-              // Trombone
-              GestureDetector(
-                onTap: onAttachment,
-                child: Container(
-                  width: 38, height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.backgroundPage,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.borderLight),
+                  child: Icon(
+                    showEmojiPicker ? Icons.keyboard : Icons.emoji_emotions_outlined,
+                    size: 18,
+                    color: showEmojiPicker ? AppColors.green : AppColors.textSecondary,
                   ),
-                  child: const Icon(Icons.attach_file, size: 18, color: AppColors.textSecondary),
                 ),
               ),
               const SizedBox(width: 8),
+              // Champ de saisie avec trombone intégré à droite
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(24)),
@@ -2708,32 +2683,39 @@ class _InputBar extends StatelessWidget {
                     maxLines: 4,
                     minLines: 1,
                     style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Écrire un message...',
-                      hintStyle: TextStyle(color: AppColors.textHint, fontSize: 14),
+                      hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      suffixIcon: GestureDetector(
+                        onTap: onAttachment,
+                        child: const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: Icon(Icons.attach_file, size: 20, color: AppColors.textSecondary),
+                        ),
+                      ),
+                      suffixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              // Camera (visible quand pas de texte)
-              if (!hasText) ...[
-                GestureDetector(
-                  onTap: onCamera,
-                  child: Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.backgroundPage,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.borderLight),
-                    ),
-                    child: const Icon(Icons.camera_alt_outlined, size: 20, color: AppColors.textSecondary),
+              // Caméra
+              GestureDetector(
+                onTap: onCamera,
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.backgroundPage,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.borderLight),
                   ),
+                  child: const Icon(Icons.camera_alt_outlined, size: 18, color: AppColors.textSecondary),
                 ),
-                const SizedBox(width: 8),
-              ],
+              ),
+              const SizedBox(width: 8),
+              // Micro / Envoi
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
                 child: hasText
@@ -2760,33 +2742,230 @@ class _InputBar extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: onPayment,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.greenLight,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add, size: 16, color: AppColors.greenDark),
-                  SizedBox(width: 6),
-                  Text('Paiement', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-// ── Visionneuse plein écran ───────────────────────────────────────────────────
+// ── AppBar mode sélection ─────────────────────────────────────────────────────
+
+class _SelectionAppBar extends StatelessWidget {
+  final int count;
+  final VoidCallback onClose;
+  final VoidCallback onReply;
+  final VoidCallback onStar;
+  final VoidCallback onCopy;
+  final VoidCallback onForward;
+  final VoidCallback onDelete;
+  final VoidCallback onInfo;
+  final VoidCallback onEdit;
+  final VoidCallback onPin;
+
+  const _SelectionAppBar({
+    required this.count,
+    required this.onClose,
+    required this.onReply,
+    required this.onStar,
+    required this.onCopy,
+    required this.onForward,
+    required this.onDelete,
+    required this.onInfo,
+    required this.onEdit,
+    required this.onPin,
+  });
+
+  static const _iconColor = AppColors.textPrimary;
+
+  static const _btnConstraints = BoxConstraints(minWidth: 36, minHeight: 36);
+  static const _btnPadding = EdgeInsets.all(8);
+
+  @override
+  Widget build(BuildContext context) {
+    final single = count == 1;
+    return Container(
+      color: AppColors.white,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.close, size: 20, color: _iconColor),
+              onPressed: onClose,
+              padding: _btnPadding,
+              constraints: _btnConstraints,
+            ),
+            Text(
+              '$count',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _iconColor),
+            ),
+            const Spacer(),
+            if (single)
+              IconButton(
+                icon: const Icon(Icons.reply, size: 20, color: _iconColor),
+                onPressed: onReply,
+                padding: _btnPadding,
+                constraints: _btnConstraints,
+                tooltip: 'Répondre',
+              ),
+            IconButton(
+              icon: const Icon(Icons.star_border_rounded, size: 20, color: _iconColor),
+              onPressed: onStar,
+              padding: _btnPadding,
+              constraints: _btnConstraints,
+              tooltip: 'Favori',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.textSecondary),
+              onPressed: onDelete,
+              padding: _btnPadding,
+              constraints: _btnConstraints,
+              tooltip: 'Supprimer',
+            ),
+            IconButton(
+              icon: const Icon(Icons.forward, size: 20, color: _iconColor),
+              onPressed: onForward,
+              padding: _btnPadding,
+              constraints: _btnConstraints,
+              tooltip: 'Transférer',
+            ),
+            if (single)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: _iconColor, size: 20),
+                padding: _btnPadding,
+                color: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'info':   onInfo();   break;
+                    case 'copy':   onCopy();   break;
+                    case 'edit':   onEdit();   break;
+                    case 'pin':    onPin();    break;
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'info',  child: Text('Infos',    style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'copy',  child: Text('Copier',   style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'edit',  child: Text('Modifier', style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                  PopupMenuItem(value: 'pin',   child: Text('Épingler', style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
+                ],
+              ),
+          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Indicateurs de statut (coches) ───────────────────────────────────────────
+
+class _StatusTicks extends StatelessWidget {
+  final MessageStatus? status;
+  const _StatusTicks({this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    if (status == null) {
+      return Icon(Icons.access_time, size: 11, color: Colors.white.withValues(alpha: 0.5));
+    }
+    return switch (status!) {
+      MessageStatus.sent      => Icon(Icons.done, size: 12, color: Colors.white.withValues(alpha: 0.65)),
+      MessageStatus.delivered => Icon(Icons.done_all, size: 12, color: Colors.white.withValues(alpha: 0.65)),
+      MessageStatus.read      => const Icon(Icons.done_all, size: 12, color: Color(0xFF34D399)),
+    };
+  }
+}
+
+// ── Barre de réactions ────────────────────────────────────────────────────────
+
+class _ReactionBar extends StatelessWidget {
+  final List<String> reactions;
+  final void Function(String emoji)? onTap;
+  const _ReactionBar({required this.reactions, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 4,
+      children: reactions.map((emoji) => GestureDetector(
+        onTap: () => onTap?.call(emoji),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.backgroundPage,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Text(emoji, style: const TextStyle(fontSize: 14)),
+        ),
+      )).toList(),
+    );
+  }
+}
+
+// ── Sélecteur de réactions ────────────────────────────────────────────────────
+
+class _ReactionPickerDialog extends StatelessWidget {
+  final Message message;
+  final Offset globalPosition;
+  final List<String> currentReactions;
+  final void Function(String emoji) onToggle;
+
+  const _ReactionPickerDialog({
+    required this.message,
+    required this.globalPosition,
+    required this.currentReactions,
+    required this.onToggle,
+  });
+
+  static const _emojis = ['👍', '❤️', '😂', '😮', '😢', '👏', '🙏', '🔥'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned(
+          left: 24,
+          right: 24,
+          bottom: 100,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(32),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 16, offset: const Offset(0, 4))],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: _emojis.map((e) {
+                  final selected = currentReactions.contains(e);
+                  return GestureDetector(
+                    onTap: () => onToggle(e),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.greenLight : Colors.transparent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(e, style: const TextStyle(fontSize: 24)),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Visualiseur plein écran image ─────────────────────────────────────────────
 
 class _FullscreenImageViewer extends StatelessWidget {
   final Message message;
@@ -2799,92 +2978,155 @@ class _FullscreenImageViewer extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          '${message.sentAt.day.toString().padLeft(2,'0')}/${message.sentAt.month.toString().padLeft(2,'0')}/${message.sentAt.year}',
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.download_outlined, color: Colors.white),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Téléchargement en cours...')),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.share_outlined, color: Colors.white),
-            onPressed: () {},
+            onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
       body: Center(
         child: InteractiveViewer(
-          child: Image.file(
-            File(message.imagePath!),
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white, size: 60),
-          ),
+          child: message.imagePath != null
+              ? Image.file(
+                  File(message.imagePath!),
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+                )
+              : const Icon(Icons.broken_image, color: Colors.white54, size: 64),
         ),
       ),
     );
   }
 }
 
-// ── Dialogue réactions emoji ─────────────────────────────────────────────────
+// ── Infos message ─────────────────────────────────────────────────────────────
 
-class _ReactionPickerDialog extends StatelessWidget {
+class _MessageInfoSheet extends StatelessWidget {
   final Message message;
-  final Offset globalPosition;
-  final List<String> currentReactions;
-  final void Function(String) onToggle;
+  final MessageStatus? status;
 
-  const _ReactionPickerDialog({
-    required this.message,
-    required this.globalPosition,
-    required this.currentReactions,
-    required this.onToggle,
-  });
-
-  static const _emojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+  const _MessageInfoSheet({required this.message, this.status});
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final left = (globalPosition.dx - 100).clamp(8.0, size.width - 220.0);
-    final top = (globalPosition.dy - 80).clamp(80.0, size.height - 120.0);
+    final dt = message.sentAt;
+    final timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    final (statusLabel, statusColor, statusIcon) = switch (status) {
+      null                  => ('En attente', AppColors.textHint,      Icons.access_time),
+      MessageStatus.sent    => ('Envoyé',     AppColors.textSecondary, Icons.done),
+      MessageStatus.delivered => ('Livré',    AppColors.textSecondary, Icons.done_all),
+      MessageStatus.read    => ('Lu',         AppColors.green,         Icons.done_all),
+    };
 
-    return Stack(
-      children: [
-        Positioned(
-          left: left,
-          top: top,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 16, offset: const Offset(0, 4))],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: _emojis.map((e) {
-                  final isActive = currentReactions.contains(e);
-                  return GestureDetector(
-                    onTap: () => onToggle(e),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 120),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: isActive ? AppColors.greenLight : Colors.transparent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(e, style: const TextStyle(fontSize: 26)),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
           ),
+          const SizedBox(height: 20),
+          const Text('Infos du message', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 20),
+          _InfoRow(icon: Icons.schedule_outlined, label: 'Envoyé le', value: '$dateStr à $timeStr'),
+          const SizedBox(height: 14),
+          _InfoRow(icon: statusIcon, label: 'Statut', value: statusLabel, valueColor: statusColor),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Ligne info ────────────────────────────────────────────────────────────────
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _InfoRow({required this.icon, required this.label, required this.value, this.valueColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: valueColor ?? AppColors.textSecondary),
+        const SizedBox(width: 14),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            const SizedBox(height: 2),
+            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: valueColor ?? AppColors.textPrimary)),
+          ],
         ),
       ],
+    );
+  }
+}
+
+// ── Transfert de message ──────────────────────────────────────────────────────
+
+class _ForwardSheet extends StatelessWidget {
+  final List<Thread> threads;
+  final String currentThreadId;
+  final void Function(Thread) onForward;
+
+  const _ForwardSheet({required this.threads, required this.currentThreadId, required this.onForward});
+
+  @override
+  Widget build(BuildContext context) {
+    final others = threads.where((t) => t.id != currentThreadId).toList();
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+          ),
+          const SizedBox(height: 20),
+          const Text('Transférer à...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 12),
+          if (others.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text('Aucune autre conversation.', style: TextStyle(color: AppColors.textSecondary)),
+            )
+          else
+            ...others.map((t) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.backgroundPage,
+                child: Text(t.contactInitials, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              ),
+              title: Text(t.contactName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              subtitle: Text(t.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              trailing: const Icon(Icons.send_outlined, size: 18, color: AppColors.green),
+              onTap: () => onForward(t),
+            )),
+          const SizedBox(height: 16),
+        ],
+      ),
     );
   }
 }
