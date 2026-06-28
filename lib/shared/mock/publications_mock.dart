@@ -4,6 +4,8 @@ class PublicationComment {
   final String initials;
   final String text;
   final DateTime sentAt;
+  final String? replyToCommentId;
+  final String? replyToName;
 
   const PublicationComment({
     required this.id,
@@ -11,6 +13,8 @@ class PublicationComment {
     required this.initials,
     required this.text,
     required this.sentAt,
+    this.replyToCommentId,
+    this.replyToName,
   });
 }
 

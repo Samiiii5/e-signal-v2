@@ -12,7 +12,9 @@ class PublicationDetailScreen extends StatefulWidget {
 
 class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
   final _replyCtrl = TextEditingController();
+  final _focusNode = FocusNode();
   late List<PublicationComment> _comments;
+  PublicationComment? _replyTarget;
 
   @override
   void initState() {
@@ -23,22 +25,77 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
   @override
   void dispose() {
     _replyCtrl.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _startReply(PublicationComment comment) {
+    setState(() => _replyTarget = comment);
+    _focusNode.requestFocus();
+  }
+
+  void _cancelReply() {
+    setState(() => _replyTarget = null);
   }
 
   void _sendReply() {
     final text = _replyCtrl.text.trim();
     if (text.isEmpty) return;
+
+    final newComment = PublicationComment(
+      id: 'reply_${DateTime.now().millisecondsSinceEpoch}',
+      authorName: 'Vous',
+      initials: 'V',
+      text: text,
+      sentAt: DateTime.now(),
+      replyToCommentId: _replyTarget?.id,
+      replyToName: _replyTarget?.authorName,
+    );
+
     setState(() {
-      _comments.insert(0, PublicationComment(
-        id: 'reply_${DateTime.now().millisecondsSinceEpoch}',
-        authorName: 'Vous',
-        initials: 'V',
-        text: text,
-        sentAt: DateTime.now(),
-      ));
+      if (_replyTarget != null) {
+        // Insert just after the parent comment
+        final parentId = _replyTarget!.id;
+        // Find the last reply to this parent or the parent itself
+        int insertIndex = _comments.length; // fallback: append
+        int parentIndex = _comments.indexWhere((c) => c.id == parentId);
+        if (parentIndex != -1) {
+          // Find last consecutive reply to this parent starting from parentIndex+1
+          int idx = parentIndex + 1;
+          while (idx < _comments.length && _comments[idx].replyToCommentId == parentId) {
+            idx++;
+          }
+          insertIndex = idx;
+        }
+        _comments.insert(insertIndex, newComment);
+      } else {
+        _comments.insert(0, newComment);
+      }
+      _replyTarget = null;
     });
     _replyCtrl.clear();
+  }
+
+  /// Build the flat list with indentation for replies
+  List<Widget> _buildCommentWidgets() {
+    final widgets = <Widget>[];
+    for (int i = 0; i < _comments.length; i++) {
+      final comment = _comments[i];
+      final isReply = comment.replyToCommentId != null;
+      widgets.add(
+        Padding(
+          padding: EdgeInsets.only(left: isReply ? 40.0 : 0.0),
+          child: _CommentTile(
+            comment: comment,
+            onReply: () => _startReply(comment),
+          ),
+        ),
+      );
+      if (i < _comments.length - 1) {
+        widgets.add(const SizedBox(height: 10));
+      }
+    }
+    return widgets;
   }
 
   @override
@@ -119,18 +176,40 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
             ),
           ),
           Expanded(
-            child: ListView.separated(
+            child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: _comments.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => _CommentTile(comment: _comments[i]),
+              children: _buildCommentWidgets(),
             ),
           ),
+          // Reply target bar
+          if (_replyTarget != null)
+            Container(
+              color: AppColors.backgroundPage,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.reply, size: 16, color: AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Réponse à ${_replyTarget!.authorName}',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _cancelReply,
+                    child: const Icon(Icons.close, size: 18, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
           // Reply input
           Container(
             decoration: BoxDecoration(
               color: AppColors.white,
-              border: const Border(top: BorderSide(color: AppColors.borderLight, width: 0.5)),
+              border: Border(top: BorderSide(color: _replyTarget != null ? AppColors.borderLight : AppColors.borderLight, width: 0.5)),
               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, -2))],
             ),
             padding: EdgeInsets.only(
@@ -144,12 +223,15 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
                     decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.borderLight)),
                     child: TextField(
                       controller: _replyCtrl,
+                      focusNode: _focusNode,
                       style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-                      decoration: const InputDecoration(
-                        hintText: 'Répondre au commentaire...',
-                        hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: _replyTarget != null
+                            ? 'Répondre à ${_replyTarget!.authorName}...'
+                            : 'Répondre au commentaire...',
+                        hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
                       onSubmitted: (_) => _sendReply(),
                     ),
@@ -183,7 +265,8 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
 
 class _CommentTile extends StatelessWidget {
   final PublicationComment comment;
-  const _CommentTile({required this.comment});
+  final VoidCallback onReply;
+  const _CommentTile({required this.comment, required this.onReply});
 
   @override
   Widget build(BuildContext context) {
@@ -224,14 +307,25 @@ class _CommentTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: isMe ? AppColors.greenLight : AppColors.backgroundPage,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(4),
-                    topRight: const Radius.circular(14),
-                    bottomLeft: const Radius.circular(14),
-                    bottomRight: const Radius.circular(14),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    topRight: Radius.circular(14),
+                    bottomLeft: Radius.circular(14),
+                    bottomRight: Radius.circular(14),
                   ),
                 ),
                 child: Text(comment.text, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, height: 1.4)),
+              ),
+              // Reply button
+              TextButton.icon(
+                onPressed: onReply,
+                icon: const Icon(Icons.reply, size: 14, color: AppColors.textSecondary),
+                label: const Text('Répondre', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ],
           ),

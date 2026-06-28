@@ -20,6 +20,7 @@ class _InboxScreenState extends State<InboxScreen> {
   bool _isLoading = true;
   List<Thread> _threads = [];
   List<Publication> _publications = [];
+  String? _networkFilter; // null = Tous, 'facebook', 'instagram', 'tiktok'
 
   // Filtres du bottom sheet
   Channel? _bsChannelFilter;
@@ -49,6 +50,69 @@ class _InboxScreenState extends State<InboxScreen> {
       _publications = List.from(mockPublications);
       _isLoading = false;
     });
+  }
+
+  Widget _buildPublicationsView() {
+    final filtered = _networkFilter == null
+        ? _publications
+        : _publications.where((p) => p.network == _networkFilter).toList();
+
+    const networks = [
+      (null, 'Tous', null),
+      ('facebook', 'Facebook', Color(0xFF1877F2)),
+      ('instagram', 'Instagram', Color(0xFFE1306C)),
+      ('tiktok', 'TikTok', Color(0xFF010101)),
+    ];
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: networks.map<Widget>((entry) {
+              final (value, label, color) = entry;
+              final isActive = _networkFilter == value;
+              final activeColor = color ?? AppColors.green;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => setState(() => _networkFilter = value),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isActive ? activeColor : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isActive ? AppColors.white : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child: filtered.isEmpty
+              ? const _EmptyState(query: '')
+              : ListView.separated(
+                  padding: const EdgeInsets.only(top: 4, bottom: 16),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const Divider(indent: 66, height: 0, thickness: 0.5, color: AppColors.borderLight),
+                  itemBuilder: (_, i) => _PublicationTile(publication: filtered[i]),
+                ),
+        ),
+      ],
+    );
   }
 
   List<Thread> get _filtered {
@@ -183,14 +247,7 @@ class _InboxScreenState extends State<InboxScreen> {
               child: _isLoading
                   ? const _InboxSkeleton()
                   : _activeFilter == _Filter.commentaires
-                      ? (_publications.isEmpty
-                          ? const _EmptyState(query: '')
-                          : ListView.separated(
-                              padding: const EdgeInsets.only(top: 4, bottom: 16),
-                              itemCount: _publications.length,
-                              separatorBuilder: (_, __) => const Divider(indent: 66, height: 0, thickness: 0.5, color: AppColors.borderLight),
-                              itemBuilder: (_, i) => _PublicationTile(publication: _publications[i]),
-                            ))
+                      ? _buildPublicationsView()
                       : threads.isEmpty
                           ? _EmptyState(query: _searchQuery)
                           : RefreshIndicator(

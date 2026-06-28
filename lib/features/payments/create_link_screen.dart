@@ -42,11 +42,16 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
 
   // Step 3 — Delivery
   bool _hasDelivery = false;
+  bool _searchingLivreur = false;
+  bool _livreurFound = false;
   final _destinataireCtrl = TextEditingController();
   final _telephoneCtrl    = TextEditingController();
   final _communeCtrl      = TextEditingController();
   final _quartierCtrl     = TextEditingController();
   final _secteurCtrl      = TextEditingController();
+
+  // Step 3 — Payment method
+  String _selectedPayment = 'Wave';
 
   bool _isGenerating = false;
 
@@ -66,6 +71,19 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
     } else {
       Navigator.pop(context);
     }
+  }
+
+  Future<void> _searchLivreur() async {
+    setState(() {
+      _searchingLivreur = true;
+      _livreurFound = false;
+    });
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() {
+      _searchingLivreur = false;
+      _livreurFound = true;
+    });
   }
 
   Future<void> _generate() async {
@@ -140,12 +158,26 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
             product: _selectedProduct,
             contactName: _contactName,
             hasDelivery: _hasDelivery,
-            onDeliveryChanged: (v) => setState(() => _hasDelivery = v),
+            onDeliveryChanged: (v) {
+              setState(() {
+                _hasDelivery = v;
+                if (!v) {
+                  _searchingLivreur = false;
+                  _livreurFound = false;
+                }
+              });
+              if (v) _searchLivreur();
+            },
+            searchingLivreur: _searchingLivreur,
+            livreurFound: _livreurFound,
+            onRelancerRecherche: _searchLivreur,
             destinataireCtrl: _destinataireCtrl,
             telephoneCtrl: _telephoneCtrl,
             communeCtrl: _communeCtrl,
             quartierCtrl: _quartierCtrl,
             secteurCtrl: _secteurCtrl,
+            selectedPayment: _selectedPayment,
+            onPaymentChanged: (v) => setState(() => _selectedPayment = v),
             isGenerating: _isGenerating,
             onGenerate: _generate,
           ),
@@ -524,11 +556,16 @@ class _Step3 extends StatelessWidget {
   final String contactName;
   final bool hasDelivery;
   final ValueChanged<bool> onDeliveryChanged;
+  final bool searchingLivreur;
+  final bool livreurFound;
+  final VoidCallback onRelancerRecherche;
   final TextEditingController destinataireCtrl;
   final TextEditingController telephoneCtrl;
   final TextEditingController communeCtrl;
   final TextEditingController quartierCtrl;
   final TextEditingController secteurCtrl;
+  final String selectedPayment;
+  final ValueChanged<String> onPaymentChanged;
   final bool isGenerating;
   final VoidCallback onGenerate;
 
@@ -537,11 +574,16 @@ class _Step3 extends StatelessWidget {
     required this.contactName,
     required this.hasDelivery,
     required this.onDeliveryChanged,
+    required this.searchingLivreur,
+    required this.livreurFound,
+    required this.onRelancerRecherche,
     required this.destinataireCtrl,
     required this.telephoneCtrl,
     required this.communeCtrl,
     required this.quartierCtrl,
     required this.secteurCtrl,
+    required this.selectedPayment,
+    required this.onPaymentChanged,
     required this.isGenerating,
     required this.onGenerate,
   });
@@ -638,7 +680,124 @@ class _Step3 extends StatelessWidget {
             _LinkField('Quartier', quartierCtrl, Icons.holiday_village_outlined),
             const SizedBox(height: 10),
             _LinkField('Secteur / Rue', secteurCtrl, Icons.signpost_outlined),
+            const SizedBox(height: 16),
+            // Livreur automatique
+            if (searchingLivreur)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundPage,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.borderLight),
+                ),
+                child: const Row(
+                  children: [
+                    SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('🔍 Recherche d\'un livreur en cours...', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                  ],
+                ),
+              )
+            else if (livreurFound) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.greenLight,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.green.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Text('✅', style: TextStyle(fontSize: 16)),
+                        SizedBox(width: 8),
+                        Text('Livreur assigné : Koné Ibrahima',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Row(
+                      children: [
+                        Text('⭐ Note : 4.8', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                        SizedBox(width: 12),
+                        Text('|', style: TextStyle(color: AppColors.borderLight)),
+                        SizedBox(width: 12),
+                        Text('🕐 Arrivée estimée : 20 min', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: onRelancerRecherche,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  ),
+                  child: const Text('Relancer la recherche', style: TextStyle(fontSize: 12, decoration: TextDecoration.underline)),
+                ),
+              ),
+            ],
           ],
+
+          // Payment methods
+          const SizedBox(height: 20),
+          const Text('Mode de paiement',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 10),
+          ...[
+            ('💛', 'Wave'),
+            ('🟠', 'Orange Money'),
+            ('🔵', 'CinetPay'),
+            ('🟣', 'Moov Money'),
+            ('💛', 'MTN Money'),
+            ('💙', 'Djamo'),
+          ].map((entry) {
+            final emoji = entry.$1;
+            final name = entry.$2;
+            final isSelected = selectedPayment == name;
+            return GestureDetector(
+              onTap: () => onPaymentChanged(name),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? AppColors.green : AppColors.borderLight,
+                    width: isSelected ? 1.5 : 0.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text(emoji, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            color: isSelected ? AppColors.greenDark : AppColors.textPrimary,
+                          )),
+                    ),
+                    Icon(
+                      isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      size: 18,
+                      color: isSelected ? AppColors.green : AppColors.borderLight,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
 
           // Total recap
           const SizedBox(height: 20),
@@ -688,7 +847,7 @@ class _Step3 extends StatelessWidget {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: isGenerating ? null : onGenerate,
+              onPressed: (isGenerating || (hasDelivery && searchingLivreur)) ? null : onGenerate,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.green,
                 foregroundColor: AppColors.white,
