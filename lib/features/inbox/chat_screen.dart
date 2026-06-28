@@ -9,6 +9,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
+import '../../shared/mock/products_mock.dart';
 import '../../shared/models/lien_paiement_model.dart';
 import '../../shared/services/inbox_service.dart';
 import '../payments/create_link_screen.dart';
@@ -345,28 +346,51 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Lien de paiement ─────────────────────────────────────────────────────────
 
   Future<void> _openCreateLink() async {
-    final lien = await Navigator.push<LienPaiement?>(
+    final result = await Navigator.push<CreateLinkResult?>(
       context,
       MaterialPageRoute(
         builder: (_) => CreateLinkScreen(contactName: _thread?.contactName ?? 'Client'),
       ),
     );
-    if (!mounted || lien == null) return;
-    setState(() {
-      _messages.add(Message(
-        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-        threadId: widget.threadId,
-        content: lien.description,
-        isFromContact: false,
-        sentAt: DateTime.now(),
-        type: MessageType.paymentLink,
-        paymentAmount: lien.montantTotal.toString(),
-        paymentCurrency: 'FCFA',
-        paymentStatus: PaymentStatus.created,
-        paymentProvider: 'wave',
-      ));
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (!mounted || result == null) return;
+
+    _addMessage(Message(
+      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      threadId: widget.threadId,
+      content: result.lien.description,
+      isFromContact: false,
+      sentAt: DateTime.now(),
+      type: MessageType.paymentLink,
+      paymentAmount: result.lien.montantTotal.toString(),
+      paymentCurrency: 'FCFA',
+      paymentStatus: PaymentStatus.created,
+      paymentProvider: 'wave',
+    ));
+
+    if (result.hasDelivery) {
+      final addr = '${result.deliveryCommune}, ${result.deliveryQuartier}, ${result.deliverySecteur}';
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
+        _addMessage(Message(
+          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+          threadId: widget.threadId,
+          content: '🚚 Livraison à domicile confirmée\nAdresse : $addr\nUn livreur vous sera assigné sous peu.',
+          isFromContact: false,
+          sentAt: DateTime.now(),
+        ));
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!mounted) return;
+          _addMessage(Message(
+            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+            threadId: widget.threadId,
+            content: '✅ Livreur assigné : Koné Ibrahima\n📅 Livraison prévue : Demain entre 14h-16h\n📞 Contact : +225 07 58 32 14 96',
+            isFromContact: false,
+            sentAt: DateTime.now(),
+          ));
+        });
+      });
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -476,10 +500,9 @@ class _ChatScreenState extends State<ChatScreen> {
         onSend: (product) {
           Navigator.pop(context);
           _sendTextMessage(
-            '📦 *${product.name}*\n'
-            '${product.emoji}  ${product.description}\n'
+            '📦 ${product.emoji} *${product.name}*\n'
             'Prix : ${product.price} FCFA\n'
-            'Intéressé(e) ? Répondez-nous !',
+            'Intéressé(e) ? Répondez OUI pour commander !',
           );
         },
       ),
@@ -1917,12 +1940,32 @@ class _LocationBubble extends StatelessWidget {
                   const SizedBox(height: 3),
                   const Text('Cocody Riviera 3, Abidjan', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                   const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
-                      style: const TextStyle(fontSize: 10, color: AppColors.textHint),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onTap: () async {
+                          final uri = Uri.parse('https://maps.google.com/?q=5.3600,-4.0083');
+                          if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(8)),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.map_outlined, size: 13, color: AppColors.greenDark),
+                              SizedBox(width: 4),
+                              Text('Voir sur la carte', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                        style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2219,23 +2262,9 @@ class _AttachItem extends StatelessWidget {
 
 // ── BottomSheet catalogue ─────────────────────────────────────────────────────
 
-class _CatalogueProduct {
-  final String name;
-  final String emoji;
-  final String description;
-  final int price;
-  const _CatalogueProduct(this.name, this.emoji, this.description, this.price);
-}
-
 class _CatalogueSheet extends StatelessWidget {
-  final void Function(_CatalogueProduct) onSend;
+  final void Function(Product) onSend;
   const _CatalogueSheet({required this.onSend});
-
-  static const _products = [
-    _CatalogueProduct('Robe ankara', '👗', 'Taille S/M/L • Coton premium', 25000),
-    _CatalogueProduct('Sac en cuir', '👜', 'Cuir véritable • Marron/Noir', 45000),
-    _CatalogueProduct('Ensemble bogolan', '🎽', 'Tissu traditionnel • Unisexe', 18000),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -2260,7 +2289,7 @@ class _CatalogueSheet extends StatelessWidget {
             child: Text('Appuyez sur un produit pour l\'envoyer', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           ),
           const SizedBox(height: 16),
-          ..._products.map((p) => _ProductTile(product: p, onTap: () => onSend(p))),
+          ...mockProducts.map((p) => _ProductTile(product: p, onTap: () => onSend(p))),
         ],
       ),
     );
@@ -2268,7 +2297,7 @@ class _CatalogueSheet extends StatelessWidget {
 }
 
 class _ProductTile extends StatelessWidget {
-  final _CatalogueProduct product;
+  final Product product;
   final VoidCallback onTap;
   const _ProductTile({required this.product, required this.onTap});
 
@@ -2299,7 +2328,7 @@ class _ProductTile extends StatelessWidget {
                 children: [
                   Text(product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
-                  Text(product.description, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  Text(product.category, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                 ],
               ),
             ),
@@ -2341,16 +2370,23 @@ class _DevisSheet extends StatefulWidget {
 }
 
 class _DevisSheetState extends State<_DevisSheet> {
-  final _prodCtrl = TextEditingController();
-  final _qtyCtrl  = TextEditingController(text: '1');
+  Product? _selectedProduct;
+  final _qtyCtrl  = TextEditingController();
   final _prixCtrl = TextEditingController();
 
   @override
-  void dispose() { _prodCtrl.dispose(); _qtyCtrl.dispose(); _prixCtrl.dispose(); super.dispose(); }
+  void dispose() { _qtyCtrl.dispose(); _prixCtrl.dispose(); super.dispose(); }
 
   int get _qty   => int.tryParse(_qtyCtrl.text) ?? 0;
   int get _prix  => int.tryParse(_prixCtrl.text.replaceAll(' ', '')) ?? 0;
   int get _total => _qty * _prix;
+
+  void _selectProduct(Product p) {
+    setState(() {
+      _selectedProduct = p;
+      _prixCtrl.text = p.price.toString();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2372,10 +2408,79 @@ class _DevisSheetState extends State<_DevisSheet> {
               child: Text('Devis rapide', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
             ),
             const SizedBox(height: 16),
-            _DevisField('Produit / service', _prodCtrl, TextInputType.text),
+            // Product selector
+            GestureDetector(
+              onTap: () async {
+                final p = await showModalBottomSheet<Product>(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => Container(
+                    decoration: const BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+                        const SizedBox(height: 14),
+                        const Align(alignment: Alignment.centerLeft, child: Text('Choisir un produit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary))),
+                        const SizedBox(height: 12),
+                        ...mockProducts.map((p) => InkWell(
+                          onTap: () => Navigator.pop(context, p),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.backgroundPage,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.borderLight, width: 0.5),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                                const SizedBox(width: 12),
+                                Expanded(child: Text(p.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+                                Text('${p.price} FCFA', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.green)),
+                              ],
+                            ),
+                          ),
+                        )),
+                      ],
+                    ),
+                  ),
+                );
+                if (p != null) _selectProduct(p);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundPage,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _selectedProduct != null ? AppColors.green : AppColors.borderLight),
+                ),
+                child: Row(
+                  children: [
+                    if (_selectedProduct != null) ...[
+                      Text(_selectedProduct!.emoji, style: const TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(_selectedProduct!.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+                      Text('${_selectedProduct!.price} FCFA', style: const TextStyle(fontSize: 12, color: AppColors.green, fontWeight: FontWeight.w700)),
+                    ] else ...[
+                      const Icon(Icons.shopping_bag_outlined, size: 18, color: AppColors.textHint),
+                      const SizedBox(width: 10),
+                      const Expanded(child: Text('Sélectionner un produit', style: TextStyle(fontSize: 14, color: AppColors.textHint))),
+                    ],
+                    const Icon(Icons.chevron_right, size: 18, color: AppColors.textSecondary),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 10),
             Row(children: [
-              Expanded(child: _DevisField('Quantité', _qtyCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
+              Expanded(child: _DevisField('Quantité', _qtyCtrl, TextInputType.number, placeholder: 'ex: 2', onChanged: (_) => setState(() {}))),
               const SizedBox(width: 10),
               Expanded(child: _DevisField('Prix unitaire (FCFA)', _prixCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
             ]),
@@ -2398,10 +2503,10 @@ class _DevisSheetState extends State<_DevisSheet> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: (_prodCtrl.text.trim().isNotEmpty && _total > 0)
+                onPressed: (_selectedProduct != null && _qty > 0)
                     ? () => widget.onSend(
                           '📋 *Devis pour ${widget.contactName}*\n\n'
-                          '• Produit : ${_prodCtrl.text.trim()}\n'
+                          '• Produit : ${_selectedProduct!.emoji} ${_selectedProduct!.name}\n'
                           '• Quantité : $_qty\n'
                           '• Prix unitaire : ${_fmtN(_prix)} FCFA\n'
                           '━━━━━━━━━━━━━━\n'
@@ -2438,11 +2543,12 @@ class _DevisSheetState extends State<_DevisSheet> {
 }
 
 class _DevisField extends StatelessWidget {
-  final String hint;
+  final String label;
+  final String? placeholder;
   final TextEditingController ctrl;
   final TextInputType kbType;
   final ValueChanged<String>? onChanged;
-  const _DevisField(this.hint, this.ctrl, this.kbType, {this.onChanged});
+  const _DevisField(this.label, this.ctrl, this.kbType, {this.onChanged, this.placeholder});
 
   @override
   Widget build(BuildContext context) {
@@ -2458,7 +2564,7 @@ class _DevisField extends StatelessWidget {
         onChanged: onChanged,
         style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
         decoration: InputDecoration(
-          hintText: hint,
+          hintText: placeholder ?? label,
           hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),

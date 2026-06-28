@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/shimmer_box.dart';
 import '../../shared/mock/threads_mock.dart';
+import '../../shared/mock/publications_mock.dart';
+import 'publication_detail_screen.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({super.key});
@@ -17,6 +19,7 @@ class _InboxScreenState extends State<InboxScreen> {
   _Filter _activeFilter = _Filter.all;
   bool _isLoading = true;
   List<Thread> _threads = [];
+  List<Publication> _publications = [];
 
   // Filtres du bottom sheet
   Channel? _bsChannelFilter;
@@ -43,6 +46,7 @@ class _InboxScreenState extends State<InboxScreen> {
     if (!mounted) return;
     setState(() {
       _threads = List.from(mockThreads);
+      _publications = List.from(mockPublications);
       _isLoading = false;
     });
   }
@@ -55,6 +59,7 @@ class _InboxScreenState extends State<InboxScreen> {
       case _Filter.email: list = list.where((t) => t.channel == Channel.email).toList();
       case _Filter.unread: list = list.where((t) => t.unreadCount > 0).toList();
       case _Filter.all: break;
+      case _Filter.commentaires: return _threads; // handled separately in build
     }
     if (_bsChannelFilter != null) {
       list = list.where((t) => t.channel == _bsChannelFilter).toList();
@@ -177,19 +182,28 @@ class _InboxScreenState extends State<InboxScreen> {
             Expanded(
               child: _isLoading
                   ? const _InboxSkeleton()
-                  : threads.isEmpty
-                      ? _EmptyState(query: _searchQuery)
-                      : RefreshIndicator(
-                          onRefresh: _loadThreads,
-                          color: AppColors.green,
-                          child: ListView.separated(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.only(top: 4, bottom: 16),
-                            itemCount: threads.length,
-                            separatorBuilder: (_, __) => const Divider(indent: 76, height: 0, thickness: 0.5, color: AppColors.borderLight),
-                            itemBuilder: (_, i) => _ThreadTile(thread: threads[i]),
-                          ),
-                        ),
+                  : _activeFilter == _Filter.commentaires
+                      ? (_publications.isEmpty
+                          ? const _EmptyState(query: '')
+                          : ListView.separated(
+                              padding: const EdgeInsets.only(top: 4, bottom: 16),
+                              itemCount: _publications.length,
+                              separatorBuilder: (_, __) => const Divider(indent: 66, height: 0, thickness: 0.5, color: AppColors.borderLight),
+                              itemBuilder: (_, i) => _PublicationTile(publication: _publications[i]),
+                            ))
+                      : threads.isEmpty
+                          ? _EmptyState(query: _searchQuery)
+                          : RefreshIndicator(
+                              onRefresh: _loadThreads,
+                              color: AppColors.green,
+                              child: ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.only(top: 4, bottom: 16),
+                                itemCount: threads.length,
+                                separatorBuilder: (_, __) => const Divider(indent: 76, height: 0, thickness: 0.5, color: AppColors.borderLight),
+                                itemBuilder: (_, i) => _ThreadTile(thread: threads[i]),
+                              ),
+                            ),
             ),
           ],
         ),
@@ -231,15 +245,16 @@ class _InboxSkeleton extends StatelessWidget {
 
 // ── Filtres ───────────────────────────────────────────────────────────────────
 
-enum _Filter { all, whatsapp, sms, email, unread }
+enum _Filter { all, whatsapp, sms, email, unread, commentaires }
 
 extension _FilterLabel on _Filter {
   String get label => switch (this) {
-    _Filter.all => 'Tous',
-    _Filter.whatsapp => 'WhatsApp',
-    _Filter.sms => 'SMS',
-    _Filter.email => 'Email',
-    _Filter.unread => 'Non lus',
+    _Filter.all          => 'Tous',
+    _Filter.whatsapp     => 'WhatsApp',
+    _Filter.sms          => 'SMS',
+    _Filter.email        => 'Email',
+    _Filter.unread       => 'Non lus',
+    _Filter.commentaires => 'Commentaires',
   };
 }
 
@@ -574,6 +589,81 @@ class _ChannelOption extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Publication tile ──────────────────────────────────────────────────────────
+
+class _PublicationTile extends StatelessWidget {
+  final Publication publication;
+  const _PublicationTile({required this.publication});
+
+  @override
+  Widget build(BuildContext context) {
+    final pub = publication;
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicationDetailScreen(publication: pub))),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            _NetworkCircle(network: pub.network),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Expanded(child: Text(pub.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    const SizedBox(width: 8),
+                    Text(_fmtDate(pub.publishedAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    const Icon(Icons.chat_bubble_outline, size: 13, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text('${pub.commentCount} commentaires', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
+                      child: Text('${pub.commentCount}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    if (diff.inDays == 1) return 'Hier';
+    return '${dt.day}/${dt.month}';
+  }
+}
+
+class _NetworkCircle extends StatelessWidget {
+  final String network;
+  const _NetworkCircle({required this.network});
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, label) = switch (network) {
+      'facebook'  => (const Color(0xFF1877F2), 'f'),
+      'instagram' => (const Color(0xFFE1306C), '📷'),
+      'tiktok'    => (const Color(0xFF010101), '♪'),
+      _           => (AppColors.textSecondary,  '?'),
+    };
+    return Container(
+      width: 52, height: 52,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Center(child: Text(label, style: const TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w800))),
     );
   }
 }
