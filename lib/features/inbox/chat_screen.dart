@@ -12,7 +12,6 @@ import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/products_mock.dart';
 import '../../shared/models/lien_paiement_model.dart';
 import '../../shared/services/inbox_service.dart';
-import '../payments/create_link_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String threadId;
@@ -345,18 +344,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // ── Lien de paiement ─────────────────────────────────────────────────────────
 
-  Future<void> _openCreateLink() async {
-    // CreateLinkScreen injecte le message dans inboxService et navigue
-    // directement vers le chat — pas besoin de gérer le résultat ici.
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CreateLinkScreen(
-          contactName: _thread?.contactName ?? 'Client',
-          threadId: widget.threadId,
-        ),
-      ),
-    );
+  void _openCreateLink() {
+    context.push('/create-link', extra: <String, String?>{
+      'contactName': _thread?.contactName ?? 'Client',
+      'threadId': widget.threadId,
+    });
   }
 
   // ── Helpers message ──────────────────────────────────────────────────────────
