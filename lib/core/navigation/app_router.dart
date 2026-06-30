@@ -7,8 +7,12 @@ import '../../features/auth/pin/pin_screen.dart';
 import '../../features/auth/pin/pin_setup_screen.dart';
 import '../../features/inbox/chat_screen.dart';
 import '../../features/inbox/inbox_screen.dart';
+import '../../features/payments/create_link_screen.dart';
 import '../../features/payments/payments_screen.dart';
+import '../../features/payments/transaction_detail_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../shared/mock/payments_mock.dart';
+import '../../features/stats/stats_screen.dart';
 import '../../core/services/session_service.dart';
 import 'app_shell.dart';
 
@@ -81,6 +85,36 @@ GoRouter buildRouter() {
           ),
         ],
       ),
+      // Route hors shell — s'affiche plein écran sans bottom nav bar
+      GoRoute(
+        path: '/payment-detail',
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          TransactionDetailScreen(link: state.extra as PaymentLink),
+        ),
+      ),
+      // Route hors shell — création de lien de paiement (sans bottom nav bar)
+      GoRoute(
+        path: '/create-link',
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, String?>? ?? {};
+          return _slidePage(
+            state,
+            CreateLinkScreen(
+              contactName: extra['contactName'],
+              threadId: extra['threadId'],
+            ),
+          );
+        },
+      ),
+      // Route hors shell — conversation (sans bottom nav bar)
+      GoRoute(
+        path: '/inbox/:threadId',
+        pageBuilder: (context, state) => _slidePage(
+          state,
+          ChatScreen(threadId: state.pathParameters['threadId']!),
+        ),
+      ),
       StatefulShellRoute.indexedStack(
         // Pas de transition entre onglets : l'état est préservé (indexedStack)
         pageBuilder: (context, state, shell) => NoTransitionPage(
@@ -91,16 +125,10 @@ GoRouter buildRouter() {
             GoRoute(
               path: '/inbox',
               builder: (context, state) => const InboxScreen(),
-              routes: [
-                GoRoute(
-                  path: ':threadId',
-                  pageBuilder: (context, state) => _slidePage(
-                    state,
-                    ChatScreen(threadId: state.pathParameters['threadId']!),
-                  ),
-                ),
-              ],
             ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/stats', builder: (context, state) => const StatsScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: '/payments', builder: (context, state) => const PaymentsScreen()),

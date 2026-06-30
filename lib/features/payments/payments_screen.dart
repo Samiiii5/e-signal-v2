@@ -1,4 +1,9 @@
+import 'dart:io';
+import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../shared/mock/messages_mock.dart' show PaymentStatus;
@@ -15,6 +20,7 @@ class PaymentsScreen extends StatefulWidget {
 
 class _PaymentsScreenState extends State<PaymentsScreen> {
   late Future<List<PaymentLink>> _future;
+  PaymentStatus? _filter;
 
   @override
   void initState() {
@@ -22,19 +28,45 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     _future = paymentService.getPaymentLinks();
   }
 
-  void _refresh() => setState(() {
-        _future = paymentService.getPaymentLinks();
-      });
+  Future<void> _refresh() async {
+    final links = await paymentService.getPaymentLinks();
+    if (!mounted) return;
+    setState(() { _future = Future.value(links); });
+  }
 
   Future<void> _openCreateSheet() async {
-    final created = await showModalBottomSheet<PaymentLink>(
+    final result = await showModalBottomSheet<CreateLinkSheetResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const CreateLinkSheet(),
     );
-    if (created != null) _refresh();
+    if (!mounted) return;
+    if (result != null) await _refresh();
   }
+
+  Future<void> _openExportSheet() async {
+    final links = await paymentService.getPaymentLinks();
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ExportSheet(
+        allLinks: links,
+        onDone: (msg) => ScaffoldMessenger.of(context).showSnackBar(_snack(msg)),
+      ),
+    );
+  }
+
+  SnackBar _snack(String msg) => SnackBar(
+    content: Text(msg, style: const TextStyle(color: AppColors.white)),
+    backgroundColor: AppColors.green,
+    behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    margin: const EdgeInsets.all(16),
+    duration: const Duration(seconds: 2),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -44,33 +76,77 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── En-tête ──────────────────────────────────────────────
+            // ── Header ────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
                 children: [
-                  Text('Paiements', style: AppTextStyles.h1),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: _openCreateSheet,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.green,
-                      foregroundColor: AppColors.white,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      elevation: 0,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  Expanded(
+                    child: Text('Paiements', style: AppTextStyles.h1, overflow: TextOverflow.ellipsis),
+                  ),
+                  // Bouton Exporter — icône + texte compact
+                  GestureDetector(
+                    onTap: _openExportSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.borderLight),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.download_outlined, size: 14, color: AppColors.textSecondary),
+                          SizedBox(width: 4),
+                          Text('Exporter', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                        ],
+                      ),
                     ),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Nouveau lien',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 8),
+                  // Bouton Nouveau — compact
+                  GestureDetector(
+                    onTap: _openCreateSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.add, size: 14, color: AppColors.white),
+                          SizedBox(width: 4),
+                          Text('Nouveau', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.white)),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // ── Chips filtres ─────────────────────────────────────────
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  _FilterPill(label: 'Tous', active: _filter == null, onTap: () => setState(() => _filter = null)),
+                  const SizedBox(width: 8),
+                  _FilterPill(label: 'Payés', active: _filter == PaymentStatus.paid, onTap: () => setState(() => _filter = PaymentStatus.paid), color: AppColors.statusPaidText),
+                  const SizedBox(width: 8),
+                  _FilterPill(label: 'En attente', active: _filter == PaymentStatus.pending, onTap: () => setState(() => _filter = PaymentStatus.pending), color: AppColors.statusPendingText),
+                  const SizedBox(width: 8),
+                  _FilterPill(label: 'Expirés', active: _filter == PaymentStatus.expired, onTap: () => setState(() => _filter = PaymentStatus.expired), color: AppColors.textSecondary),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
 
             // ── Liste ────────────────────────────────────────────────
             Expanded(
@@ -78,19 +154,19 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                 future: _future,
                 builder: (context, snap) {
                   if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: AppColors.green),
-                    );
+                    return const Center(child: CircularProgressIndicator(color: AppColors.green));
                   }
-                  final links = snap.data ?? [];
-                  if (links.isEmpty) {
-                    return _EmptyState(onTap: _openCreateSheet);
-                  }
+                  var links = snap.data ?? [];
+                  if (_filter != null) links = links.where((l) => l.status == _filter).toList();
+                  if (links.isEmpty) return _EmptyState(onTap: _openCreateSheet);
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                     itemCount: links.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) => _PaymentCard(link: links[i]),
+                    itemBuilder: (ctx, i) => GestureDetector(
+                      onTap: () => ctx.push('/payment-detail', extra: links[i]),
+                      child: _PaymentItem(link: links[i]),
+                    ),
                   );
                 },
               ),
@@ -102,220 +178,396 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   }
 }
 
-// ─── Carte d'un lien de paiement ─────────────────────────────────────────────
+// ── Chip filtre ───────────────────────────────────────────────────────────────
 
-class _PaymentCard extends StatelessWidget {
-  final PaymentLink link;
-  const _PaymentCard({required this.link});
+class _FilterPill extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final Color? color;
+  const _FilterPill({required this.label, required this.active, required this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
-    final (statusBg, statusText, statusLabel) = _statusStyle(link.status);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderLight, width: 0.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Icône produit sur fond coloré pâle
-            _ProductIcon(description: link.description),
-
-            const SizedBox(width: 12),
-
-            // Infos
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Nom contact + badge statut
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          link.contactName,
-                          style: AppTextStyles.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _StatusBadge(bg: statusBg, textColor: statusText, label: statusLabel),
-                    ],
-                  ),
-
-                  const SizedBox(height: 3),
-
-                  // Description
-                  Text(
-                    link.description,
-                    style: AppTextStyles.small,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Montant + méthode + date
-                  Row(
-                    children: [
-                      Text(
-                        _formatAmount(link.amount),
-                        style: AppTextStyles.h3.copyWith(color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(width: 8),
-                      _MethodPill(method: link.paymentMethod),
-                      const Spacer(),
-                      Text(
-                        _formatDate(link.createdAt),
-                        style: AppTextStyles.tiny,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+    final activeColor = color ?? AppColors.green;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? activeColor : AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: active ? AppColors.white : AppColors.textSecondary),
         ),
       ),
     );
   }
+}
 
-  (Color, Color, String) _statusStyle(PaymentStatus s) {
-    return switch (s) {
-      PaymentStatus.paid    => (AppColors.statusPaidBg,    AppColors.statusPaidText,    'Payé'),
-      PaymentStatus.pending => (AppColors.statusPendingBg, AppColors.statusPendingText, 'En attente'),
-      PaymentStatus.created => (AppColors.statusCreatedBg, AppColors.statusCreatedText, 'Créé'),
-      PaymentStatus.expired => (AppColors.statusExpiredBg, AppColors.statusExpiredText, 'Expiré'),
-    };
+// ── Item de liste ─────────────────────────────────────────────────────────────
+
+class _PaymentItem extends StatelessWidget {
+  final PaymentLink link;
+  const _PaymentItem({required this.link});
+
+  @override
+  Widget build(BuildContext context) {
+    final (statusBg, statusText, statusLabel) = _statusStyle(link.status);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderLight, width: 0.5),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Text(_fmt(link.amount), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: statusText)),
+                  const Text(' FCFA', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w400)),
+                ]),
+                const SizedBox(height: 4),
+                Text('Client : ${link.contactName}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                const SizedBox(height: 2),
+                Text(_fmtDate(link.createdAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(10)),
+            child: Text(statusLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusText)),
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right, size: 16, color: AppColors.textHint),
+        ],
+      ),
+    );
   }
 
-  String _formatAmount(int amount) {
-    final s = amount.toString();
+  (Color, Color, String) _statusStyle(PaymentStatus s) => switch (s) {
+    PaymentStatus.paid    => (AppColors.statusPaidBg,    AppColors.statusPaidText,    'Payé'),
+    PaymentStatus.pending => (AppColors.statusPendingBg, AppColors.statusPendingText, 'En attente'),
+    PaymentStatus.created => (AppColors.statusCreatedBg, AppColors.statusCreatedText, 'Créé'),
+    PaymentStatus.expired => (AppColors.statusExpiredBg, AppColors.statusExpiredText, 'Expiré'),
+  };
+
+  String _fmt(int n) {
+    final s = n.toString();
     final buf = StringBuffer();
     for (int i = 0; i < s.length; i++) {
       if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
       buf.write(s[i]);
     }
-    return '${buf.toString()} FCFA';
+    return buf.toString();
   }
 
-  String _formatDate(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes}min';
-    if (diff.inHours < 24) return 'Il y a ${diff.inHours}h';
-    return '${dt.day}/${dt.month}/${dt.year}';
+  String _fmtDate(DateTime dt) {
+    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
   }
 }
 
-// ── Icône produit ─────────────────────────────────────────────────────────────
+// ── Bottom sheet Export ───────────────────────────────────────────────────────
 
-class _ProductIcon extends StatelessWidget {
-  final String description;
-  const _ProductIcon({required this.description});
+enum _ExportFilter { all, paid, pending, thisMonth, thisQuarter }
 
-  static const _icons = {
-    'sac': ('👜', Color(0xFFFFF3E0)),
-    'robe': ('👗', Color(0xFFFCE4EC)),
-    'chaussures': ('👟', Color(0xFFE8EAF6)),
-    'pagne': ('🧵', Color(0xFFE0F7FA)),
-    'bracelet': ('📿', Color(0xFFF3E5F5)),
-    'frais': ('🚚', Color(0xFFE8F5E9)),
-    'devis': ('📋', Color(0xFFFFF8E1)),
-    'duo': ('🎁', Color(0xFFFFEBEE)),
-  };
+class _ExportSheet extends StatefulWidget {
+  final List<PaymentLink> allLinks;
+  final void Function(String) onDone;
+  const _ExportSheet({required this.allLinks, required this.onDone});
 
   @override
-  Widget build(BuildContext context) {
-    final desc = description.toLowerCase();
-    String emoji = '💳';
-    Color bg = AppColors.backgroundPage;
+  State<_ExportSheet> createState() => _ExportSheetState();
+}
 
-    for (final entry in _icons.entries) {
-      if (desc.contains(entry.key)) {
-        emoji = entry.value.$1;
-        bg = entry.value.$2;
-        break;
+class _ExportSheetState extends State<_ExportSheet> {
+  _ExportFilter _filter = _ExportFilter.all;
+  bool _exporting = false;
+
+  List<PaymentLink> get _filtered {
+    final now = DateTime.now();
+    return switch (_filter) {
+      _ExportFilter.all         => widget.allLinks,
+      _ExportFilter.paid        => widget.allLinks.where((l) => l.status == PaymentStatus.paid).toList(),
+      _ExportFilter.pending     => widget.allLinks.where((l) => l.status == PaymentStatus.pending).toList(),
+      _ExportFilter.thisMonth   => widget.allLinks.where((l) => l.createdAt.year == now.year && l.createdAt.month == now.month).toList(),
+      _ExportFilter.thisQuarter => widget.allLinks.where((l) {
+          final q = (now.month - 1) ~/ 3;
+          final lq = (l.createdAt.month - 1) ~/ 3;
+          return l.createdAt.year == now.year && lq == q;
+        }).toList(),
+    };
+  }
+
+  String _dateTag() {
+    final now = DateTime.now();
+    return '${now.year}${now.month.toString().padLeft(2,'0')}${now.day.toString().padLeft(2,'0')}';
+  }
+
+  String _fmtDate(DateTime dt) {
+    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    return '${dt.day} ${m[dt.month-1]} ${dt.year}';
+  }
+
+  Future<File> _saveFile(String name, List<int> bytes) async {
+    final dl = Directory('/storage/emulated/0/Download');
+    final dir = await dl.exists() ? dl : await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/$name');
+    await file.writeAsBytes(bytes);
+    return file;
+  }
+
+  Future<void> _exportCsv() async {
+    setState(() => _exporting = true);
+    try {
+      final links = _filtered;
+      final buf = StringBuffer();
+      buf.writeln('Référence,Client,Description,Montant (FCFA),Statut,Canal,Date création,Date expiration');
+      for (final l in links) {
+        final status = switch (l.status) {
+          PaymentStatus.paid    => 'Payé',
+          PaymentStatus.pending => 'En attente',
+          PaymentStatus.created => 'Créé',
+          PaymentStatus.expired => 'Expiré',
+        };
+        buf.writeln('"${l.id.toUpperCase()}","${l.contactName}","${l.description}",${l.amount},"$status","${l.paymentMethod.label}","${_fmtDate(l.createdAt)}","${_fmtDate(l.expiresAt)}"');
       }
+      final name = 'esignal_transactions_${_dateTag()}.csv';
+      final file = await _saveFile(name, buf.toString().codeUnits);
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone('✅ Fichier CSV sauvegardé dans Téléchargements');
+      await OpenFile.open(file.path);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone('Erreur export CSV : $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
+  }
 
+  Future<void> _exportExcel() async {
+    setState(() => _exporting = true);
+    try {
+      final links = _filtered;
+      final excel = Excel.createExcel();
+      final sheet = excel['Transactions'];
+
+      // Style en-tête
+      final headerStyle = CellStyle(
+        bold: true,
+        fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
+        backgroundColorHex: ExcelColor.fromHexString('#1E9E5E'),
+        horizontalAlign: HorizontalAlign.Center,
+      );
+
+      // En-têtes
+      final headers = ['Référence', 'Client', 'Description', 'Montant (FCFA)', 'Statut', 'Canal', 'Date création', 'Date expiration'];
+      for (var c = 0; c < headers.length; c++) {
+        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0));
+        cell.value = TextCellValue(headers[c]);
+        cell.cellStyle = headerStyle;
+      }
+
+      // Données
+      for (var r = 0; r < links.length; r++) {
+        final l = links[r];
+        final status = switch (l.status) {
+          PaymentStatus.paid    => 'Payé',
+          PaymentStatus.pending => 'En attente',
+          PaymentStatus.created => 'Créé',
+          PaymentStatus.expired => 'Expiré',
+        };
+        final row = [l.id.toUpperCase(), l.contactName, l.description, l.amount, status, l.paymentMethod.label, _fmtDate(l.createdAt), _fmtDate(l.expiresAt)];
+        for (var c = 0; c < row.length; c++) {
+          final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r + 1));
+          final v = row[c];
+          cell.value = v is int ? IntCellValue(v) : TextCellValue(v.toString());
+        }
+      }
+
+      // Largeur colonnes
+      for (var c = 0; c < headers.length; c++) {
+        sheet.setColumnWidth(c, 20);
+      }
+
+      final bytes = excel.encode()!;
+      final name = 'esignal_transactions_${_dateTag()}.xlsx';
+      final file = await _saveFile(name, bytes);
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone('✅ Fichier Excel sauvegardé dans Téléchargements');
+      await OpenFile.open(file.path);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      widget.onDone('Erreur export Excel : $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = _filtered.length;
     return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 20))),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 20),
+
+          // Titre + compteur
+          Row(
+            children: [
+              const Text('Exporter les transactions', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(12)),
+                child: Text('$count transaction${count > 1 ? 's' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Filtres
+          const Align(alignment: Alignment.centerLeft, child: Text('Filtrer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _FilterChip(label: 'Toutes', active: _filter == _ExportFilter.all,         onTap: () => setState(() => _filter = _ExportFilter.all)),
+                const SizedBox(width: 6),
+                _FilterChip(label: 'Payées',        active: _filter == _ExportFilter.paid,        onTap: () => setState(() => _filter = _ExportFilter.paid)),
+                const SizedBox(width: 6),
+                _FilterChip(label: 'En attente',    active: _filter == _ExportFilter.pending,      onTap: () => setState(() => _filter = _ExportFilter.pending)),
+                const SizedBox(width: 6),
+                _FilterChip(label: 'Ce mois',       active: _filter == _ExportFilter.thisMonth,    onTap: () => setState(() => _filter = _ExportFilter.thisMonth)),
+                const SizedBox(width: 6),
+                _FilterChip(label: 'Ce trimestre',  active: _filter == _ExportFilter.thisQuarter,  onTap: () => setState(() => _filter = _ExportFilter.thisQuarter)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // CSV
+          _ExportTile(
+            icon: Icons.table_chart_outlined,
+            label: 'Exporter en CSV',
+            subtitle: 'Compatible Excel, Google Sheets',
+            color: AppColors.green,
+            loading: _exporting,
+            onTap: _exporting ? null : _exportCsv,
+          ),
+          const SizedBox(height: 10),
+
+          // Excel
+          _ExportTile(
+            icon: Icons.grid_on_outlined,
+            label: 'Exporter en Excel',
+            subtitle: 'Fichier .xlsx — en-têtes en gras vert',
+            color: const Color(0xFF217346),
+            loading: _exporting,
+            onTap: _exporting ? null : _exportExcel,
+          ),
+          const SizedBox(height: 10),
+
+          // Annuler
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: _exporting ? null : () => Navigator.pop(context),
+              style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+              child: const Text('Annuler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ── Badge statut ──────────────────────────────────────────────────────────────
-
-class _StatusBadge extends StatelessWidget {
-  final Color bg;
-  final Color textColor;
+class _FilterChip extends StatelessWidget {
   final String label;
-  const _StatusBadge({required this.bg, required this.textColor, required this.label});
+  final bool active;
+  final VoidCallback onTap;
+  const _FilterChip({required this.label, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: textColor,
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? AppColors.green : AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: active ? AppColors.green : AppColors.borderLight),
         ),
+        child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: active ? AppColors.white : AppColors.textSecondary)),
       ),
     );
   }
 }
 
-// ── Pill méthode de paiement ──────────────────────────────────────────────────
-
-class _MethodPill extends StatelessWidget {
-  final PaymentMethod method;
-  const _MethodPill({required this.method});
+class _ExportTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final bool loading;
+  final VoidCallback? onTap;
+  const _ExportTile({required this.icon, required this.label, required this.subtitle, required this.color, required this.loading, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final isWave = method == PaymentMethod.wave;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: isWave
-            ? const Color(0xFFE3F0FF)
-            : const Color(0xFFFFF3E0),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        method.label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: isWave ? const Color(0xFF1565C0) : const Color(0xFFE65100),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: onTap == null ? AppColors.backgroundPage.withValues(alpha: 0.5) : AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderLight, width: 0.5),
         ),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+            child: loading
+                ? Padding(padding: const EdgeInsets.all(10), child: CircularProgressIndicator(color: color, strokeWidth: 2))
+                : Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: onTap == null ? AppColors.textHint : AppColors.textPrimary)),
+            const SizedBox(height: 2),
+            Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ])),
+          Icon(Icons.chevron_right, color: onTap == null ? AppColors.borderLight : AppColors.textSecondary, size: 20),
+        ]),
       ),
     );
   }
@@ -335,10 +587,16 @@ class _EmptyState extends StatelessWidget {
         children: [
           const Icon(Icons.receipt_long_outlined, size: 48, color: AppColors.borderLight),
           const SizedBox(height: 12),
-          Text('Aucun lien de paiement', style: AppTextStyles.bodySecondary),
+          const Text('Aucun lien de paiement', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: onTap,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+              shape: const StadiumBorder(),
+              elevation: 0,
+            ),
             child: const Text('Créer mon premier lien'),
           ),
         ],
