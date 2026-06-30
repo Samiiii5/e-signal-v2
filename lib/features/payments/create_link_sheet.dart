@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_snackbar.dart';
-import '../../shared/mock/messages_mock.dart' show PaymentStatus;
+import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/payments_mock.dart';
 import '../../shared/mock/products_mock.dart';
 import '../../shared/mock/threads_mock.dart';
+import '../../shared/services/inbox_service.dart';
+import '../../shared/services/payment_service.dart';
+
+/// Résultat retourné au parent quand le lien est généré avec succès.
+class CreateLinkSheetResult {
+  final PaymentLink link;
+  final String? threadId;
+  const CreateLinkSheetResult({required this.link, this.threadId});
+}
 
 class CreateLinkSheet extends StatefulWidget {
   const CreateLinkSheet({super.key});
@@ -61,26 +71,45 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
 
   Future<void> _generate() async {
     setState(() => _isGenerating = true);
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
+
     final p = _selectedProduct!;
     final frais = _hasDelivery ? 2000 : 0;
     final total = p.price + frais;
-    final now = DateTime.now();
-    final url = 'https://pay.esignal.ci/l/${now.millisecondsSinceEpoch}?a=$total';
-    final link = PaymentLink(
-      id: 'pay_${now.millisecondsSinceEpoch}',
+
+    // Persiste le lien dans le service paiement
+    final link = await paymentService.createPaymentLink(CreatePaymentLinkDto(
       contactName: _selectedThread?.contactName ?? '',
       description: '${p.emoji} ${p.name}',
       amount: total,
-      status: PaymentStatus.created,
-      createdAt: now,
-      expiresAt: now.add(const Duration(hours: 24)),
       paymentMethod: PaymentMethodLabel.fromLabel(_selectedPayment),
-    );
+    ));
+
+    if (!mounted) return;
+
+    // Injecte le message dans la conversation du client sélectionné
+    if (_selectedThread != null) {
+      final now = DateTime.now();
+      inboxService.addMessage(
+        _selectedThread!.id,
+        Message(
+          id: 'msg_${now.millisecondsSinceEpoch}',
+          threadId: _selectedThread!.id,
+          content: '${p.emoji} ${p.name}\n💰 $total FCFA',
+          isFromContact: false,
+          sentAt: now,
+          type: MessageType.paymentLink,
+          paymentAmount: total.toString(),
+          paymentCurrency: 'FCFA',
+          paymentStatus: PaymentStatus.created,
+          paymentProvider: _selectedPayment,
+        ),
+      );
+    }
+
+    if (!mounted) return;
     setState(() {
       _isGenerating = false;
-      _generatedUrl = url;
+      _generatedUrl = 'https://pay.esignal.ci/l/${link.id}?a=$total';
       _generatedLink = link;
     });
   }
@@ -133,7 +162,18 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
               child: _generatedUrl != null
                   ? _SuccessView(
                       url: _generatedUrl!,
-                      onDone: () => Navigator.of(context).pop(_generatedLink),
+                      onDone: () {
+                        final result = CreateLinkSheetResult(
+                          link: _generatedLink!,
+                          threadId: _selectedThread?.id,
+                        );
+                        if (_selectedThread != null) {
+                          // Navigation vers la conversation : go() ferme la sheet et navigue
+                          context.go('/inbox/${_selectedThread!.id}');
+                        } else {
+                          Navigator.of(context).pop(result);
+                        }
+                      },
                     )
                   : _step == 1
                       ? _buildStep1()

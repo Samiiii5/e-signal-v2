@@ -28,16 +28,20 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     _future = paymentService.getPaymentLinks();
   }
 
-  void _refresh() => setState(() => _future = paymentService.getPaymentLinks());
+  void _refresh() {
+    setState(() { _future = paymentService.getPaymentLinks(); });
+  }
 
   Future<void> _openCreateSheet() async {
-    final created = await showModalBottomSheet<PaymentLink>(
+    final result = await showModalBottomSheet<CreateLinkSheetResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const CreateLinkSheet(),
     );
-    if (created != null) _refresh();
+    if (!mounted) return;
+    // Le lien est déjà persisté dans paymentService — on rafraîchit la liste
+    if (result != null) _refresh();
   }
 
   Future<void> _openExportSheet() async {
