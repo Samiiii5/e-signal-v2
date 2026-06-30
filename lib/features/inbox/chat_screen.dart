@@ -2269,27 +2269,36 @@ class _CatalogueSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
       decoration: const BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: 18),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Catalogue produits', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 18),
+                const Text('Catalogue produits', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                const SizedBox(height: 4),
+                const Text('Appuyez sur un produit pour l\'envoyer', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Appuyez sur un produit pour l\'envoyer', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          Flexible(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+              shrinkWrap: true,
+              itemCount: mockProducts.length,
+              itemBuilder: (_, i) => _ProductTile(product: mockProducts[i], onTap: () => onSend(mockProducts[i])),
+            ),
           ),
-          const SizedBox(height: 16),
-          ...mockProducts.map((p) => _ProductTile(product: p, onTap: () => onSend(p))),
         ],
       ),
     );
@@ -2480,7 +2489,16 @@ class _DevisSheetState extends State<_DevisSheet> {
             ),
             const SizedBox(height: 10),
             Row(children: [
-              Expanded(child: _DevisField('Quantité', _qtyCtrl, TextInputType.number, placeholder: 'ex: 2', onChanged: (_) => setState(() {}))),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Quantité', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
+                    const SizedBox(height: 4),
+                    _DevisField('', _qtyCtrl, TextInputType.number, onChanged: (_) => setState(() {})),
+                  ],
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(child: _DevisField('Prix unitaire (FCFA)', _prixCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
             ]),
