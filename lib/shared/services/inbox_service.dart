@@ -24,10 +24,25 @@ abstract class InboxService {
 
 /// Implémentation mock — à remplacer par un appel HTTP réel en Sprint 3.
 class MockInboxService implements InboxService {
+  final Map<String, List<Message>> _extraMessages = {};
+  final Map<String, (String, DateTime)> _threadPreviews = {};
+
+  /// Injecte un message dans la conversation et met à jour l'aperçu du thread.
+  void addMessage(String threadId, Message msg) {
+    _extraMessages.putIfAbsent(threadId, () => []).add(msg);
+    _threadPreviews[threadId] = (msg.content, msg.sentAt);
+  }
+
   @override
   Future<List<Thread>> getThreads({String? channelFilter, bool? unreadOnly}) async {
     await Future.delayed(const Duration(milliseconds: 400));
-    var results = List<Thread>.from(mockThreads);
+    var results = mockThreads.map((t) {
+      if (_threadPreviews.containsKey(t.id)) {
+        final (msg, at) = _threadPreviews[t.id]!;
+        return t.copyWith(lastMessage: msg, lastMessageAt: at);
+      }
+      return t;
+    }).toList();
 
     if (channelFilter != null) {
       final ch = Channel.values.firstWhere(
@@ -47,9 +62,10 @@ class MockInboxService implements InboxService {
   @override
   Future<List<Message>> getMessages(String threadId, {int page = 1}) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    // Seule thread_001 a des messages mockés pour l'instant
-    if (threadId == 'thread_001') return List.from(mockMessagesThread001);
-    return [];
+    final base = threadId == 'thread_001'
+        ? List<Message>.from(mockMessagesThread001)
+        : <Message>[];
+    return [...base, ...(_extraMessages[threadId] ?? [])];
   }
 
   @override

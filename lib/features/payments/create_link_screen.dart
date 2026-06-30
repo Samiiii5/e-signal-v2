@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/products_mock.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/models/lien_paiement_model.dart';
+import '../../shared/services/inbox_service.dart';
 
 // Return value when a link is generated
 class CreateLinkResult {
@@ -23,7 +26,8 @@ class CreateLinkResult {
 
 class CreateLinkScreen extends StatefulWidget {
   final String? contactName;
-  const CreateLinkScreen({super.key, this.contactName});
+  final String? threadId;
+  const CreateLinkScreen({super.key, this.contactName, this.threadId});
 
   @override
   State<CreateLinkScreen> createState() => _CreateLinkScreenState();
@@ -92,6 +96,8 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
 
+    final total = _selectedProduct!.price + (_hasDelivery ? 2000 : 0);
+
     final lien = LienPaiement(
       id: 'lien_${DateTime.now().millisecondsSinceEpoch}',
       contactNom: _contactName,
@@ -99,7 +105,7 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
           '${_selectedProduct!.emoji} ${_selectedProduct!.name} — Commande de $_contactName',
       montantCommande: _selectedProduct!.price,
       fraisLivraison: _hasDelivery ? 2000 : 0,
-      montantTotal: _selectedProduct!.price + (_hasDelivery ? 2000 : 0),
+      montantTotal: total,
       statut: 'created',
       livreurNom: _hasDelivery ? 'Koné Ibrahima' : '',
       createdAt: DateTime.now(),
@@ -109,16 +115,68 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
     setState(() => _isGenerating = false);
 
     if (!mounted) return;
-    Navigator.pop(
-      context,
-      CreateLinkResult(
-        lien: lien,
-        hasDelivery: _hasDelivery,
-        deliveryCommune: _communeCtrl.text.trim(),
-        deliveryQuartier: _quartierCtrl.text.trim(),
-        deliverySecteur: _secteurCtrl.text.trim(),
-      ),
-    );
+
+    // Effective thread: picked in step 1 OR pre-filled from caller
+    final effectiveThreadId = _selectedThread?.id ?? widget.threadId;
+
+    if (effectiveThreadId != null) {
+      // Inject payment link message into the thread
+      final now = DateTime.now();
+      inboxService.addMessage(
+        effectiveThreadId,
+        Message(
+          id: 'msg_${now.millisecondsSinceEpoch}',
+          threadId: effectiveThreadId,
+          content: lien.description,
+          isFromContact: false,
+          sentAt: now,
+          type: MessageType.paymentLink,
+          paymentAmount: total.toString(),
+          paymentCurrency: 'FCFA',
+          paymentStatus: PaymentStatus.created,
+          paymentProvider: _selectedPayment,
+        ),
+      );
+
+      // Inject delivery messages if applicable
+      if (_hasDelivery) {
+        final addr = '${_communeCtrl.text.trim()}, ${_quartierCtrl.text.trim()}, ${_secteurCtrl.text.trim()}';
+        inboxService.addMessage(
+          effectiveThreadId,
+          Message(
+            id: 'msg_${now.millisecondsSinceEpoch + 1}',
+            threadId: effectiveThreadId,
+            content: '🚚 Livraison à domicile confirmée\nAdresse : $addr',
+            isFromContact: false,
+            sentAt: now,
+          ),
+        );
+        inboxService.addMessage(
+          effectiveThreadId,
+          Message(
+            id: 'msg_${now.millisecondsSinceEpoch + 2}',
+            threadId: effectiveThreadId,
+            content: '✅ Livreur assigné : Koné Ibrahima\n📅 Livraison prévue : Demain 14h-16h\n📞 +225 07 58 32 14 96',
+            isFromContact: false,
+            sentAt: now,
+          ),
+        );
+      }
+
+      // Navigate directly to the thread conversation
+      context.go('/inbox/$effectiveThreadId');
+    } else {
+      Navigator.pop(
+        context,
+        CreateLinkResult(
+          lien: lien,
+          hasDelivery: _hasDelivery,
+          deliveryCommune: _communeCtrl.text.trim(),
+          deliveryQuartier: _quartierCtrl.text.trim(),
+          deliverySecteur: _secteurCtrl.text.trim(),
+        ),
+      );
+    }
   }
 
   @override

@@ -346,56 +346,17 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Lien de paiement ─────────────────────────────────────────────────────────
 
   Future<void> _openCreateLink() async {
-    final result = await Navigator.push<CreateLinkResult?>(
+    // CreateLinkScreen injecte le message dans inboxService et navigue
+    // directement vers le chat — pas besoin de gérer le résultat ici.
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CreateLinkScreen(contactName: _thread?.contactName ?? 'Client'),
+        builder: (_) => CreateLinkScreen(
+          contactName: _thread?.contactName ?? 'Client',
+          threadId: widget.threadId,
+        ),
       ),
     );
-    if (!mounted || result == null) return;
-
-    _addMessage(Message(
-      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-      threadId: widget.threadId,
-      content: result.lien.description,
-      isFromContact: false,
-      sentAt: DateTime.now(),
-      type: MessageType.paymentLink,
-      paymentAmount: result.lien.montantTotal.toString(),
-      paymentCurrency: 'FCFA',
-      paymentStatus: PaymentStatus.created,
-      paymentProvider: 'wave',
-    ));
-
-    if (result.hasDelivery) {
-      final addr = '${result.deliveryCommune}, ${result.deliveryQuartier}, ${result.deliverySecteur}';
-      Future.delayed(const Duration(milliseconds: 600), () {
-        if (!mounted) return;
-        _addMessage(Message(
-          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-          threadId: widget.threadId,
-          content: '🚚 Livraison à domicile confirmée\nAdresse : $addr\nUn livreur vous sera assigné sous peu.',
-          isFromContact: false,
-          sentAt: DateTime.now(),
-        ));
-        Future.delayed(const Duration(seconds: 3), () {
-          if (!mounted) return;
-          _addMessage(Message(
-            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-            threadId: widget.threadId,
-            content: '✅ Livreur assigné : Koné Ibrahima\n📅 Livraison prévue : Demain entre 14h-16h\n📞 Contact : +225 07 58 32 14 96',
-            isFromContact: false,
-            sentAt: DateTime.now(),
-          ));
-        });
-      });
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(AppSnackbar.success('Lien de paiement envoyé dans la conversation'));
-    }
   }
 
   // ── Helpers message ──────────────────────────────────────────────────────────
@@ -2489,17 +2450,8 @@ class _DevisSheetState extends State<_DevisSheet> {
             ),
             const SizedBox(height: 10),
             Row(children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Quantité', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
-                    const SizedBox(height: 4),
-                    _DevisField('', _qtyCtrl, TextInputType.number, onChanged: (_) => setState(() {})),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
+              Expanded(child: _DevisField('Quantité', _qtyCtrl, TextInputType.number, onChanged: (_) => setState(() {}), useLabel: true)),
+              const SizedBox(width: 12),
               Expanded(child: _DevisField('Prix unitaire (FCFA)', _prixCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
             ]),
             if (_total > 0) ...[
@@ -2563,10 +2515,11 @@ class _DevisSheetState extends State<_DevisSheet> {
 class _DevisField extends StatelessWidget {
   final String label;
   final String? placeholder;
+  final bool useLabel;
   final TextEditingController ctrl;
   final TextInputType kbType;
   final ValueChanged<String>? onChanged;
-  const _DevisField(this.label, this.ctrl, this.kbType, {this.onChanged, this.placeholder});
+  const _DevisField(this.label, this.ctrl, this.kbType, {this.onChanged, this.placeholder, this.useLabel = false});
 
   @override
   Widget build(BuildContext context) {
@@ -2581,12 +2534,20 @@ class _DevisField extends StatelessWidget {
         keyboardType: kbType,
         onChanged: onChanged,
         style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-        decoration: InputDecoration(
-          hintText: placeholder ?? label,
-          hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        ),
+        decoration: useLabel
+            ? InputDecoration(
+                labelText: label,
+                labelStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
+                floatingLabelStyle: const TextStyle(color: AppColors.green, fontSize: 12),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              )
+            : InputDecoration(
+                hintText: placeholder ?? label,
+                hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              ),
       ),
     );
   }

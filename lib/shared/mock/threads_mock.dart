@@ -24,6 +24,17 @@ class Thread {
     required this.unreadCount,
     required this.status,
   });
+
+  Thread copyWith({String? lastMessage, DateTime? lastMessageAt}) => Thread(
+    id: id,
+    contactName: contactName,
+    contactInitials: contactInitials,
+    channel: channel,
+    lastMessage: lastMessage ?? this.lastMessage,
+    lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+    unreadCount: unreadCount,
+    status: status,
+  );
 }
 
 final mockThreads = <Thread>[
