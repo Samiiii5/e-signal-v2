@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../shared/mock/messages_mock.dart' show PaymentStatus;
+import '../../shared/mock/payments_mock.dart';
 import '../../shared/mock/products_mock.dart';
 import '../../shared/mock/threads_mock.dart';
 
@@ -38,6 +40,7 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
 
   bool _isGenerating = false;
   String? _generatedUrl;
+  PaymentLink? _generatedLink;
 
   @override
   void dispose() {
@@ -63,9 +66,22 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
     final p = _selectedProduct!;
     final frais = _hasDelivery ? 2000 : 0;
     final total = p.price + frais;
+    final now = DateTime.now();
+    final url = 'https://pay.esignal.ci/l/${now.millisecondsSinceEpoch}?a=$total';
+    final link = PaymentLink(
+      id: 'pay_${now.millisecondsSinceEpoch}',
+      contactName: _selectedThread?.contactName ?? '',
+      description: '${p.emoji} ${p.name}',
+      amount: total,
+      status: PaymentStatus.created,
+      createdAt: now,
+      expiresAt: now.add(const Duration(hours: 24)),
+      paymentMethod: PaymentMethodLabel.fromLabel(_selectedPayment),
+    );
     setState(() {
       _isGenerating = false;
-      _generatedUrl = 'https://pay.esignal.ci/l/${DateTime.now().millisecondsSinceEpoch}?a=$total';
+      _generatedUrl = url;
+      _generatedLink = link;
     });
   }
 
@@ -117,7 +133,7 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
               child: _generatedUrl != null
                   ? _SuccessView(
                       url: _generatedUrl!,
-                      onDone: () => Navigator.of(context).pop(true),
+                      onDone: () => Navigator.of(context).pop(_generatedLink),
                     )
                   : _step == 1
                       ? _buildStep1()

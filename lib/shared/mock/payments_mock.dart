@@ -22,14 +22,25 @@ class PaymentLink {
   });
 }
 
-enum PaymentMethod { wave, orangeMoney }
+enum PaymentMethod { wave, orangeMoney, cinetPay, moovMoney, mtnMoney, djamo }
 
 extension PaymentMethodLabel on PaymentMethod {
   String get label {
     switch (this) {
-      case PaymentMethod.wave:       return 'Wave';
+      case PaymentMethod.wave:        return 'Wave';
       case PaymentMethod.orangeMoney: return 'Orange Money';
+      case PaymentMethod.cinetPay:    return 'CinetPay';
+      case PaymentMethod.moovMoney:   return 'Moov Money';
+      case PaymentMethod.mtnMoney:    return 'MTN Money';
+      case PaymentMethod.djamo:       return 'Djamo';
     }
+  }
+
+  static PaymentMethod fromLabel(String label) {
+    return PaymentMethod.values.firstWhere(
+      (m) => m.label == label,
+      orElse: () => PaymentMethod.wave,
+    );
   }
 }
 
