@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/login/login_page1_screen.dart';
 import '../../features/auth/login/login_page2_screen.dart';
+import '../../features/auth/login/set_password_screen.dart';
 import '../../features/auth/onboarding/onboarding_screen.dart';
 import '../../features/auth/pin/pin_screen.dart';
 import '../../features/auth/pin/pin_setup_screen.dart';
@@ -71,6 +72,13 @@ GoRouter buildRouter() {
             pageBuilder: (context, state) => _slidePage(
               state,
               LoginPage2Screen(phone: state.extra as String),
+            ),
+          ),
+          GoRoute(
+            path: 'set-password',
+            pageBuilder: (context, state) => _slidePage(
+              state,
+              SetPasswordScreen(phone: state.extra as String),
             ),
           ),
         ],
@@ -145,7 +153,8 @@ GoRouter buildRouter() {
 // ─── Redirect ─────────────────────────────────────────────────────────────────
 
 const _authRoutes = {
-  '/onboarding', '/login', '/login/password', '/pin', '/pin/setup',
+  '/onboarding', '/login', '/login/password', '/login/set-password',
+  '/pin', '/pin/setup',
 };
 
 String? _rootRedirect(BuildContext context, GoRouterState state) {

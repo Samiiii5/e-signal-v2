@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../shared/mock/users_mock.dart';
 
 class LoginPage1Screen extends StatefulWidget {
   const LoginPage1Screen({super.key});
@@ -16,7 +15,6 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
   final _phoneController = TextEditingController();
   final _focusNode = FocusNode();
   bool _isFocused = false;
-  bool _isLoading = false;
   String? _error;
 
   // Pays disponibles (extensible)
@@ -37,29 +35,18 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
 
   String get _fullPhone => '${_selectedCountry.dialCode}${_phoneController.text.trim()}';
 
-  Future<void> _onNext() async {
-    setState(() {
-      _error = null;
-      _isLoading = true;
-    });
-    try {
-      final exists = await authService.checkPhone(_fullPhone);
-      if (!mounted) return;
-      if (exists) {
-        context.go('/login/password', extra: _fullPhone);
-      } else {
-        setState(() => _error = 'Aucun compte associé à ce numéro.');
-      }
-    } catch (_) {
-      setState(() => _error = 'Une erreur est survenue. Réessayez.');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+  void _onNext() {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _error = 'Entrez votre numéro de téléphone.');
+      return;
     }
+    context.go('/login/password', extra: _fullPhone);
   }
 
   @override
   Widget build(BuildContext context) {
-    final canSubmit = _phoneController.text.trim().length >= 8 && !_isLoading;
+    final canSubmit = _phoneController.text.trim().length >= 8;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -123,16 +110,7 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
                 height: 52,
                 child: ElevatedButton(
                   onPressed: canSubmit ? _onNext : null,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            color: AppColors.white,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : Text('Suivant', style: AppTextStyles.buttonPrimary),
+                  child: Text('Suivant', style: AppTextStyles.buttonPrimary),
                 ),
               ),
             ],
