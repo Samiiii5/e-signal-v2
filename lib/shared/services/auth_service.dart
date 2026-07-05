@@ -135,7 +135,7 @@ class HttpAuthService implements AuthService {
       throw const AccountNotActivatedException();
     }
 
-    String _extractMessage(String body) {
+    String extractMessage(String body) {
       try {
         final json = jsonDecode(body) as Map<String, dynamic>;
         return json['message'] as String? ??
@@ -147,10 +147,10 @@ class HttpAuthService implements AuthService {
     }
 
     if (response.statusCode == 400) {
-      throw BadRequestException(_extractMessage(response.body));
+      throw BadRequestException(extractMessage(response.body));
     }
     if (response.statusCode == 422) {
-      throw ValidationException(_extractMessage(response.body));
+      throw ValidationException(extractMessage(response.body));
     }
     throw ServerException(response.statusCode);
   }

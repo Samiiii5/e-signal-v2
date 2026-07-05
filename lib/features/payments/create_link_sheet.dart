@@ -437,7 +437,7 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
                     if (!v) { _searchingLivreur = false; _livreurFound = false; }
                   });
                   if (v) _searchLivreur();
-                }, activeColor: AppColors.green),
+                }, activeThumbColor: AppColors.green),
               ],
             ),
           ),

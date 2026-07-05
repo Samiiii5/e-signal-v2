@@ -719,7 +719,7 @@ class _Step3 extends StatelessWidget {
                   Switch(
                     value: hasDelivery,
                     onChanged: onDeliveryChanged,
-                    activeColor: AppColors.green,
+                    activeThumbColor: AppColors.green,
                   ),
                 ],
               ),

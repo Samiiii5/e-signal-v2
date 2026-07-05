@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/session_service.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../shared/mock/users_mock.dart';
+import 'pin_storage.dart';
 import 'widgets/pin_dots.dart';
 import 'widgets/pin_keypad.dart';
 
@@ -46,10 +46,11 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
     setState(() => _input = _input.substring(0, _input.length - 1));
   }
 
-  void _verify() {
-    if (_input == mockUser.pin) {
+  Future<void> _verify() async {
+    final ok = await PinStorage.checkPin(_input);
+    if (ok) {
       SessionService.validatePin();
-      context.go('/inbox');
+      if (mounted) context.go('/inbox');
     } else {
       _shakeController.forward(from: 0);
       setState(() {
@@ -83,15 +84,10 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
               children: [
               const SizedBox(height: 64),
 
-              _Avatar(initials: mockUser.initials),
+              _Avatar(initials: _initials(SessionService.displayName ?? '')),
               const SizedBox(height: 16),
 
-              Text(mockUser.displayName, style: AppTextStyles.h2),
-              const SizedBox(height: 4),
-              Text(
-                '${mockUser.role} · ${mockUser.company}',
-                style: AppTextStyles.bodySecondary,
-              ),
+              Text(SessionService.displayName ?? '', style: AppTextStyles.h2),
               const SizedBox(height: 8),
               Text(
                 'Entrez votre code PIN',
@@ -148,6 +144,13 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
       ),
     );
   }
+}
+
+String _initials(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts[0].isEmpty) return '?';
+  if (parts.length == 1) return parts[0][0].toUpperCase();
+  return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
 }
 
 class _Avatar extends StatelessWidget {

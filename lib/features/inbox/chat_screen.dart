@@ -10,7 +10,6 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/products_mock.dart';
-import '../../shared/models/lien_paiement_model.dart';
 import '../../shared/services/inbox_service.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -2506,12 +2505,11 @@ class _DevisSheetState extends State<_DevisSheet> {
 
 class _DevisField extends StatelessWidget {
   final String label;
-  final String? placeholder;
   final bool useLabel;
   final TextEditingController ctrl;
   final TextInputType kbType;
   final ValueChanged<String>? onChanged;
-  const _DevisField(this.label, this.ctrl, this.kbType, {this.onChanged, this.placeholder, this.useLabel = false});
+  const _DevisField(this.label, this.ctrl, this.kbType, {this.onChanged, this.useLabel = false});
 
   @override
   Widget build(BuildContext context) {
@@ -2535,7 +2533,7 @@ class _DevisField extends StatelessWidget {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
               )
             : InputDecoration(
-                hintText: placeholder ?? label,
+                hintText: label,
                 hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
