@@ -8,7 +8,6 @@ class SessionService {
 
   // Données utilisateur en mémoire après login
   static String? _accessToken;
-  static String? _refreshToken;
   static String? _userId;
   static String? _displayName;
   static String? _phoneNumber;
