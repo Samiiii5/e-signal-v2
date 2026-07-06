@@ -117,9 +117,15 @@ class HttpAuthService implements AuthService {
       if (resp.statusCode == 200) {
         return AuthResult.fromJson(resp.data as Map<String, dynamic>);
       }
+      // ignore: avoid_print
+      print('STATUS CODE REÇU : ${resp.statusCode}');
+      // ignore: avoid_print
+      print('BODY REÇU : ${resp.data}');
       return _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
       // Seules les erreurs réseau (timeout, pas de connexion) arrivent ici.
+      // ignore: avoid_print
+      print('DioException réseau : ${e.type} / ${e.message}');
       throw ServerException(e.response?.statusCode ?? 0);
     }
   }
