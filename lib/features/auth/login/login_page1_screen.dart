@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -12,13 +11,10 @@ class LoginPage1Screen extends StatefulWidget {
 }
 
 class _LoginPage1ScreenState extends State<LoginPage1Screen> {
-  final _phoneController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _focusNode = FocusNode();
   bool _isFocused = false;
   String? _error;
-
-  // Pays disponibles (extensible)
-  _Country _selectedCountry = _countries[0];
 
   @override
   void initState() {
@@ -28,25 +24,23 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _identifierController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
-  String get _fullPhone => '${_selectedCountry.dialCode}${_phoneController.text.trim()}';
-
   void _onNext() {
-    final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
-      setState(() => _error = 'Entrez votre numéro de téléphone.');
+    final id = _identifierController.text.trim();
+    if (id.length < 3) {
+      setState(() => _error = 'Saisissez au moins 3 caractères.');
       return;
     }
-    context.go('/login/password', extra: _fullPhone);
+    context.go('/login/password', extra: id);
   }
 
   @override
   Widget build(BuildContext context) {
-    final canSubmit = _phoneController.text.trim().length >= 8;
+    final canSubmit = _identifierController.text.trim().length >= 3;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -58,7 +52,6 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
             children: [
               const SizedBox(height: 52),
 
-              // Logo eS
               const _ESignalLogo(),
 
               const SizedBox(height: 40),
@@ -73,24 +66,20 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
 
               const SizedBox(height: 40),
 
-              // Label
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Numéro de téléphone', style: AppTextStyles.label),
+                child: Text('Identifiant', style: AppTextStyles.label),
               ),
               const SizedBox(height: 8),
 
-              // Champ téléphone
-              _PhoneField(
-                controller: _phoneController,
+              _IdentifierField(
+                controller: _identifierController,
                 focusNode: _focusNode,
                 isFocused: _isFocused,
-                selectedCountry: _selectedCountry,
-                onCountryChanged: (c) => setState(() => _selectedCountry = c),
                 onChanged: (_) => setState(() => _error = null),
+                onSubmitted: (_) { if (canSubmit) _onNext(); },
               ),
 
-              // Erreur
               if (_error != null) ...[
                 const SizedBox(height: 10),
                 Align(
@@ -104,7 +93,6 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
 
               const SizedBox(height: 32),
 
-              // Bouton Suivant
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -128,31 +116,25 @@ class _ESignalLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      'design/logo_onboarding.png',
-      height: 120,
-      fit: BoxFit.contain,
-    );
+    return Image.asset('design/logo_onboarding.png', height: 120, fit: BoxFit.contain);
   }
 }
 
-// ─── Champ téléphone ──────────────────────────────────────────────────────────
+// ─── Champ identifiant ────────────────────────────────────────────────────────
 
-class _PhoneField extends StatelessWidget {
+class _IdentifierField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool isFocused;
-  final _Country selectedCountry;
-  final ValueChanged<_Country> onCountryChanged;
   final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onSubmitted;
 
-  const _PhoneField({
+  const _IdentifierField({
     required this.controller,
     required this.focusNode,
     required this.isFocused,
-    required this.selectedCountry,
-    required this.onCountryChanged,
     required this.onChanged,
+    this.onSubmitted,
   });
 
   @override
@@ -167,101 +149,26 @@ class _PhoneField extends StatelessWidget {
           width: 1.5,
         ),
       ),
-      child: Row(
-        children: [
-          // Sélecteur de pays
-          _CountryPicker(
-            selected: selectedCountry,
-            onChanged: onCountryChanged,
-          ),
-
-          // Séparateur
-          Container(width: 1, height: 24, color: AppColors.borderLight),
-
-          // Input numéro
-          Expanded(
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              onChanged: onChanged,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: AppTextStyles.body,
-              decoration: const InputDecoration(
-                hintText: '07 00 00 00 00',
-                hintStyle: TextStyle(color: AppColors.textHint, fontSize: 14),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Sélecteur de pays ────────────────────────────────────────────────────────
-
-class _CountryPicker extends StatelessWidget {
-  final _Country selected;
-  final ValueChanged<_Country> onChanged;
-
-  const _CountryPicker({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<_Country>(
-      onSelected: onChanged,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      color: AppColors.white,
-      offset: const Offset(0, 44),
-      itemBuilder: (_) => _countries
-          .map((c) => PopupMenuItem(
-                value: c,
-                child: Row(
-                  children: [
-                    Text(c.flag, style: const TextStyle(fontSize: 20)),
-                    const SizedBox(width: 10),
-                    Text(c.dialCode, style: AppTextStyles.body),
-                    const SizedBox(width: 6),
-                    Text(c.name, style: AppTextStyles.bodySecondary),
-                  ],
-                ),
-              ))
-          .toList(),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        child: Row(
-          children: [
-            Text(selected.flag, style: const TextStyle(fontSize: 20)),
-            const SizedBox(width: 6),
-            Text(selected.dialCode, style: AppTextStyles.label),
-            const SizedBox(width: 2),
-            const Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textSecondary),
-          ],
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        keyboardType: TextInputType.emailAddress,
+        textInputAction: TextInputAction.next,
+        autocorrect: false,
+        style: AppTextStyles.body,
+        decoration: const InputDecoration(
+          hintText: 'Email ou numéro de téléphone',
+          hintStyle: TextStyle(color: AppColors.textHint, fontSize: 14),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          filled: false,
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          prefixIcon: Icon(Icons.person_outline, size: 20, color: AppColors.textSecondary),
         ),
       ),
     );
   }
 }
-
-// ─── Données pays ─────────────────────────────────────────────────────────────
-
-class _Country {
-  final String flag;
-  final String name;
-  final String dialCode;
-  const _Country({required this.flag, required this.name, required this.dialCode});
-}
-
-const _countries = [
-  _Country(flag: '🇨🇮', name: 'Côte d\'Ivoire', dialCode: '+225'),
-  _Country(flag: '🇸🇳', name: 'Sénégal', dialCode: '+221'),
-  _Country(flag: '🇲🇱', name: 'Mali', dialCode: '+223'),
-  _Country(flag: '🇧🇫', name: 'Burkina Faso', dialCode: '+226'),
-  _Country(flag: '🇨🇲', name: 'Cameroun', dialCode: '+237'),
-];

@@ -3,14 +3,20 @@ import '../../../../core/constants/app_colors.dart';
 
 class PinDots extends StatelessWidget {
   final int filled;
+  final int total;
   final bool hasError;
-  const PinDots({super.key, required this.filled, this.hasError = false});
+  const PinDots({
+    super.key,
+    required this.filled,
+    this.total = 5,
+    this.hasError = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(4, (i) {
+      children: List.generate(total, (i) {
         final isFilled = i < filled;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 180),

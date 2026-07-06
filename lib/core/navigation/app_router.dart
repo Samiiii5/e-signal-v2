@@ -14,6 +14,7 @@ import '../../features/payments/transaction_detail_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../shared/mock/payments_mock.dart';
 import '../../features/stats/stats_screen.dart';
+import '../../core/services/navigation_service.dart';
 import '../../core/services/session_service.dart';
 import 'app_shell.dart';
 
@@ -55,7 +56,7 @@ CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 GoRouter buildRouter() {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/inbox',
     redirect: _rootRedirect,
     routes: [
@@ -71,14 +72,14 @@ GoRouter buildRouter() {
             path: 'password',
             pageBuilder: (context, state) => _slidePage(
               state,
-              LoginPage2Screen(phone: state.extra as String),
+              LoginPage2Screen(identifier: state.extra as String),
             ),
           ),
           GoRoute(
             path: 'set-password',
             pageBuilder: (context, state) => _slidePage(
               state,
-              SetPasswordScreen(phone: state.extra as String),
+              SetPasswordScreen(identifier: state.extra as String),
             ),
           ),
         ],
@@ -148,6 +149,9 @@ GoRouter buildRouter() {
       ),
     ],
   );
+  // Câble le callback de session expirée pour l'intercepteur Dio.
+  NavigationService.onSessionExpired = () => router.go('/login');
+  return router;
 }
 
 // ─── Redirect ─────────────────────────────────────────────────────────────────

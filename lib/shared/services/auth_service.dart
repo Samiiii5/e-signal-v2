@@ -1,5 +1,5 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import '../../core/services/api_client.dart';
 
 // ─── Modèle de réponse ────────────────────────────────────────────────────────
 
@@ -55,24 +55,24 @@ class AuthResult {
 
 // ─── Exceptions typées ────────────────────────────────────────────────────────
 
-/// 403 : compte existe mais pas encore activé (mot de passe à définir)
+/// 403 : compte INVITED, pas encore activé → first-login requis.
 class AccountNotActivatedException implements Exception {
   const AccountNotActivatedException();
 }
 
-/// 400 : email déjà utilisé / format invalide / mot de passe trop faible
+/// 400 : identifiant ou mot de passe incorrect.
 class BadRequestException implements Exception {
   final String message;
   const BadRequestException(this.message);
 }
 
-/// 422 : champ manquant ou type incorrect
+/// 422 : champ manquant ou type incorrect.
 class ValidationException implements Exception {
   final String message;
   const ValidationException(this.message);
 }
 
-/// 502 ou autre erreur serveur
+/// 502 ou autre erreur serveur.
 class ServerException implements Exception {
   final int statusCode;
   const ServerException(this.statusCode);
@@ -81,95 +81,119 @@ class ServerException implements Exception {
 // ─── Contrat abstrait ─────────────────────────────────────────────────────────
 
 abstract class AuthService {
-  /// Validation locale du numéro — pas d'appel API.
-  /// Retourne true si le format est acceptable pour passer à l'étape 2.
-  Future<bool> checkPhone(String phone);
+  /// POST /api/v1.2/auth/login
+  Future<AuthResult> login(String identifier, String password);
 
-  /// POST /auth/login
-  /// Lance une [AccountNotActivatedException] si 403,
-  /// [BadRequestException] si 400, [ValidationException] si 422,
-  /// [ServerException] pour tout autre code ≥ 400.
-  Future<AuthResult> login(String phoneOrEmail, String password);
+  /// POST /api/v1.2/auth/first-login  (compte INVITED)
+  Future<AuthResult> firstLogin(
+    String identifier,
+    String tempPassword,
+    String newPassword,
+  );
 
-  /// POST /auth/forgot-password  (endpoint à confirmer avec le backend)
-  Future<void> forgotPassword(String phone);
+  /// GET /api/v1.2/auth/me  → retourne l'organization_id du premier élément.
+  Future<String?> getMe();
 
-  /// Révocation du token (DELETE /auth/logout ou similaire)
-  Future<void> logout();
+  /// POST /api/v1.2/auth/set-pin
+  Future<void> setPin(String pin);
+
+  /// POST /api/v1.2/auth/forgot-password
+  Future<void> forgotPassword(String identifier);
 }
 
-// ─── Implémentation HTTP ──────────────────────────────────────────────────────
+// ─── Implémentation HTTP (Dio) ────────────────────────────────────────────────
 
 class HttpAuthService implements AuthService {
-  static const _base = 'https://ws.score360.africa';
-
   @override
-  Future<bool> checkPhone(String phone) async {
-    // Pas d'endpoint dédié — validation du format seulement
-    return phone.replaceAll(RegExp(r'[^\d+]'), '').length >= 8;
+  Future<AuthResult> login(String identifier, String password) async {
+    try {
+      final resp = await ApiClient.dio.post(
+        '/auth/login',
+        data: {'identifier': identifier, 'password': password},
+      );
+      return AuthResult.fromJson(resp.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return _throwFromDio(e);
+    }
   }
 
   @override
-  Future<AuthResult> login(String phoneOrEmail, String password) async {
-    final uri = Uri.parse('$_base/auth/login');
-
-    // Détermine si c'est un email ou un numéro
-    final bool isEmail = phoneOrEmail.contains('@');
-    final body = <String, String>{
-      if (isEmail) 'email': phoneOrEmail else 'phone_number': phoneOrEmail,
-      'password': password,
-    };
-
-    final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    );
-
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      return AuthResult.fromJson(json);
+  Future<AuthResult> firstLogin(
+    String identifier,
+    String tempPassword,
+    String newPassword,
+  ) async {
+    try {
+      final resp = await ApiClient.dio.post(
+        '/auth/first-login',
+        data: {
+          'identifier': identifier,
+          'temp_password': tempPassword,
+          'new_password': newPassword,
+        },
+      );
+      return AuthResult.fromJson(resp.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return _throwFromDio(e);
     }
+  }
 
-    if (response.statusCode == 403) {
-      throw const AccountNotActivatedException();
-    }
-
-    String extractMessage(String body) {
-      try {
-        final json = jsonDecode(body) as Map<String, dynamic>;
-        return json['message'] as String? ??
-            json['detail'] as String? ??
-            'Erreur inconnue';
-      } catch (_) {
-        return 'Erreur inconnue';
+  @override
+  Future<String?> getMe() async {
+    try {
+      final resp = await ApiClient.dio.get('/auth/me');
+      final data = resp.data as Map<String, dynamic>;
+      final orgs = data['organizations'] as List<dynamic>?;
+      if (orgs != null && orgs.isNotEmpty) {
+        final first = orgs.first as Map<String, dynamic>;
+        return first['organization_id'] as String?;
       }
+      return null;
+    } on DioException {
+      return null;
     }
-
-    if (response.statusCode == 400) {
-      throw BadRequestException(extractMessage(response.body));
-    }
-    if (response.statusCode == 422) {
-      throw ValidationException(extractMessage(response.body));
-    }
-    throw ServerException(response.statusCode);
   }
 
   @override
-  Future<void> forgotPassword(String phone) async {
-    // TODO: confirmer l'endpoint avec le backend
-    await http.post(
-      Uri.parse('$_base/auth/forgot-password'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'phone_number': phone}),
-    );
+  Future<void> setPin(String pin) async {
+    try {
+      await ApiClient.dio.post('/auth/set-pin', data: {'pin': pin});
+    } on DioException catch (e) {
+      _throwFromDio(e);
+    }
   }
 
   @override
-  Future<void> logout() async {
-    // TODO: ajouter l'access_token dans le header Authorization
-    await http.delete(Uri.parse('$_base/auth/logout'));
+  Future<void> forgotPassword(String identifier) async {
+    try {
+      await ApiClient.dio.post(
+        '/auth/forgot-password',
+        data: {'identifier': identifier},
+      );
+    } on DioException catch (e) {
+      _throwFromDio(e);
+    }
   }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+Never _throwFromDio(DioException e) {
+  final status = e.response?.statusCode;
+  final data = e.response?.data;
+  if (status == 403) throw const AccountNotActivatedException();
+  if (status == 400) throw BadRequestException(_extractMsg(data));
+  if (status == 422) throw ValidationException(_extractMsg(data));
+  throw ServerException(status ?? 0);
+}
+
+String _extractMsg(dynamic data) {
+  if (data is Map<String, dynamic>) {
+    return data['message'] as String? ??
+        data['detail'] as String? ??
+        'Erreur inconnue';
+  }
+  return 'Erreur inconnue';
 }
 
 // ─── Instance globale ─────────────────────────────────────────────────────────

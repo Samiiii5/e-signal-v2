@@ -3,11 +3,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/services/session_service.dart';
+import '../../../core/widgets/app_snackbar.dart';
 import '../../../shared/services/auth_service.dart';
 
 class LoginPage2Screen extends StatefulWidget {
-  final String phone;
-  const LoginPage2Screen({super.key, required this.phone});
+  final String identifier;
+  const LoginPage2Screen({super.key, required this.identifier});
 
   @override
   State<LoginPage2Screen> createState() => _LoginPage2ScreenState();
@@ -39,24 +40,36 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
     final router = GoRouter.of(context);
     try {
       final result = await authService.login(
-        widget.phone,
+        widget.identifier,
         _passwordController.text,
       );
       await SessionService.saveAuthResult(result);
+
+      // Récupère l'organization_id depuis /auth/me
+      final orgId = await authService.getMe();
+      if (orgId != null) await SessionService.saveOrganizationId(orgId);
+
       if (!mounted) return;
       router.go('/pin');
     } on AccountNotActivatedException {
       if (!mounted) return;
-      // 403 — compte non activé, rediriger vers la création de mot de passe
-      router.push('/login/set-password', extra: widget.phone);
+      router.push('/login/set-password', extra: widget.identifier);
     } on BadRequestException catch (e) {
-      setState(() => _error = e.message);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(AppSnackbar.error(e.message));
     } on ValidationException catch (e) {
-      setState(() => _error = e.message);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(AppSnackbar.error(e.message));
     } on ServerException {
-      setState(() => _error = 'Erreur serveur (502). Réessayez dans quelques instants.');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(AppSnackbar.error('Erreur serveur (502). Réessayez dans quelques instants.'));
     } catch (_) {
-      setState(() => _error = 'Mot de passe incorrect. Réessayez.');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(AppSnackbar.error('Mot de passe incorrect. Réessayez.'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -64,33 +77,15 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
 
   Future<void> _onForgotPassword() async {
     try {
-      await authService.forgotPassword(widget.phone);
+      await authService.forgotPassword(widget.identifier);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Un lien de réinitialisation a été envoyé.',
-            style: AppTextStyles.small.copyWith(color: AppColors.white),
-          ),
-          backgroundColor: AppColors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(16),
-        ),
+        AppSnackbar.success('Un lien de réinitialisation a été envoyé.'),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Impossible d\'envoyer le lien. Réessayez.',
-            style: AppTextStyles.small.copyWith(color: AppColors.white),
-          ),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(16),
-        ),
+        AppSnackbar.error('Impossible d\'envoyer le lien. Réessayez.'),
       );
     }
   }
@@ -124,7 +119,7 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
               Text('Votre mot de passe', style: AppTextStyles.h1),
               const SizedBox(height: 8),
               Text(
-                _maskedPhone(widget.phone),
+                _maskedIdentifier(widget.identifier),
                 style: AppTextStyles.bodySecondary,
               ),
 
@@ -225,11 +220,18 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
     );
   }
 
-  String _maskedPhone(String phone) {
-    if (phone.length <= 6) return phone;
-    final visible = phone.substring(phone.length - 4);
-    final masked = '•' * (phone.length - 4);
-    return '$masked$visible';
+  String _maskedIdentifier(String id) {
+    if (id.contains('@')) {
+      // Email : masque la partie locale sauf les 2 premiers caractères.
+      final parts = id.split('@');
+      final local = parts[0];
+      final domain = parts[1];
+      if (local.length <= 2) return id;
+      return '${local.substring(0, 2)}${'•' * (local.length - 2)}@$domain';
+    }
+    // Numéro : masque tout sauf les 4 derniers chiffres.
+    if (id.length <= 4) return id;
+    return '${'•' * (id.length - 4)}${id.substring(id.length - 4)}';
   }
 }
 

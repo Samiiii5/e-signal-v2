@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/navigation/app_router.dart';
+import 'core/services/api_client.dart';
 import 'core/services/network_service.dart';
 import 'core/services/session_service.dart';
 import 'core/theme/app_theme.dart';
@@ -7,6 +8,7 @@ import 'core/theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SessionService.init();
+  ApiClient.init();
   NetworkService.startMonitoring();
   runApp(const ESignalApp());
 }

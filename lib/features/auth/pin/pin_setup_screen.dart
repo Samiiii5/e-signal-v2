@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/widgets/app_snackbar.dart';
+import '../../../shared/services/auth_service.dart';
 import 'pin_storage.dart';
 import 'widgets/pin_dots.dart';
 import 'widgets/pin_keypad.dart';
 
 /// Affiché au premier login (aucun PIN en mémoire) ou après réinitialisation.
-/// Deux étapes : saisie → confirmation.
+/// Deux étapes : saisie → confirmation → appel POST /auth/set-pin.
 class PinSetupScreen extends StatefulWidget {
   const PinSetupScreen({super.key});
 
@@ -16,28 +18,30 @@ class PinSetupScreen extends StatefulWidget {
 }
 
 class _PinSetupScreenState extends State<PinSetupScreen> {
+  static const _pinLength = 5;
+
   String _input = '';
   String? _firstPin;
   bool _confirming = false;
   bool _mismatch = false;
+  bool _isLoading = false;
 
   void _onKey(String digit) {
-    if (_input.length >= 4) return;
+    if (_input.length >= _pinLength || _isLoading) return;
     setState(() {
       _input += digit;
       _mismatch = false;
     });
-    if (_input.length == 4) _onComplete();
+    if (_input.length == _pinLength) _onComplete();
   }
 
   void _onDelete() {
-    if (_input.isEmpty) return;
+    if (_input.isEmpty || _isLoading) return;
     setState(() => _input = _input.substring(0, _input.length - 1));
   }
 
   Future<void> _onComplete() async {
     if (!_confirming) {
-      // Étape 1 — mémorise et passe à la confirmation
       await Future.delayed(const Duration(milliseconds: 150));
       setState(() {
         _firstPin = _input;
@@ -45,11 +49,21 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
         _confirming = true;
       });
     } else {
-      // Étape 2 — confirme
       if (_input == _firstPin) {
-        await PinStorage.savePin(_input);
-        if (!mounted) return;
-        context.go('/inbox');
+        setState(() => _isLoading = true);
+        try {
+          await authService.setPin(_input);
+          await PinStorage.savePin(_input);
+          if (mounted) context.go('/inbox');
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(AppSnackbar.error('Impossible de définir le PIN. Réessayez.'));
+            _restart();
+          }
+        } finally {
+          if (mounted) setState(() => _isLoading = false);
+        }
       } else {
         setState(() {
           _mismatch = true;
@@ -79,7 +93,6 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
             children: [
               const SizedBox(height: 64),
 
-              // Logo
               Container(
                 width: 64,
                 height: 64,
@@ -111,7 +124,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                     const SizedBox(height: 8),
                     Text(
                       _confirming
-                          ? 'Saisissez à nouveau votre code à 4 chiffres.'
+                          ? 'Saisissez à nouveau votre code à $_pinLength chiffres.'
                           : 'Ce code vous sera demandé à chaque ouverture.',
                       style: AppTextStyles.bodySecondary,
                       textAlign: TextAlign.center,
@@ -122,8 +135,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
               const SizedBox(height: 44),
 
-              // Dots
-              PinDots(filled: _input.length, hasError: _mismatch),
+              PinDots(filled: _input.length, total: _pinLength, hasError: _mismatch),
 
               if (_mismatch) ...[
                 const SizedBox(height: 12),
