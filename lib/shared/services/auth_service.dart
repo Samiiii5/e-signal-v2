@@ -58,7 +58,6 @@ class AuthResult {
 /// 403 : compte INVITED, pas encore activé → first-login requis.
 /// Transporte l'identifier normalisé renvoyé par le backend dans le body 403.
 class AccountNotActivatedException implements Exception {
-  /// Identifier renvoyé par le backend (peut différer de ce que l'utilisateur a saisi).
   final String identifier;
   const AccountNotActivatedException(this.identifier);
 }
@@ -75,7 +74,7 @@ class ValidationException implements Exception {
   const ValidationException(this.message);
 }
 
-/// 502 ou autre erreur serveur.
+/// 502 ou autre erreur serveur / réseau.
 class ServerException implements Exception {
   final int statusCode;
   const ServerException(this.statusCode);
@@ -114,9 +113,14 @@ class HttpAuthService implements AuthService {
         '/auth/login',
         data: {'identifier': identifier, 'password': password},
       );
-      return AuthResult.fromJson(resp.data as Map<String, dynamic>);
+      // validateStatus = accepte tout → on vérifie le code ici, sans ambiguïté.
+      if (resp.statusCode == 200) {
+        return AuthResult.fromJson(resp.data as Map<String, dynamic>);
+      }
+      return _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
-      return _throwFromDio(e);
+      // Seules les erreurs réseau (timeout, pas de connexion) arrivent ici.
+      throw ServerException(e.response?.statusCode ?? 0);
     }
   }
 
@@ -135,9 +139,12 @@ class HttpAuthService implements AuthService {
           'new_password': newPassword,
         },
       );
-      return AuthResult.fromJson(resp.data as Map<String, dynamic>);
+      if (resp.statusCode == 200) {
+        return AuthResult.fromJson(resp.data as Map<String, dynamic>);
+      }
+      return _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
-      return _throwFromDio(e);
+      throw ServerException(e.response?.statusCode ?? 0);
     }
   }
 
@@ -145,6 +152,7 @@ class HttpAuthService implements AuthService {
   Future<String?> getMe() async {
     try {
       final resp = await ApiClient.dio.get('/auth/me');
+      if (resp.statusCode != 200) return null;
       final data = resp.data as Map<String, dynamic>;
       final orgs = data['organizations'] as List<dynamic>?;
       if (orgs != null && orgs.isNotEmpty) {
@@ -160,32 +168,36 @@ class HttpAuthService implements AuthService {
   @override
   Future<void> setPin(String pin) async {
     try {
-      await ApiClient.dio.post('/auth/set-pin', data: {'pin': pin});
+      final resp = await ApiClient.dio.post('/auth/set-pin', data: {'pin': pin});
+      if (resp.statusCode != 200) _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
-      _throwFromDio(e);
+      throw ServerException(e.response?.statusCode ?? 0);
     }
   }
 
   @override
   Future<void> forgotPassword(String identifier) async {
     try {
-      await ApiClient.dio.post(
+      final resp = await ApiClient.dio.post(
         '/auth/forgot-password',
         data: {'identifier': identifier},
       );
+      if (resp.statusCode != 200 && resp.statusCode != 204) {
+        _throwFromResponse(resp.statusCode, resp.data);
+      }
     } on DioException catch (e) {
-      _throwFromDio(e);
+      throw ServerException(e.response?.statusCode ?? 0);
     }
   }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-Never _throwFromDio(DioException e) {
-  final status = e.response?.statusCode;
-  final data = e.response?.data;
+/// Inspecte directement le statusCode HTTP → lance l'exception métier appropriée.
+/// Jamais de DioException ici — on travaille sur la réponse décodée.
+Never _throwFromResponse(int? status, dynamic data) {
   if (status == 403) {
-    // Le body exact : {"code": "account_not_activated", "identifier": "..."}
+    // Body exact : {"code": "account_not_activated", "identifier": "..."}
     final id = data is Map<String, dynamic>
         ? (data['identifier'] as String? ?? '')
         : '';

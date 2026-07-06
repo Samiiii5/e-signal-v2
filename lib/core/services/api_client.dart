@@ -3,26 +3,30 @@ import 'navigation_service.dart';
 import 'session_service.dart';
 
 /// Client HTTP centralisé.
-/// - Injecte automatiquement `Authorization: Bearer` sur chaque requête.
-/// - Gère le refresh silencieux sur 401 ; déconnecte si le refresh échoue.
 ///
-/// Note : On utilise deux intercepteurs séparés (InterceptorsWrapper, pas Queued)
-/// pour garantir que les erreurs 4xx remontent bien jusqu'à la couche service.
-/// QueuedInterceptorsWrapper peut consommer l'erreur dans certaines versions de Dio.
+/// Stratégie validateStatus → Dio ne lève JAMAIS d'exception pour les codes
+/// HTTP (4xx, 5xx). Le code retour est vérifié explicitement dans chaque
+/// méthode de service. Cela évite toute ambiguïté sur la propagation des
+/// DioException à travers les intercepteurs async.
+///
+/// Les DioException résiduelles (timeout, pas de réseau…) sont toujours
+/// levées par Dio et doivent être interceptées par les services.
 class ApiClient {
   static const baseUrl = 'https://ws.score360.africa/api/v1.2';
 
   static late final Dio _dio;
-  static late final Dio _refreshDio; // Sans intercepteurs → évite la récursion.
+  static late final Dio _refreshDio;
 
   static Dio get dio => _dio;
 
   static void init() {
+    // Instance dédiée au refresh — pas d'intercepteurs pour éviter la récursion.
     _refreshDio = Dio(BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},
+      validateStatus: (status) => status != null, // accepte tout
     ));
 
     _dio = Dio(BaseOptions(
@@ -30,9 +34,10 @@ class ApiClient {
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},
+      validateStatus: (status) => status != null, // accepte tout — pas d'exception HTTP
     ));
 
-    // Intercepteur 1 — injecte le Bearer token.
+    // Intercepteur 1 — injecte le Bearer token dans chaque requête.
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
@@ -45,13 +50,14 @@ class ApiClient {
       ),
     );
 
-    // Intercepteur 2 — gère le refresh silencieux sur 401.
+    // Intercepteur 2 — refresh silencieux sur 401.
+    // Déclenché dans onResponse (pas onError) car validateStatus accepte les 4xx.
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onError: (DioException error, handler) async {
-          final isRetry = error.requestOptions.extra['_retry'] == true;
+        onResponse: (response, handler) async {
+          final isRetry = response.requestOptions.extra['_retry'] == true;
 
-          if (error.response?.statusCode == 401 && !isRetry) {
+          if (response.statusCode == 401 && !isRetry) {
             final refreshToken = SessionService.refreshToken;
 
             if (refreshToken != null && refreshToken.isNotEmpty) {
@@ -68,9 +74,10 @@ class ApiClient {
                   refreshTokenExpiresAt:
                       data['refresh_token_expires_at'] as String? ?? '',
                 );
-                // Rejoue la requête originale avec le nouveau token.
-                final opts = error.requestOptions;
+                final opts = response.requestOptions;
                 opts.extra['_retry'] = true;
+                opts.headers['Authorization'] =
+                    'Bearer ${SessionService.accessToken}';
                 final retryResp = await _dio.fetch(opts);
                 return handler.resolve(retryResp);
               } catch (_) {
@@ -83,9 +90,7 @@ class ApiClient {
             }
           }
 
-          // Pour tous les autres codes (403, 400, 422, 502…),
-          // on rejette explicitement pour que le catch de la couche service reçoive bien le DioException.
-          handler.reject(error, true);
+          handler.next(response);
         },
       ),
     );

@@ -84,6 +84,17 @@ GoRouter buildRouter() {
           ),
         ],
       ),
+      // Route top-level pour l'activation de compte (403 first-login).
+      GoRoute(
+        path: '/set-password',
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, String>? ?? {};
+          return _slidePage(
+            state,
+            SetPasswordScreen(identifier: extra['identifier'] ?? ''),
+          );
+        },
+      ),
       GoRoute(
         path: '/pin',
         pageBuilder: (context, state) => _fadePage(state, const PinScreen()),
@@ -158,7 +169,7 @@ GoRouter buildRouter() {
 
 const _authRoutes = {
   '/onboarding', '/login', '/login/password', '/login/set-password',
-  '/pin', '/pin/setup',
+  '/set-password', '/pin', '/pin/setup',
 };
 
 String? _rootRedirect(BuildContext context, GoRouterState state) {
