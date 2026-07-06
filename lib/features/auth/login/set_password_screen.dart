@@ -121,7 +121,36 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                 style: AppTextStyles.bodySecondary,
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
+
+              // Identifiant pré-rempli (lecture seule) — l'utilisateur sait pour quel compte.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundPage,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 18, color: AppColors.textSecondary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.identifier,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
 
               Text('Mot de passe temporaire', style: AppTextStyles.label),
               const SizedBox(height: 8),

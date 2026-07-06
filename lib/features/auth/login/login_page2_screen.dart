@@ -51,9 +51,12 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
 
       if (!mounted) return;
       router.go('/pin');
-    } on AccountNotActivatedException {
+    } on AccountNotActivatedException catch (e) {
       if (!mounted) return;
-      router.push('/login/set-password', extra: widget.identifier);
+      // Utilise l'identifier normalisé renvoyé par le backend dans le body 403,
+      // ou celui saisi par l'utilisateur si le backend n'en envoie pas.
+      final id = e.identifier.isNotEmpty ? e.identifier : widget.identifier;
+      router.push('/login/set-password', extra: id);
     } on BadRequestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

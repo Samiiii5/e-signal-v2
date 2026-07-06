@@ -56,8 +56,11 @@ class AuthResult {
 // ─── Exceptions typées ────────────────────────────────────────────────────────
 
 /// 403 : compte INVITED, pas encore activé → first-login requis.
+/// Transporte l'identifier normalisé renvoyé par le backend dans le body 403.
 class AccountNotActivatedException implements Exception {
-  const AccountNotActivatedException();
+  /// Identifier renvoyé par le backend (peut différer de ce que l'utilisateur a saisi).
+  final String identifier;
+  const AccountNotActivatedException(this.identifier);
 }
 
 /// 400 : identifiant ou mot de passe incorrect.
@@ -181,7 +184,13 @@ class HttpAuthService implements AuthService {
 Never _throwFromDio(DioException e) {
   final status = e.response?.statusCode;
   final data = e.response?.data;
-  if (status == 403) throw const AccountNotActivatedException();
+  if (status == 403) {
+    // Le body exact : {"code": "account_not_activated", "identifier": "..."}
+    final id = data is Map<String, dynamic>
+        ? (data['identifier'] as String? ?? '')
+        : '';
+    throw AccountNotActivatedException(id);
+  }
   if (status == 400) throw BadRequestException(_extractMsg(data));
   if (status == 422) throw ValidationException(_extractMsg(data));
   throw ServerException(status ?? 0);
