@@ -278,12 +278,54 @@ bool _isNetworkError(DioException e) =>
     e.type == DioExceptionType.connectionTimeout;
 
 String _extractMsg(dynamic data) {
-  if (data is Map<String, dynamic>) {
-    return data['message'] as String? ??
-        data['detail'] as String? ??
-        'Erreur inconnue';
+  final raw = data is Map<String, dynamic>
+      ? (data['message'] as String? ?? data['detail'] as String? ?? '')
+      : '';
+  return _translateApiMessage(raw.isNotEmpty ? raw : 'Erreur inconnue');
+}
+
+/// Traduit les messages d'erreur anglais retournés par le backend.
+String _translateApiMessage(String msg) {
+  const translations = <String, String>{
+    'Invalid credentials': 'Identifiant ou mot de passe incorrect.',
+    'invalid credentials': 'Identifiant ou mot de passe incorrect.',
+    'Password must contain at least one uppercase letter':
+        'Le mot de passe doit contenir au moins une lettre majuscule.',
+    'Password must contain at least one special character':
+        'Le mot de passe doit contenir au moins un caractère spécial.',
+    'Password must contain at least one digit':
+        'Le mot de passe doit contenir au moins un chiffre.',
+    'Password must be at least 8 characters':
+        'Le mot de passe doit contenir au moins 8 caractères.',
+    'Password must be at least 8 characters long':
+        'Le mot de passe doit contenir au moins 8 caractères.',
+    'User not found': 'Aucun compte associé à cet identifiant.',
+    'Account not found': 'Aucun compte associé à cet identifiant.',
+    'Account already activated': 'Ce compte est déjà activé.',
+    'Invalid OTP': 'Code OTP invalide ou expiré.',
+    'OTP expired': 'Code OTP expiré. Demandez un nouveau code.',
+    'OTP not found': 'Code OTP invalide ou expiré.',
+    'Token expired': 'Session expirée. Reconnectez-vous.',
+    'Temporary password is incorrect': 'Mot de passe temporaire incorrect.',
+    'Erreur inconnue': 'Une erreur est survenue. Réessayez.',
+  };
+
+  // Recherche exacte d'abord
+  if (translations.containsKey(msg)) return translations[msg]!;
+
+  // Recherche partielle (insensible à la casse) pour les messages longs
+  final lower = msg.toLowerCase();
+  for (final entry in translations.entries) {
+    if (lower.contains(entry.key.toLowerCase())) return entry.value;
   }
-  return 'Erreur inconnue';
+
+  // Si le message contient déjà du français (heuristique simple), on le garde
+  if (msg.contains('é') || msg.contains('è') || msg.contains('à') ||
+      msg.contains('ê') || msg.contains('î') || msg.contains('ô')) {
+    return msg;
+  }
+
+  return 'Une erreur est survenue. Réessayez.';
 }
 
 // ─── Instance globale ─────────────────────────────────────────────────────────
