@@ -4,7 +4,6 @@ import '../../shared/services/auth_service.dart';
 class SessionService {
   static bool _onboardingSeen = false;
   static bool _loggedIn = false;
-  static bool _pinValidated = false;
 
   static String? _accessToken;
   static String? _refreshToken;
@@ -22,7 +21,6 @@ class SessionService {
 
   static bool get onboardingSeen => _onboardingSeen;
   static bool get isLoggedIn => _loggedIn;
-  static bool get pinValidated => _pinValidated;
   static String? get accessToken => _accessToken;
   static String? get refreshToken => _refreshToken;
   static String? get expiresAt => _expiresAt;
@@ -41,7 +39,6 @@ class SessionService {
     final prefs = await SharedPreferences.getInstance();
     _onboardingSeen = prefs.getBool('onboarding_seen') ?? false;
     _loggedIn = prefs.getBool('is_logged_in') ?? false;
-    _pinValidated = false;
 
     _accessToken = prefs.getString('access_token');
     _refreshToken = prefs.getString('refresh_token');
@@ -121,13 +118,8 @@ class SessionService {
     await prefs.setString('refresh_token_expires_at', refreshTokenExpiresAt);
   }
 
-  static void validatePin() {
-    _pinValidated = true;
-  }
-
   static Future<void> logout() async {
     _loggedIn = false;
-    _pinValidated = false;
     _accessToken = null;
     _refreshToken = null;
     _expiresAt = null;

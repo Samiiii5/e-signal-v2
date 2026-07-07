@@ -106,9 +106,6 @@ abstract class AuthService {
   /// GET /api/v1.2/auth/me  → retourne l'organization_id du premier élément.
   Future<String?> getMe();
 
-  /// POST /api/v1.2/auth/set-pin
-  Future<void> setPin(String pin);
-
   /// POST /api/v1.2/auth/forgot-password
   Future<void> forgotPassword(String identifier);
 
@@ -184,17 +181,6 @@ class HttpAuthService implements AuthService {
       return null;
     } on DioException {
       return null;
-    }
-  }
-
-  @override
-  Future<void> setPin(String pin) async {
-    try {
-      final resp = await ApiClient.dio.post('/auth/set-pin', data: {'pin': pin});
-      if (resp.statusCode != 200) _throwFromResponse(resp.statusCode, resp.data);
-    } on DioException catch (e) {
-      if (_isNetworkError(e)) throw const NetworkException();
-      throw ServerException(e.response?.statusCode ?? 0);
     }
   }
 

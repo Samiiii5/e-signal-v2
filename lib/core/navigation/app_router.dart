@@ -7,8 +7,6 @@ import '../../features/auth/login/otp_screen.dart';
 import '../../features/auth/login/reset_password_screen.dart';
 import '../../features/auth/login/set_password_screen.dart';
 import '../../features/auth/onboarding/onboarding_screen.dart';
-import '../../features/auth/pin/pin_screen.dart';
-import '../../features/auth/pin/pin_setup_screen.dart';
 import '../../features/inbox/chat_screen.dart';
 import '../../features/inbox/inbox_screen.dart';
 import '../../features/payments/create_link_screen.dart';
@@ -125,16 +123,6 @@ GoRouter buildRouter() {
           );
         },
       ),
-      GoRoute(
-        path: '/pin',
-        pageBuilder: (context, state) => _fadePage(state, const PinScreen()),
-        routes: [
-          GoRoute(
-            path: 'setup',
-            pageBuilder: (context, state) => _fadePage(state, const PinSetupScreen()),
-          ),
-        ],
-      ),
       // Route hors shell — s'affiche plein écran sans bottom nav bar
       GoRoute(
         path: '/payment-detail',
@@ -200,13 +188,11 @@ GoRouter buildRouter() {
 const _authRoutes = {
   '/onboarding', '/login', '/login/password', '/login/set-password',
   '/set-password', '/forgot-password', '/otp-verification', '/reset-password',
-  '/pin', '/pin/setup',
 };
 
 String? _rootRedirect(BuildContext context, GoRouterState state) {
   if (_authRoutes.contains(state.matchedLocation)) return null;
   if (!SessionService.onboardingSeen) return '/onboarding';
   if (!SessionService.isLoggedIn) return '/login';
-  if (!SessionService.pinValidated) return '/pin';
   return null;
 }

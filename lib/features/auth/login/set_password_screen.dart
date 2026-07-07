@@ -65,9 +65,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        AppSnackbar.success('Compte activé. Choisissez votre code PIN.'),
+        AppSnackbar.success('Compte activé avec succès. Bienvenue !'),
       );
-      context.go('/pin');
+      context.go('/inbox');
     } on UnauthorizedException {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

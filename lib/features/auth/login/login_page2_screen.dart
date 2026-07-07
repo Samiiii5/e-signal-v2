@@ -50,7 +50,7 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
       if (orgId != null) await SessionService.saveOrganizationId(orgId);
 
       if (!mounted) return;
-      router.go('/pin');
+      router.go('/inbox');
     } on AccountNotActivatedException catch (e) {
       if (!mounted) return;
       final id = e.identifier.isNotEmpty ? e.identifier : widget.identifier;
