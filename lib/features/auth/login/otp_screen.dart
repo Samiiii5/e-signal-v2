@@ -41,6 +41,16 @@ class _OtpScreenState extends State<OtpScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         AppSnackbar.success('Code renvoyé.'),
       );
+    } on NetworkException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Pas de connexion internet. Vérifiez votre réseau.'),
+      );
+    } on ServerException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Erreur serveur. Réessayez dans quelques instants.'),
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

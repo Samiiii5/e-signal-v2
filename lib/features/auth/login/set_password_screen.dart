@@ -68,14 +68,21 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         AppSnackbar.success('Compte activé. Choisissez votre code PIN.'),
       );
       context.go('/pin');
+    } on UnauthorizedException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(AppSnackbar.error('Session expirée. Reconnectez-vous.'));
+      context.go('/login');
     } on BadRequestException catch (e) {
       setState(() => _error = e.message);
     } on ValidationException catch (e) {
       setState(() => _error = e.message);
+    } on NetworkException {
+      setState(() => _error = 'Pas de connexion internet. Vérifiez votre réseau.');
     } on ServerException {
       setState(() => _error = 'Erreur serveur. Réessayez dans quelques instants.');
     } catch (_) {
-      setState(() => _error = 'Une erreur est survenue. Vérifiez votre connexion.');
+      setState(() => _error = 'Une erreur est survenue. Réessayez.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

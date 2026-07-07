@@ -63,6 +63,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         ),
       );
       context.go('/login');
+    } on UnauthorizedException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Session expirée. Recommencez la procédure.'),
+      );
+      context.go('/login');
     } on BadRequestException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -70,6 +76,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       );
     } on ValidationException catch (e) {
       setState(() => _error = e.message);
+    } on NetworkException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Pas de connexion internet. Vérifiez votre réseau.'),
+      );
     } on ServerException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

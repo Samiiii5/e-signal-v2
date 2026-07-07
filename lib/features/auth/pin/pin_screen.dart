@@ -66,6 +66,22 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
         await PinStorage.savePin(_input);
         SessionService.validatePin();
         if (mounted) context.go('/inbox');
+      } on NetworkException {
+        _shakeController.forward(from: 0);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            AppSnackbar.error('Pas de connexion internet. Vérifiez votre réseau.'),
+          );
+          setState(() { _error = true; _input = ''; _isLoading = false; });
+        }
+      } on ServerException {
+        _shakeController.forward(from: 0);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            AppSnackbar.error('Erreur serveur. Réessayez dans quelques instants.'),
+          );
+          setState(() { _error = true; _input = ''; _isLoading = false; });
+        }
       } catch (_) {
         _shakeController.forward(from: 0);
         if (mounted) {

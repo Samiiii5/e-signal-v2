@@ -74,10 +74,20 @@ class ValidationException implements Exception {
   const ValidationException(this.message);
 }
 
-/// 502 ou autre erreur serveur / réseau.
+/// 401 : session expirée ou token invalide.
+class UnauthorizedException implements Exception {
+  const UnauthorizedException();
+}
+
+/// 502 ou autre erreur serveur.
 class ServerException implements Exception {
   final int statusCode;
   const ServerException(this.statusCode);
+}
+
+/// Pas de réseau / timeout.
+class NetworkException implements Exception {
+  const NetworkException();
 }
 
 // ─── Contrat abstrait ─────────────────────────────────────────────────────────
@@ -128,15 +138,9 @@ class HttpAuthService implements AuthService {
       if (resp.statusCode == 200) {
         return AuthResult.fromJson(resp.data as Map<String, dynamic>);
       }
-      // ignore: avoid_print
-      print('STATUS CODE REÇU : ${resp.statusCode}');
-      // ignore: avoid_print
-      print('BODY REÇU : ${resp.data}');
       return _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
-      // Seules les erreurs réseau (timeout, pas de connexion) arrivent ici.
-      // ignore: avoid_print
-      print('DioException réseau : ${e.type} / ${e.message}');
+      if (_isNetworkError(e)) throw const NetworkException();
       throw ServerException(e.response?.statusCode ?? 0);
     }
   }
@@ -161,6 +165,7 @@ class HttpAuthService implements AuthService {
       }
       return _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
+      if (_isNetworkError(e)) throw const NetworkException();
       throw ServerException(e.response?.statusCode ?? 0);
     }
   }
@@ -188,6 +193,7 @@ class HttpAuthService implements AuthService {
       final resp = await ApiClient.dio.post('/auth/set-pin', data: {'pin': pin});
       if (resp.statusCode != 200) _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
+      if (_isNetworkError(e)) throw const NetworkException();
       throw ServerException(e.response?.statusCode ?? 0);
     }
   }
@@ -203,6 +209,7 @@ class HttpAuthService implements AuthService {
         _throwFromResponse(resp.statusCode, resp.data);
       }
     } on DioException catch (e) {
+      if (_isNetworkError(e)) throw const NetworkException();
       throw ServerException(e.response?.statusCode ?? 0);
     }
   }
@@ -218,6 +225,7 @@ class HttpAuthService implements AuthService {
         _throwFromResponse(resp.statusCode, resp.data);
       }
     } on DioException catch (e) {
+      if (_isNetworkError(e)) throw const NetworkException();
       throw ServerException(e.response?.statusCode ?? 0);
     }
   }
@@ -240,6 +248,7 @@ class HttpAuthService implements AuthService {
       if (resp.statusCode == 200) return;
       _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
+      if (_isNetworkError(e)) throw const NetworkException();
       throw ServerException(e.response?.statusCode ?? 0);
     }
   }
@@ -250,8 +259,8 @@ class HttpAuthService implements AuthService {
 /// Inspecte directement le statusCode HTTP → lance l'exception métier appropriée.
 /// Jamais de DioException ici — on travaille sur la réponse décodée.
 Never _throwFromResponse(int? status, dynamic data) {
+  if (status == 401) throw const UnauthorizedException();
   if (status == 403) {
-    // Body exact : {"code": "account_not_activated", "identifier": "..."}
     final id = data is Map<String, dynamic>
         ? (data['identifier'] as String? ?? '')
         : '';
@@ -261,6 +270,12 @@ Never _throwFromResponse(int? status, dynamic data) {
   if (status == 422) throw ValidationException(_extractMsg(data));
   throw ServerException(status ?? 0);
 }
+
+bool _isNetworkError(DioException e) =>
+    e.type == DioExceptionType.connectionError ||
+    e.type == DioExceptionType.sendTimeout ||
+    e.type == DioExceptionType.receiveTimeout ||
+    e.type == DioExceptionType.connectionTimeout;
 
 String _extractMsg(dynamic data) {
   if (data is Map<String, dynamic>) {

@@ -58,6 +58,10 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
         'identifier': id,
         'tempPassword': _passwordController.text,
       });
+    } on UnauthorizedException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(AppSnackbar.error('Session expirée. Reconnectez-vous.'));
     } on BadRequestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -66,14 +70,18 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(AppSnackbar.error(e.message));
+    } on NetworkException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(AppSnackbar.error('Pas de connexion internet. Vérifiez votre réseau.'));
     } on ServerException {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(AppSnackbar.error('Erreur serveur (502). Réessayez dans quelques instants.'));
+          .showSnackBar(AppSnackbar.error('Erreur serveur. Réessayez dans quelques instants.'));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(AppSnackbar.error('Mot de passe incorrect. Réessayez.'));
+          .showSnackBar(AppSnackbar.error('Identifiant ou mot de passe incorrect.'));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

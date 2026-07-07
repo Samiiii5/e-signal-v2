@@ -42,6 +42,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } on BadRequestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error(e.message));
+    } on ValidationException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error(e.message));
+    } on NetworkException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Pas de connexion internet. Vérifiez votre réseau.'),
+      );
     } on ServerException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
