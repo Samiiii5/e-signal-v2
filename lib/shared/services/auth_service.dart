@@ -101,6 +101,16 @@ abstract class AuthService {
 
   /// POST /api/v1.2/auth/forgot-password
   Future<void> forgotPassword(String identifier);
+
+  /// POST /api/v1.2/auth/forgot-password/request-otp
+  Future<void> requestOtp(String identifier);
+
+  /// PATCH /api/v1.2/auth/forgot-password/reset
+  Future<AuthResult> resetPassword({
+    required String identifier,
+    required String otpCode,
+    required String newPassword,
+  });
 }
 
 // ─── Implémentation HTTP (Dio) ────────────────────────────────────────────────
@@ -191,6 +201,45 @@ class HttpAuthService implements AuthService {
       if (resp.statusCode != 200 && resp.statusCode != 204) {
         _throwFromResponse(resp.statusCode, resp.data);
       }
+    } on DioException catch (e) {
+      throw ServerException(e.response?.statusCode ?? 0);
+    }
+  }
+
+  @override
+  Future<void> requestOtp(String identifier) async {
+    try {
+      final resp = await ApiClient.dio.post(
+        '/auth/forgot-password/request-otp',
+        data: {'identifier': identifier},
+      );
+      if (resp.statusCode != 200 && resp.statusCode != 202 && resp.statusCode != 204) {
+        _throwFromResponse(resp.statusCode, resp.data);
+      }
+    } on DioException catch (e) {
+      throw ServerException(e.response?.statusCode ?? 0);
+    }
+  }
+
+  @override
+  Future<AuthResult> resetPassword({
+    required String identifier,
+    required String otpCode,
+    required String newPassword,
+  }) async {
+    try {
+      final resp = await ApiClient.dio.patch(
+        '/auth/forgot-password/reset',
+        data: {
+          'identifier': identifier,
+          'otp_code': otpCode,
+          'new_password': newPassword,
+        },
+      );
+      if (resp.statusCode == 200) {
+        return AuthResult.fromJson(resp.data as Map<String, dynamic>);
+      }
+      return _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
       throw ServerException(e.response?.statusCode ?? 0);
     }

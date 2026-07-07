@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../features/auth/login/forgot_password_screen.dart';
 import '../../features/auth/login/login_page1_screen.dart';
 import '../../features/auth/login/login_page2_screen.dart';
+import '../../features/auth/login/otp_screen.dart';
+import '../../features/auth/login/reset_password_screen.dart';
 import '../../features/auth/login/set_password_screen.dart';
 import '../../features/auth/onboarding/onboarding_screen.dart';
 import '../../features/auth/pin/pin_screen.dart';
@@ -83,6 +86,30 @@ GoRouter buildRouter() {
             ),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        pageBuilder: (context, state) => _slidePage(state, const ForgotPasswordScreen()),
+      ),
+      GoRoute(
+        path: '/otp-verification',
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, String>? ?? {};
+          return _slidePage(state, OtpScreen(identifier: extra['identifier'] ?? ''));
+        },
+      ),
+      GoRoute(
+        path: '/reset-password',
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, String>? ?? {};
+          return _slidePage(
+            state,
+            ResetPasswordScreen(
+              identifier: extra['identifier'] ?? '',
+              otpCode: extra['otp_code'] ?? '',
+            ),
+          );
+        },
       ),
       // Route top-level pour l'activation de compte (403 first-login).
       GoRoute(
@@ -172,7 +199,8 @@ GoRouter buildRouter() {
 
 const _authRoutes = {
   '/onboarding', '/login', '/login/password', '/login/set-password',
-  '/set-password', '/pin', '/pin/setup',
+  '/set-password', '/forgot-password', '/otp-verification', '/reset-password',
+  '/pin', '/pin/setup',
 };
 
 String? _rootRedirect(BuildContext context, GoRouterState state) {

@@ -79,19 +79,8 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
     }
   }
 
-  Future<void> _onForgotPassword() async {
-    try {
-      await authService.forgotPassword(widget.identifier);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        AppSnackbar.success('Un lien de réinitialisation a été envoyé.'),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        AppSnackbar.error('Impossible d\'envoyer le lien. Réessayez.'),
-      );
-    }
+  void _onForgotPassword() {
+    context.push('/forgot-password');
   }
 
   @override
