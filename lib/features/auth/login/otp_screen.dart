@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../shared/services/auth_service.dart';
 
@@ -87,14 +88,14 @@ class _OtpScreenState extends State<OtpScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: EdgeInsets.symmetric(horizontal: Responsive.hpad(context)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 20),
+              SizedBox(height: Responsive.vspace(context)),
 
-              Image.asset('design/logo_onboarding.png', height: 90, fit: BoxFit.contain),
-              const SizedBox(height: 32),
+              Image.asset('design/logo_onboarding.png', height: Responsive.logoHeightSmall(context), fit: BoxFit.contain),
+              SizedBox(height: Responsive.vspace(context)),
 
               Text('Vérification', style: AppTextStyles.h1),
               const SizedBox(height: 8),
@@ -104,7 +105,7 @@ class _OtpScreenState extends State<OtpScreen> {
                 style: AppTextStyles.bodySecondary,
               ),
 
-              const SizedBox(height: 40),
+              SizedBox(height: Responsive.vspace(context)),
 
               Align(
                 alignment: Alignment.centerLeft,
@@ -144,11 +145,11 @@ class _OtpScreenState extends State<OtpScreen> {
                 ),
               ),
 
-              const SizedBox(height: 32),
+              SizedBox(height: Responsive.vspace(context)),
 
               SizedBox(
                 width: double.infinity,
-                height: 52,
+                height: Responsive.buttonHeight(context),
                 child: ElevatedButton(
                   onPressed: canSubmit ? _onVerify : null,
                   child: Text('Vérifier', style: AppTextStyles.buttonPrimary),

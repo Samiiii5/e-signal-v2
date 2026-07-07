@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/session_service.dart';
+import '../../core/utils/responsive.dart';
 import '../../shared/mock/users_mock.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -65,9 +66,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Stack(
                       children: [
                         CircleAvatar(
-                          radius: 44,
+                          radius: Responsive.w(context, 0.12).clamp(36.0, 52.0),
                           backgroundColor: AppColors.primaryLight,
-                          child: Text(mockUser.initials, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                          child: Text(mockUser.initials, style: TextStyle(fontSize: Responsive.w(context, 0.07).clamp(20.0, 32.0), fontWeight: FontWeight.w700, color: AppColors.primary)),
                         ),
                         Positioned(
                           bottom: 0, right: 0,
@@ -80,7 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Text(mockUser.displayName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    Text(mockUser.displayName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis, maxLines: 1),
                     const SizedBox(height: 4),
                     Text('${mockUser.role} · ${mockUser.company}', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                   ],

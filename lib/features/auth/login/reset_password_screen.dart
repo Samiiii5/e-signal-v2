@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../shared/services/auth_service.dart';
 
@@ -115,16 +116,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: EdgeInsets.symmetric(horizontal: Responsive.hpad(context)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
+              SizedBox(height: Responsive.vspace(context)),
 
               Center(
-                child: Image.asset('design/logo_onboarding.png', height: 90, fit: BoxFit.contain),
+                child: Image.asset('design/logo_onboarding.png', height: Responsive.logoHeightSmall(context), fit: BoxFit.contain),
               ),
-              const SizedBox(height: 32),
+              SizedBox(height: Responsive.vspace(context)),
 
               Text('Nouveau mot de passe', style: AppTextStyles.h1),
               const SizedBox(height: 8),
@@ -133,7 +134,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 style: AppTextStyles.bodySecondary,
               ),
 
-              const SizedBox(height: 28),
+              SizedBox(height: Responsive.vspace(context)),
 
               Text('Nouveau mot de passe', style: AppTextStyles.label),
               const SizedBox(height: 8),
@@ -168,11 +169,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 ),
               ],
 
-              const SizedBox(height: 32),
+              SizedBox(height: Responsive.vspace(context)),
 
               SizedBox(
                 width: double.infinity,
-                height: 52,
+                height: Responsive.buttonHeight(context),
                 child: ElevatedButton(
                   onPressed: canSubmit ? _onReset : null,
                   child: _isLoading

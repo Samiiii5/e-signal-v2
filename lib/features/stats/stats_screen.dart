@@ -141,7 +141,11 @@ class _StatsScreenState extends State<StatsScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text('${_formatAmount(mockRevenue)} FCFA', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text('${_formatAmount(mockRevenue)} FCFA', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                      ),
                       const SizedBox(height: 16),
                       SizedBox(
                         height: 120,

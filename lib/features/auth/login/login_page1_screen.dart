@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/responsive.dart';
 
 class LoginPage1Screen extends StatefulWidget {
   const LoginPage1Screen({super.key});
@@ -46,25 +47,25 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
       backgroundColor: AppColors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: EdgeInsets.symmetric(horizontal: Responsive.hpad(context)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 52),
+              SizedBox(height: Responsive.vspaceLarge(context)),
 
-              const _ESignalLogo(),
+              _ESignalLogo(),
 
-              const SizedBox(height: 40),
+              SizedBox(height: Responsive.vspace(context)),
 
               Text('Bienvenue', style: AppTextStyles.h1),
-              const SizedBox(height: 8),
+              SizedBox(height: Responsive.vspaceSmall(context) * 0.5),
               Text(
                 'Connectez-vous pour accéder à votre messagerie.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.bodySecondary,
               ),
 
-              const SizedBox(height: 40),
+              SizedBox(height: Responsive.vspace(context)),
 
               Align(
                 alignment: Alignment.centerLeft,
@@ -91,11 +92,11 @@ class _LoginPage1ScreenState extends State<LoginPage1Screen> {
                 ),
               ],
 
-              const SizedBox(height: 32),
+              SizedBox(height: Responsive.vspace(context)),
 
               SizedBox(
                 width: double.infinity,
-                height: 52,
+                height: Responsive.buttonHeight(context),
                 child: ElevatedButton(
                   onPressed: canSubmit ? _onNext : null,
                   child: Text('Suivant', style: AppTextStyles.buttonPrimary),
@@ -116,7 +117,11 @@ class _ESignalLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset('design/logo_onboarding.png', height: 120, fit: BoxFit.contain);
+    return Image.asset(
+      'design/logo_onboarding.png',
+      height: Responsive.logoHeight(context),
+      fit: BoxFit.contain,
+    );
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/services/session_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../shared/services/auth_service.dart';
@@ -108,14 +109,14 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: EdgeInsets.symmetric(horizontal: Responsive.hpad(context)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 20),
+              SizedBox(height: Responsive.vspace(context)),
 
               const _ESignalLogo(),
-              const SizedBox(height: 32),
+              SizedBox(height: Responsive.vspace(context)),
 
               Text('Votre mot de passe', style: AppTextStyles.h1),
               const SizedBox(height: 8),
@@ -124,7 +125,7 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
                 style: AppTextStyles.bodySecondary,
               ),
 
-              const SizedBox(height: 40),
+              SizedBox(height: Responsive.vspace(context)),
 
               Align(
                 alignment: Alignment.centerLeft,
@@ -180,11 +181,11 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
                 ),
               ],
 
-              const SizedBox(height: 32),
+              SizedBox(height: Responsive.vspace(context)),
 
               SizedBox(
                 width: double.infinity,
-                height: 52,
+                height: Responsive.buttonHeight(context),
                 child: ElevatedButton(
                   onPressed: canSubmit ? _onLogin : null,
                   child: _isLoading
@@ -243,6 +244,6 @@ class _ESignalLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset('design/logo_onboarding.png', height: 120, fit: BoxFit.contain);
+    return Image.asset('design/logo_onboarding.png', height: Responsive.logoHeight(context), fit: BoxFit.contain);
   }
 }

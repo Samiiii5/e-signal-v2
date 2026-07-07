@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/responsive.dart';
 import '../../core/widgets/shimmer_box.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/publications_mock.dart';
@@ -179,7 +180,7 @@ class _InboxScreenState extends State<InboxScreen> {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Row(
                 children: [
-                  Image.asset('design/logo_onboarding.png', height: 60, fit: BoxFit.contain),
+                  Image.asset('design/logo_onboarding.png', height: Responsive.h(context, 0.07).clamp(44.0, 68.0), fit: BoxFit.contain),
                   const Spacer(),
                   Stack(
                     children: [
@@ -226,7 +227,7 @@ class _InboxScreenState extends State<InboxScreen> {
             const SizedBox(height: 10),
             // Filter chips
             SizedBox(
-              height: 36,
+              height: Responsive.h(context, 0.045).clamp(34.0, 42.0),
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
