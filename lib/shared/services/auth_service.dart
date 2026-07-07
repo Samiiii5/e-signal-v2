@@ -106,7 +106,8 @@ abstract class AuthService {
   Future<void> requestOtp(String identifier);
 
   /// PATCH /api/v1.2/auth/forgot-password/reset
-  Future<AuthResult> resetPassword({
+  /// Retourne uniquement {"status": "string", "identifier": "string"} — pas de tokens.
+  Future<void> resetPassword({
     required String identifier,
     required String otpCode,
     required String newPassword,
@@ -222,7 +223,7 @@ class HttpAuthService implements AuthService {
   }
 
   @override
-  Future<AuthResult> resetPassword({
+  Future<void> resetPassword({
     required String identifier,
     required String otpCode,
     required String newPassword,
@@ -236,10 +237,8 @@ class HttpAuthService implements AuthService {
           'new_password': newPassword,
         },
       );
-      if (resp.statusCode == 200) {
-        return AuthResult.fromJson(resp.data as Map<String, dynamic>);
-      }
-      return _throwFromResponse(resp.statusCode, resp.data);
+      if (resp.statusCode == 200) return;
+      _throwFromResponse(resp.statusCode, resp.data);
     } on DioException catch (e) {
       throw ServerException(e.response?.statusCode ?? 0);
     }

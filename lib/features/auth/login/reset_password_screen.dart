@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/services/session_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../shared/services/auth_service.dart';
 
@@ -51,21 +50,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     setState(() { _error = null; _isLoading = true; });
     try {
-      final result = await authService.resetPassword(
+      await authService.resetPassword(
         identifier: widget.identifier,
         otpCode: widget.otpCode,
         newPassword: _newCtrl.text,
       );
-      await SessionService.saveAuthResult(result);
-
-      final orgId = await authService.getMe();
-      if (orgId != null) await SessionService.saveOrganizationId(orgId);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        AppSnackbar.success('Mot de passe réinitialisé avec succès.'),
+        AppSnackbar.success(
+          'Mot de passe réinitialisé avec succès. Connectez-vous avec votre nouveau mot de passe.',
+        ),
       );
-      context.go('/pin');
+      context.go('/login');
     } on BadRequestException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
