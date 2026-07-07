@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/session_service.dart';
 import '../../core/utils/responsive.dart';
-import '../../shared/mock/users_mock.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -52,6 +51,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final firstName = SessionService.firstName ?? '';
+    final lastName  = SessionService.lastName  ?? '';
+    final fullName  = '${firstName} ${lastName}'.trim();
+    final displayName = fullName.isNotEmpty ? fullName : 'Non renseigné';
+    final initials = _initials(firstName, lastName);
+
+    final email       = SessionService.email?.isNotEmpty == true ? SessionService.email! : 'Non renseigné';
+    final phone       = SessionService.phoneNumber?.isNotEmpty == true ? SessionService.phoneNumber! : 'Non renseigné';
+    final kycLevel    = SessionService.kycLevel?.isNotEmpty == true ? SessionService.kycLevel! : 'Non renseigné';
+    final status      = SessionService.status?.isNotEmpty == true ? _translateStatus(SessionService.status!) : 'Non renseigné';
+
     return Scaffold(
       backgroundColor: AppColors.backgroundPage,
       body: SafeArea(
@@ -68,7 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         CircleAvatar(
                           radius: Responsive.w(context, 0.12).clamp(36.0, 52.0),
                           backgroundColor: AppColors.primaryLight,
-                          child: Text(mockUser.initials, style: TextStyle(fontSize: Responsive.w(context, 0.07).clamp(20.0, 32.0), fontWeight: FontWeight.w700, color: AppColors.primary)),
+                          child: Text(initials, style: TextStyle(fontSize: Responsive.w(context, 0.07).clamp(20.0, 32.0), fontWeight: FontWeight.w700, color: AppColors.primary)),
                         ),
                         Positioned(
                           bottom: 0, right: 0,
@@ -81,18 +91,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Text(mockUser.displayName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis, maxLines: 1),
+                    Text(displayName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis, maxLines: 1),
                     const SizedBox(height: 4),
-                    Text('${mockUser.role} · ${mockUser.company}', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    Text(email, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis, maxLines: 1),
                   ],
                 ),
               ),
 
               const SizedBox(height: 24),
 
-              // Section Informations
+              // Section Informations du compte
               _Section(
                 title: 'Informations du compte',
+                items: [
+                  _InfoItem(icon: Icons.email_outlined,    label: 'Email',        value: email),
+                  _InfoItem(icon: Icons.phone_outlined,    label: 'Téléphone',    value: phone),
+                  _InfoItem(icon: Icons.verified_outlined, label: 'Niveau KYC',   value: kycLevel),
+                  _InfoItem(icon: Icons.info_outline,      label: 'Statut',       value: status),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Section Actions compte
+              _Section(
+                title: 'Gestion du compte',
                 items: [
                   _MenuItem(icon: Icons.person_outline, label: 'Modifier mes informations', onTap: () => _snack('Bientôt disponible')),
                   _MenuItem(icon: Icons.lock_outline, label: 'Changer le mot de passe', onTap: () => _snack('Bientôt disponible')),
@@ -167,6 +190,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+String _initials(String firstName, String lastName) {
+  final f = firstName.isNotEmpty ? firstName[0].toUpperCase() : '';
+  final l = lastName.isNotEmpty  ? lastName[0].toUpperCase()  : '';
+  return (f + l).isNotEmpty ? f + l : '?';
+}
+
+String _translateStatus(String status) {
+  const map = <String, String>{
+    'ACTIVE':   'Actif',
+    'INVITED':  'Invité',
+    'INACTIVE': 'Inactif',
+    'SUSPENDED':'Suspendu',
+    'PENDING':  'En attente',
+  };
+  return map[status.toUpperCase()] ?? status;
+}
+
+// ─── Widget info en lecture seule ─────────────────────────────────────────────
+
+class _InfoItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoItem({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        width: 34, height: 34,
+        decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, size: 17, color: AppColors.primary),
+      ),
+      title: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+      subtitle: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis, maxLines: 1),
+      dense: true,
     );
   }
 }
