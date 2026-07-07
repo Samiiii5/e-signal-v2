@@ -14,7 +14,7 @@ class SetPasswordScreen extends StatefulWidget {
   const SetPasswordScreen({
     super.key,
     required this.identifier,
-    required this.tempPassword,
+    this.tempPassword = '',
   });
 
   @override
