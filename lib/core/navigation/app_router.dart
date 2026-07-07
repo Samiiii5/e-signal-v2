@@ -91,7 +91,10 @@ GoRouter buildRouter() {
           final extra = state.extra as Map<String, String>? ?? {};
           return _slidePage(
             state,
-            SetPasswordScreen(identifier: extra['identifier'] ?? ''),
+            SetPasswordScreen(
+              identifier: extra['identifier'] ?? '',
+              tempPassword: extra['tempPassword'] ?? '',
+            ),
           );
         },
       ),

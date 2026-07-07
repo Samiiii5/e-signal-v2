@@ -7,25 +7,26 @@ import '../../../core/widgets/app_snackbar.dart';
 import '../../../shared/services/auth_service.dart';
 
 /// Affiché quand le serveur retourne 403 (compte INVITED).
-/// L'utilisateur saisit le mot de passe temporaire reçu par email
-/// et choisit un nouveau mot de passe pour activer son compte.
+/// Le mot de passe temporaire est reçu silencieusement via les paramètres de navigation.
 class SetPasswordScreen extends StatefulWidget {
   final String identifier;
-  const SetPasswordScreen({super.key, required this.identifier});
+  final String tempPassword;
+  const SetPasswordScreen({
+    super.key,
+    required this.identifier,
+    required this.tempPassword,
+  });
 
   @override
   State<SetPasswordScreen> createState() => _SetPasswordScreenState();
 }
 
 class _SetPasswordScreenState extends State<SetPasswordScreen> {
-  final _tempCtrl    = TextEditingController();
   final _newCtrl     = TextEditingController();
   final _confirmCtrl = TextEditingController();
-  final _tempFocus    = FocusNode();
   final _newFocus     = FocusNode();
   final _confirmFocus = FocusNode();
 
-  bool _obscureTemp    = true;
   bool _obscureNew     = true;
   bool _obscureConfirm = true;
   bool _isLoading      = false;
@@ -33,18 +34,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
   @override
   void dispose() {
-    _tempCtrl.dispose();
     _newCtrl.dispose();
     _confirmCtrl.dispose();
-    _tempFocus.dispose();
     _newFocus.dispose();
     _confirmFocus.dispose();
     super.dispose();
   }
 
   String? _validate() {
-    if (_tempCtrl.text.isEmpty) return 'Saisissez votre mot de passe temporaire.';
-    if (_newCtrl.text.length < 8) return 'Le nouveau mot de passe doit contenir au moins 8 caractères.';
+    if (_newCtrl.text.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères.';
     if (_newCtrl.text != _confirmCtrl.text) return 'Les mots de passe ne correspondent pas.';
     return null;
   }
@@ -57,7 +55,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     try {
       final result = await authService.firstLogin(
         widget.identifier,
-        _tempCtrl.text,
+        widget.tempPassword,
         _newCtrl.text,
       );
       await SessionService.saveAuthResult(result);
@@ -77,7 +75,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     } on ServerException {
       setState(() => _error = 'Erreur serveur. Réessayez dans quelques instants.');
     } catch (_) {
-      setState(() => _error = 'Une erreur est survenue. Vérifiez votre mot de passe temporaire.');
+      setState(() => _error = 'Une erreur est survenue. Vérifiez votre connexion.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -85,8 +83,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSubmit = _tempCtrl.text.isNotEmpty &&
-        _newCtrl.text.isNotEmpty &&
+    final canSubmit = _newCtrl.text.isNotEmpty &&
         _confirmCtrl.text.isNotEmpty &&
         !_isLoading;
 
@@ -114,56 +111,14 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               ),
               const SizedBox(height: 32),
 
-              Text('Activer votre compte', style: AppTextStyles.h1),
+              Text('Définir votre mot de passe', style: AppTextStyles.h1),
               const SizedBox(height: 8),
               Text(
-                'Saisissez le mot de passe temporaire reçu par email, puis choisissez un nouveau mot de passe.',
+                'Choisissez un mot de passe sécurisé pour accéder à votre compte.',
                 style: AppTextStyles.bodySecondary,
               ),
 
-              const SizedBox(height: 20),
-
-              // Identifiant pré-rempli (lecture seule) — l'utilisateur sait pour quel compte.
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                decoration: BoxDecoration(
-                  color: AppColors.backgroundPage,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.person_outline, size: 18, color: AppColors.textSecondary),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        widget.identifier,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              Text('Mot de passe temporaire', style: AppTextStyles.label),
-              const SizedBox(height: 8),
-              _PasswordField(
-                controller: _tempCtrl,
-                focusNode: _tempFocus,
-                obscure: _obscureTemp,
-                hint: 'Reçu par email',
-                onToggle: () => setState(() => _obscureTemp = !_obscureTemp),
-                onChanged: (_) => setState(() => _error = null),
-              ),
-
-              const SizedBox(height: 16),
+              const SizedBox(height: 28),
 
               Text('Nouveau mot de passe', style: AppTextStyles.label),
               const SizedBox(height: 8),
@@ -214,7 +169,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             strokeWidth: 2.5,
                           ),
                         )
-                      : Text('Activer mon compte', style: AppTextStyles.buttonPrimary),
+                      : Text('Confirmer', style: AppTextStyles.buttonPrimary),
                 ),
               ),
             ],

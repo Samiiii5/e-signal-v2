@@ -54,7 +54,10 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
     } on AccountNotActivatedException catch (e) {
       if (!mounted) return;
       final id = e.identifier.isNotEmpty ? e.identifier : widget.identifier;
-      context.push('/set-password', extra: <String, String>{'identifier': id});
+      context.push('/set-password', extra: <String, String>{
+        'identifier': id,
+        'tempPassword': _passwordController.text,
+      });
     } on BadRequestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
