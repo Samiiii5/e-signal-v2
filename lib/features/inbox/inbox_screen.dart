@@ -859,11 +859,16 @@ class _ApiPostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = (post['title'] ?? post['name'] ?? post['content'] ?? 'Publication').toString();
-    final channel = (post['channel'] ?? post['network'] ?? '').toString().toLowerCase();
-    final commentCount = (post['comment_count'] ?? post['commentCount'] ?? post['comments_count'] ?? 0) as int;
-    final rawDate = post['published_at'] ?? post['publishedAt'] ?? post['created_at'];
-    final publishedAt = rawDate != null ? DateTime.tryParse(rawDate.toString()) : null;
+    final postId = (post['post_id'] ?? '').toString();
+    final channel = (post['channel'] ?? '').toString().toLowerCase();
+    final rawCaption = (post['caption'] ?? '').toString().trim();
+    final title = rawCaption.isEmpty
+        ? 'Publication sans titre'
+        : (rawCaption.length > 50 ? '${rawCaption.substring(0, 50)}…' : rawCaption);
+    final totalComments = (post['total_comments'] as num?)?.toInt() ?? 0;
+    final newComments = (post['new_comments_count'] as num?)?.toInt() ?? 0;
+    final rawDate = post['posted_at'];
+    final postedAt = rawDate != null ? DateTime.tryParse(rawDate.toString()) : null;
 
     return InkWell(
       onTap: () => Navigator.push(
@@ -871,14 +876,14 @@ class _ApiPostTile extends StatelessWidget {
         MaterialPageRoute(
           builder: (_) => PublicationDetailScreen(
             publication: Publication(
-              id: (post['id'] ?? '').toString(),
+              id: postId,
               title: title,
               network: channel.isNotEmpty ? channel : 'facebook',
-              commentCount: commentCount,
-              publishedAt: publishedAt ?? DateTime.now(),
+              commentCount: totalComments,
+              publishedAt: postedAt ?? DateTime.now(),
               comments: const [],
             ),
-            apiPostId: (post['id'] ?? '').toString(),
+            apiPostId: postId,
           ),
         ),
       ),
@@ -895,20 +900,21 @@ class _ApiPostTile extends StatelessWidget {
                   Row(children: [
                     Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     const SizedBox(width: 8),
-                    if (publishedAt != null)
-                      Text(_fmtDate(publishedAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+                    if (postedAt != null)
+                      Text(_fmtDate(postedAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
                   ]),
                   const SizedBox(height: 4),
                   Row(children: [
                     const Icon(Icons.chat_bubble_outline, size: 13, color: AppColors.textSecondary),
                     const SizedBox(width: 4),
-                    Text('$commentCount commentaires', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    Text('$totalComments commentaires', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
-                      child: Text('$commentCount', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
-                    ),
+                    if (newComments > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
+                        child: Text('$newComments', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
+                      ),
                   ]),
                 ],
               ),
@@ -921,9 +927,12 @@ class _ApiPostTile extends StatelessWidget {
 
   String _fmtDate(DateTime dt) {
     final diff = DateTime.now().difference(dt);
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    if (diff.inDays == 1) return 'Hier';
-    return '${dt.day}/${dt.month}';
+    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'il y a ${diff.inHours}h';
+    if (diff.inDays == 1) return 'hier';
+    if (diff.inDays < 7) return 'il y a ${diff.inDays}j';
+    const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    return '${dt.day} ${mois[dt.month - 1]} ${dt.year}';
   }
 }
 

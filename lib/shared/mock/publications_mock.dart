@@ -6,6 +6,10 @@ class PublicationComment {
   final DateTime sentAt;
   final String? replyToCommentId;
   final String? replyToName;
+  final bool isOwnerReply;
+  final String status; // new | replied
+  final String provider;
+  final List<PublicationComment> replies;
 
   const PublicationComment({
     required this.id,
@@ -15,7 +19,27 @@ class PublicationComment {
     required this.sentAt,
     this.replyToCommentId,
     this.replyToName,
+    this.isOwnerReply = false,
+    this.status = 'new',
+    this.provider = '',
+    this.replies = const [],
   });
+
+  PublicationComment copyWith({List<PublicationComment>? replies}) {
+    return PublicationComment(
+      id: id,
+      authorName: authorName,
+      initials: initials,
+      text: text,
+      sentAt: sentAt,
+      replyToCommentId: replyToCommentId,
+      replyToName: replyToName,
+      isOwnerReply: isOwnerReply,
+      status: status,
+      provider: provider,
+      replies: replies ?? this.replies,
+    );
+  }
 }
 
 class Publication {

@@ -47,6 +47,28 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
     setState(() => _replyTarget = null);
   }
 
+  PublicationComment _mapComment(Map<String, dynamic> c) {
+    final commenter = c['commenter'] is Map ? Map<String, dynamic>.from(c['commenter'] as Map) : <String, dynamic>{};
+    final authorName = (commenter['name'] ?? commenter['username'] ?? 'Inconnu').toString();
+    final initials = authorName.trim().isNotEmpty
+        ? authorName.trim().split(RegExp(r'\s+')).map((p) => p.isNotEmpty ? p[0].toUpperCase() : '').take(2).join()
+        : '?';
+    final sentAtRaw = c['commented_at'];
+    final sentAt = sentAtRaw != null ? (DateTime.tryParse(sentAtRaw.toString()) ?? DateTime.now()) : DateTime.now();
+    final repliesRaw = (c['replies'] as List?) ?? const [];
+    return PublicationComment(
+      id: (c['comment_id'] ?? '').toString(),
+      authorName: authorName,
+      initials: initials,
+      text: (c['body_text'] ?? '').toString(),
+      sentAt: sentAt,
+      isOwnerReply: c['is_owner_reply'] == true,
+      status: (c['status'] ?? 'new').toString(),
+      provider: (c['provider'] ?? c['channel'] ?? '').toString(),
+      replies: repliesRaw.whereType<Map>().map((r) => _mapComment(Map<String, dynamic>.from(r))).toList(),
+    );
+  }
+
   Future<void> _loadComments() async {
     if (!mounted || widget.apiPostId == null) return;
     setState(() { _isLoading = true; _error = null; });
@@ -55,40 +77,16 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
       if (!mounted) return;
       // Sort newest first
       raw.sort((a, b) {
-        final da = DateTime.tryParse((a['created_at'] ?? a['sent_at'] ?? '').toString()) ?? DateTime(0);
-        final db = DateTime.tryParse((b['created_at'] ?? b['sent_at'] ?? '').toString()) ?? DateTime(0);
+        final da = DateTime.tryParse((a['commented_at'] ?? '').toString()) ?? DateTime(0);
+        final db = DateTime.tryParse((b['commented_at'] ?? '').toString()) ?? DateTime(0);
         return db.compareTo(da);
       });
-      final mapped = raw.map((c) {
-        final authorName = (c['author_name'] ?? c['authorName'] ?? c['author'] ?? 'Inconnu').toString();
-        final initials = authorName.trim().isNotEmpty
-            ? authorName.trim().split(RegExp(r'\s+')).map((p) => p.isNotEmpty ? p[0].toUpperCase() : '').take(2).join()
-            : '?';
-        final sentAtRaw = c['created_at'] ?? c['sent_at'] ?? c['sentAt'];
-        final sentAt = sentAtRaw != null ? (DateTime.tryParse(sentAtRaw.toString()) ?? DateTime.now()) : DateTime.now();
-        return PublicationComment(
-          id: (c['id'] ?? '').toString(),
-          authorName: authorName,
-          initials: initials,
-          text: (c['text'] ?? c['content'] ?? c['body'] ?? '').toString(),
-          sentAt: sentAt,
-          replyToCommentId: c['reply_to_comment_id']?.toString() ?? c['replyToCommentId']?.toString(),
-          replyToName: c['reply_to_name']?.toString() ?? c['replyToName']?.toString(),
-        );
-      }).toList();
+      final mapped = raw.map(_mapComment).toList();
 
       setState(() {
         _comments = mapped.isNotEmpty ? mapped : List.from(widget.publication.comments);
         _isLoading = false;
       });
-
-      // Mark all new comments as read (fire & forget)
-      for (final c in raw.where((c) => (c['status'] ?? '') == 'new')) {
-        commentsService.updateCommentStatus(
-          commentId: (c['id'] ?? '').toString(),
-          status: 'read',
-        ).ignore();
-      }
     } on CommentsUnauthorizedException {
       if (!mounted) return;
       SessionService.logout();
@@ -106,9 +104,22 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
     }
   }
 
+  PublicationComment _addReplyTo(PublicationComment node, String targetId, PublicationComment newReply) {
+    if (node.id == targetId) {
+      return node.copyWith(replies: [...node.replies, newReply]);
+    }
+    return node.copyWith(
+      replies: node.replies.map((r) => _addReplyTo(r, targetId, newReply)).toList(),
+    );
+  }
+
   void _sendReply() {
     final text = _replyCtrl.text.trim();
     if (text.isEmpty) return;
+
+    final provider = _replyTarget != null && _replyTarget!.provider.isNotEmpty
+        ? _replyTarget!.provider
+        : widget.publication.network;
 
     final newComment = PublicationComment(
       id: 'reply_${DateTime.now().millisecondsSinceEpoch}',
@@ -118,32 +129,24 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
       sentAt: DateTime.now(),
       replyToCommentId: _replyTarget?.id,
       replyToName: _replyTarget?.authorName,
+      isOwnerReply: true,
+      status: 'replied',
+      provider: provider,
     );
 
     // Appel API si on a un vrai ID de commentaire cible
     if (_replyTarget != null && widget.apiPostId != null) {
-      final channel = widget.publication.network;
       commentsService.replyToComment(
         commentId: _replyTarget!.id,
         message: text,
-        provider: channel,
+        provider: provider,
       ).ignore();
     }
 
     setState(() {
       if (_replyTarget != null) {
-        // Insert just after the parent comment
-        final parentId = _replyTarget!.id;
-        int insertIndex = _comments.length;
-        int parentIndex = _comments.indexWhere((c) => c.id == parentId);
-        if (parentIndex != -1) {
-          int idx = parentIndex + 1;
-          while (idx < _comments.length && _comments[idx].replyToCommentId == parentId) {
-            idx++;
-          }
-          insertIndex = idx;
-        }
-        _comments.insert(insertIndex, newComment);
+        final targetId = _replyTarget!.id;
+        _comments = _comments.map((c) => _addReplyTo(c, targetId, newComment)).toList();
       } else {
         _comments.insert(0, newComment);
       }
@@ -152,24 +155,30 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
     _replyCtrl.clear();
   }
 
-  /// Build the flat list with indentation for replies
+  /// Build the comment tree with indentation for nested replies
   List<Widget> _buildCommentWidgets() {
     final widgets = <Widget>[];
     for (int i = 0; i < _comments.length; i++) {
-      final comment = _comments[i];
-      final isReply = comment.replyToCommentId != null;
-      widgets.add(
-        Padding(
-          padding: EdgeInsets.only(left: isReply ? 40.0 : 0.0),
-          child: _CommentTile(
-            comment: comment,
-            onReply: () => _startReply(comment),
-          ),
-        ),
-      );
+      widgets.addAll(_buildCommentTree(_comments[i], depth: 0));
       if (i < _comments.length - 1) {
-        widgets.add(const SizedBox(height: 10));
+        widgets.add(const SizedBox(height: 14));
       }
+    }
+    return widgets;
+  }
+
+  List<Widget> _buildCommentTree(PublicationComment comment, {required int depth}) {
+    final widgets = <Widget>[
+      Padding(
+        padding: EdgeInsets.only(left: depth * 36.0, top: depth > 0 ? 10.0 : 0.0),
+        child: _CommentTile(
+          comment: comment,
+          onReply: () => _startReply(comment),
+        ),
+      ),
+    ];
+    for (final reply in comment.replies) {
+      widgets.addAll(_buildCommentTree(reply, depth: depth + 1));
     }
     return widgets;
   }
@@ -367,67 +376,77 @@ class _CommentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMe = comment.authorName == 'Vous';
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36, height: 36,
-          decoration: BoxDecoration(
-            color: isMe ? AppColors.greenLight : AppColors.backgroundPage,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              comment.initials,
-              style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700,
-                color: isMe ? AppColors.greenDark : AppColors.textPrimary,
-              ),
-            ),
+    final isOwner = comment.isOwnerReply;
+
+    final avatar = Container(
+      width: 36, height: 36,
+      decoration: BoxDecoration(
+        color: isOwner ? AppColors.greenLight : AppColors.backgroundPage,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          comment.initials,
+          style: TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w700,
+            color: isOwner ? AppColors.greenDark : AppColors.textPrimary,
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(comment.authorName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                  const SizedBox(width: 8),
-                  Text(_fmtTime(comment.sentAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isMe ? AppColors.greenLight : AppColors.backgroundPage,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    topRight: Radius.circular(14),
-                    bottomLeft: Radius.circular(14),
-                    bottomRight: Radius.circular(14),
-                  ),
-                ),
-                child: Text(comment.text, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, height: 1.4)),
-              ),
-              // Reply button
-              TextButton.icon(
-                onPressed: onReply,
-                icon: const Icon(Icons.reply, size: 14, color: AppColors.textSecondary),
-                label: const Text('Répondre', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
+      ),
+    );
+
+    final bubble = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isOwner ? AppColors.green : AppColors.white,
+        border: isOwner ? null : Border.all(color: AppColors.borderLight, width: 0.5),
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(14),
+          topRight: const Radius.circular(14),
+          bottomLeft: Radius.circular(isOwner ? 14 : 4),
+          bottomRight: Radius.circular(isOwner ? 4 : 14),
+        ),
+      ),
+      child: Text(
+        comment.text,
+        style: TextStyle(fontSize: 13, height: 1.4, color: isOwner ? AppColors.white : AppColors.textPrimary),
+      ),
+    );
+
+    final content = Column(
+      crossAxisAlignment: isOwner ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(comment.authorName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            const SizedBox(width: 8),
+            Text(_fmtTime(comment.sentAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+            const SizedBox(width: 6),
+            _StatusBadge(status: comment.status),
+          ],
+        ),
+        const SizedBox(height: 4),
+        bubble,
+        TextButton.icon(
+          onPressed: onReply,
+          icon: const Icon(Icons.reply, size: 14, color: AppColors.textSecondary),
+          label: const Text('Répondre', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
       ],
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: isOwner ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: isOwner
+          ? [Flexible(child: content), const SizedBox(width: 10), avatar]
+          : [avatar, const SizedBox(width: 10), Flexible(child: content)],
     );
   }
 
@@ -437,6 +456,35 @@ class _CommentTile extends StatelessWidget {
     if (diff.inHours < 24) return '${diff.inHours}h';
     if (diff.inDays == 1) return 'hier';
     return '${dt.day}/${dt.month}';
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String status;
+  const _StatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final String label;
+    final Color bg;
+    final Color fg;
+    switch (status) {
+      case 'new':
+        label = 'Nouveau';
+        bg = AppColors.greenLight;
+        fg = AppColors.greenDark;
+      case 'replied':
+        label = 'Répondu';
+        bg = AppColors.backgroundStatus;
+        fg = AppColors.textSecondary;
+      default:
+        return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: fg)),
+    );
   }
 }
 
