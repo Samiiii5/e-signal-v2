@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/session_service.dart';
 import '../../core/utils/responsive.dart';
 import '../../core/widgets/shimmer_box.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/publications_mock.dart';
+import '../../shared/services/inbox_service.dart';
 import 'publication_detail_screen.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -24,8 +26,9 @@ class _InboxScreenState extends State<InboxScreen> {
   String? _networkFilter; // null = Tous, 'facebook', 'instagram', 'tiktok'
 
   // Filtres du bottom sheet
-  Channel? _bsChannelFilter;
+  String? _bsChannelFilter;
   bool _bsUnreadOnly = false;
+  String? _error;
 
   bool get _hasActiveSheetFilter => _bsChannelFilter != null || _bsUnreadOnly;
 
@@ -43,14 +46,32 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   Future<void> _loadThreads() async {
-    if (!_isLoading) setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 700));
-    if (!mounted) return;
-    setState(() {
-      _threads = List.from(mockThreads);
-      _publications = List.from(mockPublications);
-      _isLoading = false;
-    });
+    if (!_isLoading) setState(() { _isLoading = true; _error = null; });
+    try {
+      final threads = await inboxService.getThreads();
+      if (!mounted) return;
+      setState(() {
+        _threads = threads;
+        _publications = List.from(mockPublications);
+        _isLoading = false;
+        _error = null;
+      });
+    } on Exception catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      if (msg.contains('_UnauthorizedException')) {
+        SessionService.logout();
+        GoRouter.of(context).go('/login');
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _error = msg.contains('_NetworkException')
+            ? 'Pas de connexion internet. Vérifiez votre réseau.'
+            : 'Impossible de charger les conversations.';
+        // keep previous threads on error
+      });
+    }
   }
 
   Widget _buildPublicationsView() {
@@ -119,9 +140,11 @@ class _InboxScreenState extends State<InboxScreen> {
   List<Thread> get _filtered {
     var list = List<Thread>.from(_threads);
     switch (_activeFilter) {
-      case _Filter.whatsapp: list = list.where((t) => t.channel == Channel.whatsapp).toList();
-      case _Filter.sms: list = list.where((t) => t.channel == Channel.sms).toList();
-      case _Filter.email: list = list.where((t) => t.channel == Channel.email).toList();
+      case _Filter.whatsapp: list = list.where((t) => t.channel == 'whatsapp').toList();
+      case _Filter.sms: list = list.where((t) => t.channel == 'sms').toList();
+      case _Filter.email: list = list.where((t) => t.channel == 'email').toList();
+      case _Filter.facebook: list = list.where((t) => t.channel == 'messenger').toList();
+      case _Filter.tiktok: list = list.where((t) => t.channel == 'tiktok').toList();
       case _Filter.unread: list = list.where((t) => t.unreadCount > 0).toList();
       case _Filter.all: break;
       case _Filter.commentaires: return _threads; // handled separately in build
@@ -133,7 +156,7 @@ class _InboxScreenState extends State<InboxScreen> {
       list = list.where((t) => t.unreadCount > 0).toList();
     }
     if (_searchQuery.isNotEmpty) {
-      list = list.where((t) => t.contactName.toLowerCase().contains(_searchQuery) || t.lastMessage.toLowerCase().contains(_searchQuery)).toList();
+      list = list.where((t) => t.contactName.toLowerCase().contains(_searchQuery)).toList();
     }
     return list;
   }
@@ -158,6 +181,34 @@ class _InboxScreenState extends State<InboxScreen> {
           _bsUnreadOnly = false;
           _activeFilter = _Filter.all;
         }),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_outlined, size: 48, color: AppColors.borderLight),
+            const SizedBox(height: 12),
+            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadThreads,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -247,21 +298,23 @@ class _InboxScreenState extends State<InboxScreen> {
             Expanded(
               child: _isLoading
                   ? const _InboxSkeleton()
-                  : _activeFilter == _Filter.commentaires
-                      ? _buildPublicationsView()
-                      : threads.isEmpty
-                          ? _EmptyState(query: _searchQuery)
-                          : RefreshIndicator(
-                              onRefresh: _loadThreads,
-                              color: AppColors.green,
-                              child: ListView.separated(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.only(top: 4, bottom: 16),
-                                itemCount: threads.length,
-                                separatorBuilder: (_, __) => const Divider(indent: 76, height: 0, thickness: 0.5, color: AppColors.borderLight),
-                                itemBuilder: (_, i) => _ThreadTile(thread: threads[i]),
-                              ),
-                            ),
+                  : _error != null && _threads.isEmpty
+                      ? _buildErrorBanner()
+                      : _activeFilter == _Filter.commentaires
+                          ? _buildPublicationsView()
+                          : threads.isEmpty
+                              ? _EmptyState(query: _searchQuery)
+                              : RefreshIndicator(
+                                  onRefresh: _loadThreads,
+                                  color: AppColors.green,
+                                  child: ListView.separated(
+                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    padding: const EdgeInsets.only(top: 4, bottom: 16),
+                                    itemCount: threads.length,
+                                    separatorBuilder: (_, __) => const Divider(indent: 76, height: 0, thickness: 0.5, color: AppColors.borderLight),
+                                    itemBuilder: (_, i) => _ThreadTile(thread: threads[i]),
+                                  ),
+                                ),
             ),
           ],
         ),
@@ -303,7 +356,7 @@ class _InboxSkeleton extends StatelessWidget {
 
 // ── Filtres ───────────────────────────────────────────────────────────────────
 
-enum _Filter { all, whatsapp, sms, email, unread, commentaires }
+enum _Filter { all, whatsapp, sms, email, facebook, tiktok, unread, commentaires }
 
 extension _FilterLabel on _Filter {
   String get label => switch (this) {
@@ -311,6 +364,8 @@ extension _FilterLabel on _Filter {
     _Filter.whatsapp     => 'WhatsApp',
     _Filter.sms          => 'SMS',
     _Filter.email        => 'Email',
+    _Filter.facebook     => 'Facebook',
+    _Filter.tiktok       => 'TikTok',
     _Filter.unread       => 'Non lus',
     _Filter.commentaires => 'Commentaires',
   };
@@ -378,10 +433,11 @@ class _ThreadTile extends StatelessWidget {
                     Expanded(child: Text(thread.contactName, style: TextStyle(fontSize: 14, fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     const SizedBox(width: 8),
                     Text(_formatTime(thread.lastMessageAt), style: TextStyle(fontSize: 11, color: hasUnread ? AppColors.green : AppColors.textHint, fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400)),
+
                   ]),
                   const SizedBox(height: 4),
                   Row(children: [
-                    Expanded(child: Text(thread.lastMessage, style: TextStyle(fontSize: 13, color: hasUnread ? AppColors.textPrimary : AppColors.textSecondary, fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Expanded(child: Text(_channelDisplayName(thread.channel), style: TextStyle(fontSize: 13, color: hasUnread ? AppColors.textPrimary : AppColors.textSecondary, fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     if (hasUnread) ...[
                       const SizedBox(width: 8),
                       Container(
@@ -400,18 +456,31 @@ class _ThreadTile extends StatelessWidget {
     );
   }
 
-  String _formatTime(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
+  String _channelDisplayName(String ch) => switch (ch) {
+    'whatsapp' => 'WhatsApp',
+    'sms' => 'SMS',
+    'email' => 'Email',
+    'messenger' => 'Facebook Messenger',
+    'tiktok' => 'TikTok',
+    _ => ch,
+  };
+
+  String _formatTime(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final diff = DateTime.now().difference(local);
     if (diff.inMinutes < 60) return '${diff.inMinutes}min';
     if (diff.inHours < 24) return '${diff.inHours}h';
     if (diff.inDays == 1) return 'Hier';
-    return '${dt.day}/${dt.month}';
+    return '${local.day}/${local.month}';
   }
 }
 
 class _ContactAvatar extends StatelessWidget {
   final String initials;
-  final Channel channel;
+  final String channel;
   const _ContactAvatar({required this.initials, required this.channel});
 
   @override
@@ -443,20 +512,22 @@ class _ContactAvatar extends StatelessWidget {
     );
   }
 
-  Color _channelColor(Channel ch) => switch (ch) {
-    Channel.whatsapp => const Color(0xFF25D366),
-    Channel.facebook => const Color(0xFF1877F2),
-    Channel.sms => const Color(0xFF5C6BC0),
-    Channel.tiktok => const Color(0xFF010101),
-    Channel.email => const Color(0xFFEA4335),
+  Color _channelColor(String ch) => switch (ch) {
+    'whatsapp' => const Color(0xFF25D366),
+    'messenger' => const Color(0xFF1877F2),
+    'sms' => const Color(0xFF5C6BC0),
+    'tiktok' => const Color(0xFF010101),
+    'email' => const Color(0xFFEA4335),
+    _ => AppColors.textSecondary,
   };
 
-  String _channelLabel(Channel ch) => switch (ch) {
-    Channel.whatsapp => 'W',
-    Channel.facebook => 'f',
-    Channel.sms => 'S',
-    Channel.tiktok => 'T',
-    Channel.email => '@',
+  String _channelLabel(String ch) => switch (ch) {
+    'whatsapp' => 'W',
+    'messenger' => 'f',
+    'sms' => 'S',
+    'tiktok' => 'T',
+    'email' => '@',
+    _ => ch.isNotEmpty ? ch[0].toUpperCase() : '?',
   };
 }
 
@@ -482,9 +553,9 @@ class _EmptyState extends StatelessWidget {
 // ── Bottom sheet filtres ──────────────────────────────────────────────────────
 
 class _FilterSheet extends StatefulWidget {
-  final Channel? initialChannel;
+  final String? initialChannel;
   final bool initialUnreadOnly;
-  final void Function(Channel? channel, bool unreadOnly) onApply;
+  final void Function(String? channel, bool unreadOnly) onApply;
   final VoidCallback onReset;
 
   const _FilterSheet({
@@ -499,7 +570,7 @@ class _FilterSheet extends StatefulWidget {
 }
 
 class _FilterSheetState extends State<_FilterSheet> {
-  Channel? _channel;
+  String? _channel;
   bool _unreadOnly = false;
 
   @override
@@ -538,11 +609,11 @@ class _FilterSheetState extends State<_FilterSheet> {
           const Text('Canal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
           const SizedBox(height: 8),
           _ChannelOption(label: 'Tous', value: null, groupValue: _channel, onChanged: (v) => setState(() => _channel = v)),
-          _ChannelOption(label: 'WhatsApp', value: Channel.whatsapp, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF25D366)),
-          _ChannelOption(label: 'SMS', value: Channel.sms, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF5C6BC0)),
-          _ChannelOption(label: 'Email', value: Channel.email, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFFEA4335)),
-          _ChannelOption(label: 'Facebook', value: Channel.facebook, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF1877F2)),
-          _ChannelOption(label: 'TikTok', value: Channel.tiktok, groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF010101)),
+          _ChannelOption(label: 'WhatsApp', value: 'whatsapp', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF25D366)),
+          _ChannelOption(label: 'SMS', value: 'sms', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF5C6BC0)),
+          _ChannelOption(label: 'Email', value: 'email', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFFEA4335)),
+          _ChannelOption(label: 'Facebook', value: 'messenger', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF1877F2)),
+          _ChannelOption(label: 'TikTok', value: 'tiktok', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF010101)),
 
           const SizedBox(height: 16),
           const Divider(height: 1, color: AppColors.borderLight),
@@ -605,9 +676,9 @@ class _FilterSheetState extends State<_FilterSheet> {
 
 class _ChannelOption extends StatelessWidget {
   final String label;
-  final Channel? value;
-  final Channel? groupValue;
-  final ValueChanged<Channel?> onChanged;
+  final String? value;
+  final String? groupValue;
+  final ValueChanged<String?> onChanged;
   final Color? color;
 
   const _ChannelOption({

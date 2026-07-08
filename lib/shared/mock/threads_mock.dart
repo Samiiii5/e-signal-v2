@@ -1,121 +1,110 @@
-// Canaux de messagerie supportés
-enum Channel { whatsapp, facebook, sms, tiktok, email }
-
-// Statut d'une conversation
-enum ThreadStatus { open, resolved, pending }
-
 class Thread {
   final String id;
   final String contactName;
-  final String contactInitials;
-  final Channel channel;
-  final String lastMessage;
-  final DateTime lastMessageAt;
+  final String? contactPictureUrl;
+  final String channel;
+  final String? lastMessageAt;
   final int unreadCount;
-  final ThreadStatus status;
+  final String status;
+  final String? assignedToUserId;
 
   const Thread({
     required this.id,
     required this.contactName,
-    required this.contactInitials,
+    this.contactPictureUrl,
     required this.channel,
-    required this.lastMessage,
-    required this.lastMessageAt,
+    this.lastMessageAt,
     required this.unreadCount,
     required this.status,
+    this.assignedToUserId,
   });
 
-  Thread copyWith({String? lastMessage, DateTime? lastMessageAt}) => Thread(
-    id: id,
-    contactName: contactName,
-    contactInitials: contactInitials,
-    channel: channel,
-    lastMessage: lastMessage ?? this.lastMessage,
-    lastMessageAt: lastMessageAt ?? this.lastMessageAt,
-    unreadCount: unreadCount,
-    status: status,
-  );
+  String get contactInitials {
+    final parts = contactName.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty) return '?';
+    final f = parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '';
+    final l = parts.length > 1 && parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
+    final result = f + l;
+    return result.isNotEmpty ? result : '?';
+  }
+
+  factory Thread.fromJson(Map<String, dynamic> json) {
+    return Thread(
+      id: (json['id'] ?? json['_id'] ?? '').toString(),
+      contactName: (json['contactName'] ?? json['contact_name'] ?? json['contact'] ?? 'Inconnu').toString(),
+      contactPictureUrl: json['contactPictureUrl']?.toString() ?? json['contact_picture_url']?.toString(),
+      channel: (json['channel'] ?? '').toString().toLowerCase(),
+      lastMessageAt: json['lastMessageAt']?.toString() ?? json['last_message_at']?.toString(),
+      unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
+      status: (json['status'] ?? 'open').toString().toLowerCase(),
+      assignedToUserId: json['assignedToUserId']?.toString() ?? json['assigned_to_user_id']?.toString(),
+    );
+  }
 }
 
 final mockThreads = <Thread>[
   Thread(
     id: 'thread_001',
-    contactName: 'Awa N\'Guessan',
-    contactInitials: 'AN',
-    channel: Channel.whatsapp,
-    lastMessage: 'Merci pour le lien, j\'ai payé 🙏',
-    lastMessageAt: DateTime.now().subtract(const Duration(minutes: 4)),
+    contactName: "Awa N'Guessan",
+    channel: 'whatsapp',
+    lastMessageAt: DateTime.now().subtract(const Duration(minutes: 4)).toIso8601String(),
     unreadCount: 0,
-    status: ThreadStatus.resolved,
+    status: 'resolved',
   ),
   Thread(
     id: 'thread_002',
     contactName: 'Kofi Mensah',
-    contactInitials: 'KM',
-    channel: Channel.facebook,
-    lastMessage: 'Est-ce que vous livrez à Yopougon ?',
-    lastMessageAt: DateTime.now().subtract(const Duration(minutes: 18)),
+    channel: 'messenger',
+    lastMessageAt: DateTime.now().subtract(const Duration(minutes: 18)).toIso8601String(),
     unreadCount: 3,
-    status: ThreadStatus.open,
+    status: 'open',
   ),
   Thread(
     id: 'thread_003',
     contactName: 'Fatou Diallo',
-    contactInitials: 'FD',
-    channel: Channel.sms,
-    lastMessage: 'Quel est le prix du lot de 10 ?',
-    lastMessageAt: DateTime.now().subtract(const Duration(hours: 1)),
+    channel: 'sms',
+    lastMessageAt: DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
     unreadCount: 1,
-    status: ThreadStatus.open,
+    status: 'open',
   ),
   Thread(
     id: 'thread_004',
     contactName: 'Aminata Koné',
-    contactInitials: 'AK',
-    channel: Channel.tiktok,
-    lastMessage: 'J\'ai vu votre vidéo, c\'est disponible ?',
-    lastMessageAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 30)),
+    channel: 'tiktok',
+    lastMessageAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 30)).toIso8601String(),
     unreadCount: 5,
-    status: ThreadStatus.open,
+    status: 'open',
   ),
   Thread(
     id: 'thread_005',
     contactName: 'Jean-Baptiste Aka',
-    contactInitials: 'JA',
-    channel: Channel.email,
-    lastMessage: 'Bonjour, je souhaite un devis pour 50 unités.',
-    lastMessageAt: DateTime.now().subtract(const Duration(hours: 5)),
+    channel: 'email',
+    lastMessageAt: DateTime.now().subtract(const Duration(hours: 5)).toIso8601String(),
     unreadCount: 0,
-    status: ThreadStatus.pending,
+    status: 'pending',
   ),
   Thread(
     id: 'thread_006',
     contactName: 'Binta Coulibaly',
-    contactInitials: 'BC',
-    channel: Channel.whatsapp,
-    lastMessage: 'OK je vais réfléchir, merci',
-    lastMessageAt: DateTime.now().subtract(const Duration(hours: 8)),
+    channel: 'whatsapp',
+    lastMessageAt: DateTime.now().subtract(const Duration(hours: 8)).toIso8601String(),
     unreadCount: 0,
-    status: ThreadStatus.resolved,
+    status: 'resolved',
   ),
   Thread(
     id: 'thread_007',
     contactName: 'Moussa Traoré',
-    contactInitials: 'MT',
-    channel: Channel.facebook,
-    lastMessage: 'Vous avez le modèle en bleu ?',
-    lastMessageAt: DateTime.now().subtract(const Duration(days: 1)),
+    channel: 'messenger',
+    lastMessageAt: DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
     unreadCount: 2,
-    status: ThreadStatus.open,
+    status: 'open',
   ),
   Thread(
     id: 'thread_008',
     contactName: 'Rose Yao',
-    contactInitials: 'RY',
-    channel: Channel.sms,
-    lastMessage: 'Quand sera disponible la prochaine livraison ?',
-    lastMessageAt: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
+    channel: 'sms',
+    lastMessageAt: DateTime.now().subtract(const Duration(days: 1, hours: 3)).toIso8601String(),
     unreadCount: 0,
-    status: ThreadStatus.open,
+    status: 'open',
   ),
 ];

@@ -612,13 +612,14 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
     );
   }
 
-  String _channelLabel(Channel channel) {
+  String _channelLabel(String channel) {
     return switch (channel) {
-      Channel.whatsapp  => 'WhatsApp',
-      Channel.facebook  => 'Facebook',
-      Channel.sms       => 'SMS',
-      Channel.tiktok    => 'TikTok',
-      Channel.email     => 'Email',
+      'whatsapp' => 'WhatsApp',
+      'messenger' => 'Facebook',
+      'sms' => 'SMS',
+      'tiktok' => 'TikTok',
+      'email' => 'Email',
+      _ => channel,
     };
   }
 }

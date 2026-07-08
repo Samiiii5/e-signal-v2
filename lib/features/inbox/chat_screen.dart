@@ -1052,13 +1052,13 @@ class _ChatAppBar extends StatelessWidget {
     );
   }
 
-  String _channelLabel(Channel? ch) => switch (ch) {
-    Channel.whatsapp => 'WhatsApp',
-    Channel.facebook => 'Facebook',
-    Channel.sms      => 'SMS',
-    Channel.tiktok   => 'TikTok',
-    Channel.email    => 'Email',
-    null             => '...',
+  String _channelLabel(String? ch) => switch (ch) {
+    'whatsapp' => 'WhatsApp',
+    'messenger' => 'Facebook',
+    'sms' => 'SMS',
+    'tiktok' => 'TikTok',
+    'email' => 'Email',
+    _ => ch ?? '...',
   };
 }
 
@@ -1626,8 +1626,8 @@ class _ClientProfileSheet extends StatelessWidget {
     const avatarColors = [Color(0xFF6C5CE7), AppColors.green, Color(0xFFF59E0B), Color(0xFF3B82F6), Color(0xFFEC4899)];
     final color = thread == null ? AppColors.green : avatarColors[(thread!.contactInitials.hashCode.abs()) % avatarColors.length];
     final channelLabel = switch (thread?.channel) {
-      Channel.whatsapp => 'WhatsApp', Channel.facebook => 'Facebook',
-      Channel.sms => 'SMS', Channel.tiktok => 'TikTok', Channel.email => 'Email', null => '—',
+      'whatsapp' => 'WhatsApp', 'messenger' => 'Facebook',
+      'sms' => 'SMS', 'tiktok' => 'TikTok', 'email' => 'Email', _ => '—',
     };
 
     return Container(
@@ -3089,7 +3089,7 @@ class _ForwardSheet extends StatelessWidget {
                 child: Text(t.contactInitials, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
               ),
               title: Text(t.contactName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-              subtitle: Text(t.lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              subtitle: Text(t.channel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               trailing: const Icon(Icons.send_outlined, size: 18, color: AppColors.green),
               onTap: () => onForward(t),
             )),
