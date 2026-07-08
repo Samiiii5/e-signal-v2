@@ -87,17 +87,15 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
     if (!mounted) return;
 
     // Injecte le message dans la conversation du client sélectionné
-    if (_selectedThread != null) {
-      final now = DateTime.now();
-      inboxService.addMessage(
+    if (_selectedThread != null && inboxService is MockInboxService) {
+      (inboxService as MockInboxService).addMessage(
         _selectedThread!.id,
         Message(
-          id: 'msg_${now.millisecondsSinceEpoch}',
-          threadId: _selectedThread!.id,
-          content: '${p.emoji} ${p.name}\n💰 $total FCFA',
-          isFromContact: false,
-          sentAt: now,
-          type: MessageType.paymentLink,
+          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+          direction: 'OUT',
+          bodyText: '${p.emoji} ${p.name}\n💰 $total FCFA',
+          messageType: 'PAYMENT_LINK',
+          sentAt: DateTime.now().toIso8601String(),
           paymentAmount: total.toString(),
           paymentCurrency: 'FCFA',
           paymentStatus: PaymentStatus.created,

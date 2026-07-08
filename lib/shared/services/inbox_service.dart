@@ -4,21 +4,59 @@ import '../../core/services/session_service.dart';
 import '../mock/threads_mock.dart';
 import '../mock/messages_mock.dart';
 
+// ── Réponse paginée des messages ───────────────────────────────────────────
+
+class MessagesResult {
+  final List<Message> messages;
+  final bool hasMore;
+  final String? nextBeforeId;
+
+  const MessagesResult({
+    required this.messages,
+    this.hasMore = false,
+    this.nextBeforeId,
+  });
+}
+
+// ── Exceptions internes ────────────────────────────────────────────────────
+
+class InboxUnauthorizedException implements Exception {
+  const InboxUnauthorizedException();
+}
+
+class InboxNetworkException implements Exception {
+  const InboxNetworkException();
+}
+
+class InboxForbiddenException implements Exception {
+  const InboxForbiddenException();
+}
+
+// ── Contrat ────────────────────────────────────────────────────────────────
+
 abstract class InboxService {
-  /// GET /api/v1.2/inbox/threads?organization_id=&channel=&status=&limit=&offset=
+  /// GET /api/v1.2/inbox/threads?organization_id=&channel=&limit=&offset=
   Future<List<Thread>> getThreads({String? channelFilter, bool? unreadOnly});
 
-  /// GET /api/threads/:id/messages?page=&limit=20
-  Future<List<Message>> getMessages(String threadId, {int page = 1});
+  /// GET /api/v1.2/inbox/threads/:id/messages?organization_id=&limit=&before_id=
+  Future<MessagesResult> getMessages(
+    String threadId, {
+    int limit = 50,
+    String? beforeId,
+  });
 
-  /// POST /api/threads/:id/messages
+  /// POST /api/v1.2/inbox/threads/:id/messages
   Future<void> sendMessage(String threadId, String content);
+
+  /// POST /api/v1.2/inbox/threads/:id/read
+  Future<void> markAsRead(String threadId);
 
   /// POST /api/threads/:id/payment-links
   Future<Message> createPaymentLink(String threadId, String amount, String provider);
 }
 
-/// Implémentation HTTP réelle.
+// ── HTTP ───────────────────────────────────────────────────────────────────
+
 class HttpInboxService implements InboxService {
   bool _isNetworkError(DioException e) =>
       e.type == DioExceptionType.connectionError ||
@@ -32,11 +70,9 @@ class HttpInboxService implements InboxService {
     if (orgId == null) return List.from(mockThreads);
 
     try {
-      final params = <String, dynamic>{'organization_id': orgId};
+      final params = <String, dynamic>{'organization_id': orgId, 'limit': 50, 'offset': 0};
       if (channelFilter != null) params['channel'] = channelFilter;
       if (unreadOnly == true) params['status'] = 'unread';
-      params['limit'] = 50;
-      params['offset'] = 0;
 
       final resp = await ApiClient.dio.get('/inbox/threads', queryParameters: params);
 
@@ -54,20 +90,58 @@ class HttpInboxService implements InboxService {
         }
         return items.map((e) => Thread.fromJson(e as Map<String, dynamic>)).toList();
       } else if (resp.statusCode == 401) {
-        throw const _UnauthorizedException();
+        throw const InboxUnauthorizedException();
       } else {
         return List.from(mockThreads);
       }
     } on DioException catch (e) {
-      if (_isNetworkError(e)) throw const _NetworkException();
+      if (_isNetworkError(e)) throw const InboxNetworkException();
       return List.from(mockThreads);
     }
   }
 
   @override
-  Future<List<Message>> getMessages(String threadId, {int page = 1}) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return <Message>[];
+  Future<MessagesResult> getMessages(
+    String threadId, {
+    int limit = 50,
+    String? beforeId,
+  }) async {
+    final orgId = SessionService.organizationId;
+    if (orgId == null) {
+      return MessagesResult(messages: List.from(mockMessagesThread001));
+    }
+
+    try {
+      final params = <String, dynamic>{'organization_id': orgId, 'limit': limit};
+      if (beforeId != null) params['before_id'] = beforeId;
+
+      final resp = await ApiClient.dio.get(
+        '/inbox/threads/$threadId/messages',
+        queryParameters: params,
+      );
+
+      if (resp.statusCode == 200) {
+        final data = resp.data as Map<String, dynamic>;
+        final rawMsgs = data['messages'] as List<dynamic>? ?? [];
+        final messages = rawMsgs
+            .map((e) => Message.fromJson(e as Map<String, dynamic>))
+            .toList();
+        return MessagesResult(
+          messages: messages,
+          hasMore: data['has_more'] as bool? ?? false,
+          nextBeforeId: data['next_before_id']?.toString(),
+        );
+      } else if (resp.statusCode == 401) {
+        throw const InboxUnauthorizedException();
+      } else if (resp.statusCode == 403) {
+        throw const InboxForbiddenException();
+      } else {
+        return MessagesResult(messages: List.from(mockMessagesThread001));
+      }
+    } on DioException catch (e) {
+      if (_isNetworkError(e)) throw const InboxNetworkException();
+      return MessagesResult(messages: List.from(mockMessagesThread001));
+    }
   }
 
   @override
@@ -76,15 +150,28 @@ class HttpInboxService implements InboxService {
   }
 
   @override
+  Future<void> markAsRead(String threadId) async {
+    final orgId = SessionService.organizationId;
+    if (orgId == null) return;
+    try {
+      await ApiClient.dio.post(
+        '/inbox/threads/$threadId/read',
+        queryParameters: {'organization_id': orgId},
+      );
+    } catch (_) {
+      // Non-bloquant — ignorer les erreurs
+    }
+  }
+
+  @override
   Future<Message> createPaymentLink(String threadId, String amount, String provider) async {
     await Future.delayed(const Duration(milliseconds: 500));
     return Message(
       id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-      threadId: threadId,
-      content: 'Lien de paiement $provider — $amount FCFA',
-      isFromContact: false,
-      sentAt: DateTime.now(),
-      type: MessageType.paymentLink,
+      direction: 'OUT',
+      bodyText: 'Lien de paiement $provider — $amount FCFA',
+      messageType: 'PAYMENT_LINK',
+      sentAt: DateTime.now().toIso8601String(),
       paymentAmount: amount,
       paymentCurrency: 'FCFA',
       paymentStatus: PaymentStatus.created,
@@ -93,7 +180,8 @@ class HttpInboxService implements InboxService {
   }
 }
 
-/// Implémentation mock — fallback ou tests.
+// ── Mock ───────────────────────────────────────────────────────────────────
+
 class MockInboxService implements InboxService {
   final Map<String, List<Message>> _extraMessages = {};
 
@@ -105,23 +193,23 @@ class MockInboxService implements InboxService {
   Future<List<Thread>> getThreads({String? channelFilter, bool? unreadOnly}) async {
     await Future.delayed(const Duration(milliseconds: 400));
     var results = List<Thread>.from(mockThreads);
-
-    if (channelFilter != null) {
-      results = results.where((t) => t.channel == channelFilter).toList();
-    }
-    if (unreadOnly == true) {
-      results = results.where((t) => t.unreadCount > 0).toList();
-    }
+    if (channelFilter != null) results = results.where((t) => t.channel == channelFilter).toList();
+    if (unreadOnly == true) results = results.where((t) => t.unreadCount > 0).toList();
     return results;
   }
 
   @override
-  Future<List<Message>> getMessages(String threadId, {int page = 1}) async {
+  Future<MessagesResult> getMessages(
+    String threadId, {
+    int limit = 50,
+    String? beforeId,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 300));
     final base = threadId == 'thread_001'
         ? List<Message>.from(mockMessagesThread001)
         : <Message>[];
-    return [...base, ...(_extraMessages[threadId] ?? [])];
+    final all = [...base, ...(_extraMessages[threadId] ?? [])];
+    return MessagesResult(messages: all);
   }
 
   @override
@@ -130,29 +218,23 @@ class MockInboxService implements InboxService {
   }
 
   @override
+  Future<void> markAsRead(String threadId) async {}
+
+  @override
   Future<Message> createPaymentLink(String threadId, String amount, String provider) async {
     await Future.delayed(const Duration(milliseconds: 500));
     return Message(
       id: 'msg_generated_${DateTime.now().millisecondsSinceEpoch}',
-      threadId: threadId,
-      content: 'Lien de paiement $provider — $amount FCFA',
-      isFromContact: false,
-      sentAt: DateTime.now(),
-      type: MessageType.paymentLink,
+      direction: 'OUT',
+      bodyText: 'Lien de paiement $provider — $amount FCFA',
+      messageType: 'PAYMENT_LINK',
+      sentAt: DateTime.now().toIso8601String(),
       paymentAmount: amount,
       paymentCurrency: 'FCFA',
       paymentStatus: PaymentStatus.created,
       paymentProvider: provider,
     );
   }
-}
-
-class _UnauthorizedException implements Exception {
-  const _UnauthorizedException();
-}
-
-class _NetworkException implements Exception {
-  const _NetworkException();
 }
 
 final InboxService inboxService = HttpInboxService();

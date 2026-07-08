@@ -120,47 +120,46 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
     final effectiveThreadId = _selectedThread?.id ?? widget.threadId;
 
     if (effectiveThreadId != null) {
-      // Inject payment link message into the thread
-      final now = DateTime.now();
-      inboxService.addMessage(
-        effectiveThreadId,
-        Message(
-          id: 'msg_${now.millisecondsSinceEpoch}',
-          threadId: effectiveThreadId,
-          content: lien.description,
-          isFromContact: false,
-          sentAt: now,
-          type: MessageType.paymentLink,
-          paymentAmount: total.toString(),
-          paymentCurrency: 'FCFA',
-          paymentStatus: PaymentStatus.created,
-          paymentProvider: _selectedPayment,
-        ),
-      );
+      // Inject payment link message into the thread (mock service only)
+      final now = DateTime.now().toIso8601String();
+      if (inboxService is MockInboxService) {
+        (inboxService as MockInboxService).addMessage(
+          effectiveThreadId,
+          Message(
+            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+            direction: 'OUT',
+            bodyText: lien.description,
+            messageType: 'PAYMENT_LINK',
+            sentAt: now,
+            paymentAmount: total.toString(),
+            paymentCurrency: 'FCFA',
+            paymentStatus: PaymentStatus.created,
+            paymentProvider: _selectedPayment,
+          ),
+        );
 
-      // Inject delivery messages if applicable
-      if (_hasDelivery) {
-        final addr = '${_communeCtrl.text.trim()}, ${_quartierCtrl.text.trim()}, ${_secteurCtrl.text.trim()}';
-        inboxService.addMessage(
-          effectiveThreadId,
-          Message(
-            id: 'msg_${now.millisecondsSinceEpoch + 1}',
-            threadId: effectiveThreadId,
-            content: '🚚 Livraison à domicile confirmée\nAdresse : $addr',
-            isFromContact: false,
-            sentAt: now,
-          ),
-        );
-        inboxService.addMessage(
-          effectiveThreadId,
-          Message(
-            id: 'msg_${now.millisecondsSinceEpoch + 2}',
-            threadId: effectiveThreadId,
-            content: '✅ Livreur assigné : Koné Ibrahima\n📅 Livraison prévue : Demain 14h-16h\n📞 +225 07 58 32 14 96',
-            isFromContact: false,
-            sentAt: now,
-          ),
-        );
+        // Inject delivery messages if applicable
+        if (_hasDelivery) {
+          final addr = '${_communeCtrl.text.trim()}, ${_quartierCtrl.text.trim()}, ${_secteurCtrl.text.trim()}';
+          (inboxService as MockInboxService).addMessage(
+            effectiveThreadId,
+            Message(
+              id: 'msg_${DateTime.now().millisecondsSinceEpoch + 1}',
+              direction: 'OUT',
+              bodyText: '🚚 Livraison à domicile confirmée\nAdresse : $addr',
+              sentAt: now,
+            ),
+          );
+          (inboxService as MockInboxService).addMessage(
+            effectiveThreadId,
+            Message(
+              id: 'msg_${DateTime.now().millisecondsSinceEpoch + 2}',
+              direction: 'OUT',
+              bodyText: '✅ Livreur assigné : Koné Ibrahima\n📅 Livraison prévue : Demain 14h-16h\n📞 +225 07 58 32 14 96',
+              sentAt: now,
+            ),
+          );
+        }
       }
 
       // Navigate directly to the thread conversation

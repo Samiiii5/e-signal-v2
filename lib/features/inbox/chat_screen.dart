@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/session_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
@@ -39,11 +40,18 @@ class _ChatScreenState extends State<ChatScreen> {
   final Map<String, MessageStatus> _msgStatus = {};
   bool _showEmojiPicker = false;
 
+  bool _isLoadingMessages = true;
+  String? _loadError;
+  bool _hasMore = false;
+  String? _nextBeforeId;
+  bool _isLoadingMore = false;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(() => setState(() {}));
-    _load();
+    _scrollController.addListener(_onScroll);
+    _loadMessages();
   }
 
   @override
@@ -54,20 +62,89 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final messages = await inboxService.getMessages(widget.threadId);
-    final threads = await inboxService.getThreads();
-    if (!mounted) return;
+  void _onScroll() {
+    if (_hasMore && !_isLoadingMore &&
+        _scrollController.hasClients &&
+        _scrollController.offset <= 80) {
+      _loadMoreMessages();
+    }
+  }
+
+  Future<void> _loadMessages() async {
+    if (!_isLoadingMessages) setState(() { _isLoadingMessages = true; _loadError = null; });
+    try {
+      final result = await inboxService.getMessages(widget.threadId);
+      final threads = await inboxService.getThreads();
+      if (!mounted) return;
+      setState(() {
+        _messages = result.messages;
+        _hasMore = result.hasMore;
+        _nextBeforeId = result.nextBeforeId;
+        _thread = threads.where((t) => t.id == widget.threadId).firstOrNull;
+        for (final m in result.messages) {
+          if (m.initialStatus != null && !_msgStatus.containsKey(m.id)) {
+            _msgStatus[m.id] = m.initialStatus!;
+          }
+        }
+        _isLoadingMessages = false;
+        _loadError = null;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      _markAsRead();
+    } on InboxUnauthorizedException {
+      if (!mounted) return;
+      SessionService.logout();
+      GoRouter.of(context).go('/login');
+    } on InboxForbiddenException {
+      if (!mounted) return;
+      setState(() { _isLoadingMessages = false; _loadError = 'Accès non autorisé à cette conversation.'; });
+    } on InboxNetworkException {
+      if (!mounted) return;
+      setState(() { _isLoadingMessages = false; _loadError = 'Vérifiez votre connexion internet.'; });
+      _fallbackToMock();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _isLoadingMessages = false; _loadError = null; });
+      _fallbackToMock();
+    }
+  }
+
+  void _fallbackToMock() {
     setState(() {
-      _messages = messages;
-      _thread = threads.where((t) => t.id == widget.threadId).firstOrNull;
-      for (final m in messages) {
+      _messages = List.from(mockMessagesThread001);
+      for (final m in _messages) {
         if (m.initialStatus != null && !_msgStatus.containsKey(m.id)) {
           _msgStatus[m.id] = m.initialStatus!;
         }
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  Future<void> _loadMoreMessages() async {
+    if (_isLoadingMore || !_hasMore || _nextBeforeId == null) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final result = await inboxService.getMessages(
+        widget.threadId,
+        beforeId: _nextBeforeId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages = [...result.messages, ..._messages];
+        _hasMore = result.hasMore;
+        _nextBeforeId = result.nextBeforeId;
+        _isLoadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingMore = false);
+    }
+  }
+
+  Future<void> _markAsRead() async {
+    try {
+      await inboxService.markAsRead(widget.threadId);
+    } catch (_) {}
   }
 
   void _scrollToBottom() {
@@ -168,11 +245,12 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (idx != -1) {
                   _messages[idx] = Message(
                     id: msg.id,
-                    threadId: msg.threadId,
-                    content: newText,
-                    isFromContact: msg.isFromContact,
+                    direction: msg.direction,
+                    bodyText: newText,
+                    messageType: msg.messageType,
+                    mediaUrl: msg.mediaUrl,
+                    status: msg.status,
                     sentAt: msg.sentAt,
-                    type: msg.type,
                     paymentAmount: msg.paymentAmount,
                     paymentCurrency: msg.paymentCurrency,
                     paymentStatus: msg.paymentStatus,
@@ -262,7 +340,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showConversationStats() {
     final sent     = _messages.where((m) => !m.isFromContact).length;
     final received = _messages.where((m) =>  m.isFromContact).length;
-    final links    = _messages.where((m) => m.type == MessageType.paymentLink).length;
+    final links    = _messages.where((m) => m.messageType.toUpperCase() == 'PAYMENT_LINK').length;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -335,7 +413,8 @@ class _ChatScreenState extends State<ChatScreen> {
     buf.writeln('─' * 40);
     for (final m in _messages) {
       final who = m.isFromContact ? (_thread?.contactName ?? 'Contact') : 'Vous';
-      final time = '${m.sentAt.day.toString().padLeft(2,'0')}/${m.sentAt.month.toString().padLeft(2,'0')}/${m.sentAt.year} ${m.sentAt.hour.toString().padLeft(2,'0')}:${m.sentAt.minute.toString().padLeft(2,'0')}';
+      final dt = m.sentAtDt;
+      final time = '${dt.day.toString().padLeft(2,'0')}/${dt.month.toString().padLeft(2,'0')}/${dt.year} ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
       buf.writeln('[$time] $who : ${m.content}');
     }
     await Share.share(buf.toString(), subject: 'Conversation ${_thread?.contactName ?? ''}');
@@ -360,10 +439,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void _sendTextMessage(String content) {
     _addMessage(Message(
       id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-      threadId: widget.threadId,
-      content: content,
-      isFromContact: false,
-      sentAt: DateTime.now(),
+      direction: 'OUT',
+      bodyText: content,
+      sentAt: DateTime.now().toIso8601String(),
     ));
   }
 
@@ -381,11 +459,10 @@ class _ChatScreenState extends State<ChatScreen> {
           Navigator.pop(context);
           _addMessage(Message(
             id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-            threadId: widget.threadId,
-            content: 'Boutique Score360 Africa\nCocody Riviera 3, Abidjan\n5.356, -3.987',
-            isFromContact: false,
-            sentAt: DateTime.now(),
-            type: MessageType.location,
+            direction: 'OUT',
+            bodyText: 'Boutique Score360 Africa\nCocody Riviera 3, Abidjan\n5.356, -3.987',
+            messageType: 'LOCATION',
+            sentAt: DateTime.now().toIso8601String(),
           ));
         },
         onCatalogue: () { Navigator.pop(context); _showCatalogueSheet(); },
@@ -403,11 +480,10 @@ class _ChatScreenState extends State<ChatScreen> {
           Navigator.pop(context);
           _addMessage(Message(
             id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-            threadId: widget.threadId,
-            content: 'CMD-${DateTime.now().millisecondsSinceEpoch % 100000}',
-            isFromContact: false,
-            sentAt: DateTime.now(),
-            type: MessageType.orderTracking,
+            direction: 'OUT',
+            bodyText: 'CMD-${DateTime.now().millisecondsSinceEpoch % 100000}',
+            messageType: 'ORDER_TRACKING',
+            sentAt: DateTime.now().toIso8601String(),
           ));
         },
         onReview: () {
@@ -431,12 +507,11 @@ class _ChatScreenState extends State<ChatScreen> {
       if (xFile == null || !mounted) return;
       _addMessage(Message(
         id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-        threadId: widget.threadId,
-        content: 'Photo produit',
-        isFromContact: false,
-        sentAt: DateTime.now(),
-        type: MessageType.image,
-        imagePath: xFile.path,
+        direction: 'OUT',
+        bodyText: 'Photo produit',
+        messageType: 'IMAGE',
+        mediaUrl: xFile.path,
+        sentAt: DateTime.now().toIso8601String(),
       ));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Impossible d\'accéder à la galerie'));
@@ -704,10 +779,9 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() {
         _messages.add(Message(
           id: msgId,
-          threadId: widget.threadId,
-          content: text,
-          isFromContact: false,
-          sentAt: DateTime.now(),
+          direction: 'OUT',
+          bodyText: text,
+          sentAt: DateTime.now().toIso8601String(),
         ));
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -761,18 +835,29 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          Expanded(
+          if (_isLoadingMessages)
+            const Expanded(child: Center(child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2.5)))
+          else if (_loadError != null && _messages.isEmpty)
+            Expanded(child: _MessagesErrorState(error: _loadError!, onRetry: _loadMessages))
+          else Expanded(
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: displayed.isEmpty ? 1 : displayed.length + 1,
+              itemCount: displayed.isEmpty ? 1 : displayed.length + (_isLoadingMore ? 2 : 1),
               itemBuilder: (_, i) {
-                if (i == 0) {
+                if (_isLoadingMore && i == 0) {
+                  return const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2))),
+                  );
+                }
+                final idx = _isLoadingMore ? i - 1 : i;
+                if (idx == 0) {
                   return _searchQuery.isNotEmpty && displayed.isEmpty
                       ? const _NoResultsBanner()
                       : const _SecurityBanner();
                 }
-                final msg = displayed[i - 1];
+                final msg = displayed[idx - 1];
                 final isSelected = _selectedIds.contains(msg.id);
                 Widget bubble = switch (msg.type) {
                   MessageType.paymentLink   => _PaymentBubble(
@@ -1064,6 +1149,41 @@ class _ChatAppBar extends StatelessWidget {
 
 // ── Bannière sécurité ─────────────────────────────────────────────────────────
 
+class _MessagesErrorState extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+  const _MessagesErrorState({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_outlined, size: 48, color: AppColors.borderLight),
+            const SizedBox(height: 12),
+            Text(error, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SecurityBanner extends StatelessWidget {
   const _SecurityBanner();
 
@@ -1168,7 +1288,7 @@ class _MessageBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _formatTime(message.sentAt),
+                      _formatTime(message.sentAtDt),
                       style: TextStyle(fontSize: 10, color: fromContact ? AppColors.textHint : AppColors.white.withValues(alpha: 0.65)),
                     ),
                     if (!fromContact) ...[
@@ -1914,7 +2034,7 @@ class _LocationBubble extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                        '${message.sentAtDt.hour.toString().padLeft(2,'0')}:${message.sentAtDt.minute.toString().padLeft(2,'0')}',
                         style: const TextStyle(fontSize: 10, color: AppColors.textHint),
                       ),
                     ],
@@ -2035,7 +2155,7 @@ class _OrderTrackingBubble extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Text(
-                  '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                  '${message.sentAtDt.hour.toString().padLeft(2,'0')}:${message.sentAtDt.minute.toString().padLeft(2,'0')}',
                   style: const TextStyle(fontSize: 10, color: AppColors.textHint),
                 ),
               ),
@@ -2072,7 +2192,7 @@ class _ImageBubble extends StatelessWidget {
           child: Stack(
             children: [
               Image.file(
-                File(message.imagePath!),
+                File(message.mediaUrl!),
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: 200,
@@ -2088,7 +2208,7 @@ class _ImageBubble extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(8)),
                   child: Text(
-                    '${message.sentAt.hour.toString().padLeft(2,'0')}:${message.sentAt.minute.toString().padLeft(2,'0')}',
+                    '${message.sentAtDt.hour.toString().padLeft(2,'0')}:${message.sentAtDt.minute.toString().padLeft(2,'0')}',
                     style: const TextStyle(fontSize: 10, color: Colors.white),
                   ),
                 ),
@@ -2948,7 +3068,7 @@ class _FullscreenImageViewer extends StatelessWidget {
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
-          '${message.sentAt.day.toString().padLeft(2,'0')}/${message.sentAt.month.toString().padLeft(2,'0')}/${message.sentAt.year}',
+          '${message.sentAtDt.day.toString().padLeft(2,'0')}/${message.sentAtDt.month.toString().padLeft(2,'0')}/${message.sentAtDt.year}',
           style: const TextStyle(color: Colors.white, fontSize: 14),
         ),
         actions: [
@@ -2960,9 +3080,9 @@ class _FullscreenImageViewer extends StatelessWidget {
       ),
       body: Center(
         child: InteractiveViewer(
-          child: message.imagePath != null
+          child: message.mediaUrl != null
               ? Image.file(
-                  File(message.imagePath!),
+                  File(message.mediaUrl!),
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 64),
                 )
@@ -2983,7 +3103,7 @@ class _MessageInfoSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dt = message.sentAt;
+    final dt = message.sentAtDt;
     final timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     final dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
     final (statusLabel, statusColor, statusIcon) = switch (status) {
