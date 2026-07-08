@@ -667,10 +667,36 @@ class _StepIndicator extends StatelessWidget {
 
 // ── Contact picker ────────────────────────────────────────────────────────────
 
-class _ContactPickerSheet extends StatelessWidget {
+class _ContactPickerSheet extends StatefulWidget {
   final Thread? selected;
   final ValueChanged<Thread> onPick;
   const _ContactPickerSheet({required this.selected, required this.onPick});
+
+  @override
+  State<_ContactPickerSheet> createState() => _ContactPickerSheetState();
+}
+
+class _ContactPickerSheetState extends State<_ContactPickerSheet> {
+  List<Thread> _threads = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final threads = await inboxService.getThreads();
+      if (!mounted) return;
+      setState(() { _threads = threads; _isLoading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      // Fallback sur le mock uniquement en cas d'erreur API
+      setState(() { _threads = List.from(mockThreads); _isLoading = false; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -690,30 +716,40 @@ class _ContactPickerSheet extends StatelessWidget {
               child: Text('Choisir un contact', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary))),
           const SizedBox(height: 12),
           Flexible(
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: mockThreads.length,
-              separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.borderLight),
-              itemBuilder: (_, i) {
-                final t = mockThreads[i];
-                final isSel = selected?.id == t.id;
-                return ListTile(
-                  dense: true,
-                  leading: Container(
-                    width: 36, height: 36,
-                    decoration: BoxDecoration(
-                        color: isSel ? AppColors.green : AppColors.backgroundPage,
-                        shape: BoxShape.circle),
-                    child: Center(child: Text(t.contactInitials, style: TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700,
-                        color: isSel ? AppColors.white : AppColors.textPrimary))),
-                  ),
-                  title: Text(t.contactName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                  trailing: isSel ? const Icon(Icons.check_circle_rounded, color: AppColors.green, size: 18) : null,
-                  onTap: () => onPick(t),
-                );
-              },
-            ),
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                : _threads.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: Text('Aucun contact', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: _threads.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.borderLight),
+                        itemBuilder: (_, i) {
+                          final t = _threads[i];
+                          final isSel = widget.selected?.id == t.id;
+                          return ListTile(
+                            dense: true,
+                            leading: Container(
+                                width: 36, height: 36,
+                                decoration: BoxDecoration(
+                                    color: isSel ? AppColors.green : AppColors.backgroundPage,
+                                    shape: BoxShape.circle),
+                                child: Center(child: Text(t.contactInitials, style: TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w700,
+                                    color: isSel ? AppColors.white : AppColors.textPrimary))),
+                            ),
+                            title: Text(t.contactName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                            trailing: isSel ? const Icon(Icons.check_circle_rounded, color: AppColors.green, size: 18) : null,
+                            onTap: () => widget.onPick(t),
+                          );
+                        },
+                      ),
           ),
         ],
       ),

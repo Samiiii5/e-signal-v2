@@ -31,7 +31,9 @@ abstract class PaymentService {
   Future<void> updatePaymentStatus(String id, String status);
 }
 
-/// Implémentation mock — à remplacer par un appel HTTP en Sprint 3.
+// TODO: backend paiements pas encore connecté — remplacer par un HttpPaymentService
+// (endpoints /api/payment-links) une fois l'API disponible. Le mock reste utilisé
+// en attendant, pas seulement comme fallback d'erreur.
 class MockPaymentService implements PaymentService {
   final _links = List<PaymentLink>.from(mockPaymentLinks);
 

@@ -1,5 +1,7 @@
 import '../mock/messages_mock.dart' show PaymentStatus;
 
+// TODO: backend paiements pas encore connecté (voir shared/services/payment_service.dart).
+// Ces données mockées alimentent l'écran Paiements en attendant l'intégration API.
 class PaymentLink {
   final String id;
   final String contactName;

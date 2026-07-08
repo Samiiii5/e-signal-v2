@@ -26,6 +26,7 @@ class _InboxScreenState extends State<InboxScreen> {
   List<Publication> _publications = [];
   List<Map<String, dynamic>> _apiPosts = [];
   bool _postsLoading = false;
+  bool _postsFallback = false; // true only when getPosts() errored unexpectedly
   String? _postsError;
   String? _networkFilter; // null = Tous, 'facebook', 'instagram', 'tiktok'
 
@@ -56,7 +57,6 @@ class _InboxScreenState extends State<InboxScreen> {
       if (!mounted) return;
       setState(() {
         _threads = threads;
-        _publications = List.from(mockPublications);
         _isLoading = false;
         _error = null;
       });
@@ -89,6 +89,7 @@ class _InboxScreenState extends State<InboxScreen> {
       if (!mounted) return;
       setState(() {
         _apiPosts = posts;
+        _postsFallback = false;
         _postsLoading = false;
       });
     } on CommentsUnauthorizedException {
@@ -103,14 +104,19 @@ class _InboxScreenState extends State<InboxScreen> {
       setState(() { _postsLoading = false; _postsError = 'Vérifiez votre connexion internet.'; });
     } catch (_) {
       if (!mounted) return;
-      // Fallback silencieux sur le mock
-      setState(() { _apiPosts = []; _postsLoading = false; });
+      // Fallback sur le mock uniquement en cas d'erreur API inattendue (pas si la liste est vide)
+      setState(() {
+        _apiPosts = [];
+        _publications = List.from(mockPublications);
+        _postsFallback = true;
+        _postsLoading = false;
+      });
     }
   }
 
   Widget _buildPublicationsView() {
-    // Merge : API posts d'abord, fallback mock si vide
-    final useMock = _apiPosts.isEmpty && !_postsLoading;
+    // Fallback mock uniquement si le dernier appel API a échoué — pas pour une liste vide légitime
+    final useMock = _postsFallback && !_postsLoading;
     final filtered = useMock
         ? (_networkFilter == null
             ? List<Publication>.from(_publications)
