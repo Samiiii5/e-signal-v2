@@ -7,6 +7,7 @@ import '../../core/widgets/shimmer_box.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/publications_mock.dart';
 import '../../shared/services/inbox_service.dart';
+import '../../shared/services/comments_service.dart';
 import 'publication_detail_screen.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -23,6 +24,9 @@ class _InboxScreenState extends State<InboxScreen> {
   bool _isLoading = true;
   List<Thread> _threads = [];
   List<Publication> _publications = [];
+  List<Map<String, dynamic>> _apiPosts = [];
+  bool _postsLoading = false;
+  String? _postsError;
   String? _networkFilter; // null = Tous, 'facebook', 'instagram', 'tiktok'
 
   // Filtres du bottom sheet
@@ -74,16 +78,49 @@ class _InboxScreenState extends State<InboxScreen> {
     }
   }
 
+  Future<void> _loadPosts() async {
+    if (!mounted) return;
+    setState(() { _postsLoading = true; _postsError = null; });
+    try {
+      final posts = await commentsService.getPosts(
+        channel: _networkFilter,
+        limit: 30,
+      );
+      if (!mounted) return;
+      setState(() {
+        _apiPosts = posts;
+        _postsLoading = false;
+      });
+    } on CommentsUnauthorizedException {
+      if (!mounted) return;
+      SessionService.logout();
+      GoRouter.of(context).go('/login');
+    } on CommentsUnavailableException {
+      if (!mounted) return;
+      setState(() { _postsLoading = false; _postsError = 'Service temporairement indisponible.'; });
+    } on CommentsNetworkException {
+      if (!mounted) return;
+      setState(() { _postsLoading = false; _postsError = 'Vérifiez votre connexion internet.'; });
+    } catch (_) {
+      if (!mounted) return;
+      // Fallback silencieux sur le mock
+      setState(() { _apiPosts = []; _postsLoading = false; });
+    }
+  }
+
   Widget _buildPublicationsView() {
-    final filtered = _networkFilter == null
-        ? _publications
-        : _publications.where((p) => p.network == _networkFilter).toList();
+    // Merge : API posts d'abord, fallback mock si vide
+    final useMock = _apiPosts.isEmpty && !_postsLoading;
+    final filtered = useMock
+        ? (_networkFilter == null
+            ? List<Publication>.from(_publications)
+            : _publications.where((p) => p.network == _networkFilter).toList())
+        : null; // used only in mock branch
 
     const networks = [
       (null, 'Tous', null),
       ('facebook', 'Facebook', Color(0xFF1877F2)),
       ('instagram', 'Instagram', Color(0xFFE1306C)),
-      ('tiktok', 'TikTok', Color(0xFF010101)),
     ];
 
     return Column(
@@ -100,7 +137,10 @@ class _InboxScreenState extends State<InboxScreen> {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
-                  onTap: () => setState(() => _networkFilter = value),
+                  onTap: () {
+                    setState(() => _networkFilter = value);
+                    _loadPosts();
+                  },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -123,15 +163,45 @@ class _InboxScreenState extends State<InboxScreen> {
           ),
         ),
         const SizedBox(height: 4),
+        if (_postsError != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                children: [
+                  const Icon(Icons.wifi_off_rounded, size: 16, color: Color(0xFF92400E)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_postsError!, style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)))),
+                  GestureDetector(onTap: _loadPosts, child: const Icon(Icons.refresh, size: 16, color: Color(0xFF92400E))),
+                ],
+              ),
+            ),
+          ),
         Expanded(
-          child: filtered.isEmpty
-              ? const _EmptyState(query: '')
-              : ListView.separated(
-                  padding: const EdgeInsets.only(top: 4, bottom: 16),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const Divider(indent: 66, height: 0, thickness: 0.5, color: AppColors.borderLight),
-                  itemBuilder: (_, i) => _PublicationTile(publication: filtered[i]),
-                ),
+          child: _postsLoading
+              ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+              : useMock
+                  ? (filtered!.isEmpty
+                      ? const _EmptyState(query: '')
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(top: 4, bottom: 16),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) => const Divider(indent: 66, height: 0, thickness: 0.5, color: AppColors.borderLight),
+                          itemBuilder: (_, i) => _PublicationTile(publication: filtered[i]),
+                        ))
+                  : (_apiPosts.isEmpty
+                      ? const _EmptyState(query: '')
+                      : RefreshIndicator(
+                          onRefresh: _loadPosts,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.only(top: 4, bottom: 16),
+                            itemCount: _apiPosts.length,
+                            separatorBuilder: (_, __) => const Divider(indent: 66, height: 0, thickness: 0.5, color: AppColors.borderLight),
+                            itemBuilder: (_, i) => _ApiPostTile(post: _apiPosts[i]),
+                          ),
+                        )),
         ),
       ],
     );
@@ -289,7 +359,10 @@ class _InboxScreenState extends State<InboxScreen> {
                     filter: f,
                     isActive: _activeFilter == f,
                     unreadCount: f == _Filter.all ? _totalUnread : 0,
-                    onTap: () => setState(() => _activeFilter = f),
+                    onTap: () {
+                      setState(() => _activeFilter = f);
+                      if (f == _Filter.commentaires) _loadPosts();
+                    },
                   ),
                 )).toList(),
               ),
@@ -761,6 +834,80 @@ class _PublicationTile extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
                       child: Text('${pub.commentCount}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    if (diff.inDays == 1) return 'Hier';
+    return '${dt.day}/${dt.month}';
+  }
+}
+
+class _ApiPostTile extends StatelessWidget {
+  final Map<String, dynamic> post;
+  const _ApiPostTile({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = (post['title'] ?? post['name'] ?? post['content'] ?? 'Publication').toString();
+    final channel = (post['channel'] ?? post['network'] ?? '').toString().toLowerCase();
+    final commentCount = (post['comment_count'] ?? post['commentCount'] ?? post['comments_count'] ?? 0) as int;
+    final rawDate = post['published_at'] ?? post['publishedAt'] ?? post['created_at'];
+    final publishedAt = rawDate != null ? DateTime.tryParse(rawDate.toString()) : null;
+
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PublicationDetailScreen(
+            publication: Publication(
+              id: (post['id'] ?? '').toString(),
+              title: title,
+              network: channel.isNotEmpty ? channel : 'facebook',
+              commentCount: commentCount,
+              publishedAt: publishedAt ?? DateTime.now(),
+              comments: const [],
+            ),
+            apiPostId: (post['id'] ?? '').toString(),
+          ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            _NetworkCircle(network: channel),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    const SizedBox(width: 8),
+                    if (publishedAt != null)
+                      Text(_fmtDate(publishedAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    const Icon(Icons.chat_bubble_outline, size: 13, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text('$commentCount commentaires', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
+                      child: Text('$commentCount', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
                     ),
                   ]),
                 ],

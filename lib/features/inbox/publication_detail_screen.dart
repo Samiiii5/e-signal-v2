@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/services/session_service.dart';
 import '../../shared/mock/publications_mock.dart';
+import '../../shared/services/comments_service.dart';
 
 class PublicationDetailScreen extends StatefulWidget {
   final Publication publication;
-  const PublicationDetailScreen({super.key, required this.publication});
+  final String? apiPostId;
+  const PublicationDetailScreen({super.key, required this.publication, this.apiPostId});
 
   @override
   State<PublicationDetailScreen> createState() => _PublicationDetailScreenState();
@@ -15,11 +19,16 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
   final _focusNode = FocusNode();
   late List<PublicationComment> _comments;
   PublicationComment? _replyTarget;
+  bool _isLoading = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     _comments = List.from(widget.publication.comments);
+    if (widget.apiPostId != null) {
+      _loadComments();
+    }
   }
 
   @override
@@ -38,6 +47,65 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
     setState(() => _replyTarget = null);
   }
 
+  Future<void> _loadComments() async {
+    if (!mounted || widget.apiPostId == null) return;
+    setState(() { _isLoading = true; _error = null; });
+    try {
+      final raw = await commentsService.getComments(postId: widget.apiPostId);
+      if (!mounted) return;
+      // Sort newest first
+      raw.sort((a, b) {
+        final da = DateTime.tryParse((a['created_at'] ?? a['sent_at'] ?? '').toString()) ?? DateTime(0);
+        final db = DateTime.tryParse((b['created_at'] ?? b['sent_at'] ?? '').toString()) ?? DateTime(0);
+        return db.compareTo(da);
+      });
+      final mapped = raw.map((c) {
+        final authorName = (c['author_name'] ?? c['authorName'] ?? c['author'] ?? 'Inconnu').toString();
+        final initials = authorName.trim().isNotEmpty
+            ? authorName.trim().split(RegExp(r'\s+')).map((p) => p.isNotEmpty ? p[0].toUpperCase() : '').take(2).join()
+            : '?';
+        final sentAtRaw = c['created_at'] ?? c['sent_at'] ?? c['sentAt'];
+        final sentAt = sentAtRaw != null ? (DateTime.tryParse(sentAtRaw.toString()) ?? DateTime.now()) : DateTime.now();
+        return PublicationComment(
+          id: (c['id'] ?? '').toString(),
+          authorName: authorName,
+          initials: initials,
+          text: (c['text'] ?? c['content'] ?? c['body'] ?? '').toString(),
+          sentAt: sentAt,
+          replyToCommentId: c['reply_to_comment_id']?.toString() ?? c['replyToCommentId']?.toString(),
+          replyToName: c['reply_to_name']?.toString() ?? c['replyToName']?.toString(),
+        );
+      }).toList();
+
+      setState(() {
+        _comments = mapped.isNotEmpty ? mapped : List.from(widget.publication.comments);
+        _isLoading = false;
+      });
+
+      // Mark all new comments as read (fire & forget)
+      for (final c in raw.where((c) => (c['status'] ?? '') == 'new')) {
+        commentsService.updateCommentStatus(
+          commentId: (c['id'] ?? '').toString(),
+          status: 'read',
+        ).ignore();
+      }
+    } on CommentsUnauthorizedException {
+      if (!mounted) return;
+      SessionService.logout();
+      context.go('/login');
+    } on CommentsUnavailableException {
+      if (!mounted) return;
+      setState(() { _isLoading = false; _error = 'Service temporairement indisponible.'; });
+    } on CommentsNetworkException {
+      if (!mounted) return;
+      setState(() { _isLoading = false; _error = 'Vérifiez votre connexion internet.'; });
+    } catch (_) {
+      if (!mounted) return;
+      // Fallback silencieux : garder les commentaires mock
+      setState(() { _isLoading = false; });
+    }
+  }
+
   void _sendReply() {
     final text = _replyCtrl.text.trim();
     if (text.isEmpty) return;
@@ -52,15 +120,23 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
       replyToName: _replyTarget?.authorName,
     );
 
+    // Appel API si on a un vrai ID de commentaire cible
+    if (_replyTarget != null && widget.apiPostId != null) {
+      final channel = widget.publication.network;
+      commentsService.replyToComment(
+        commentId: _replyTarget!.id,
+        message: text,
+        provider: channel,
+      ).ignore();
+    }
+
     setState(() {
       if (_replyTarget != null) {
         // Insert just after the parent comment
         final parentId = _replyTarget!.id;
-        // Find the last reply to this parent or the parent itself
-        int insertIndex = _comments.length; // fallback: append
+        int insertIndex = _comments.length;
         int parentIndex = _comments.indexWhere((c) => c.id == parentId);
         if (parentIndex != -1) {
-          // Find last consecutive reply to this parent starting from parentIndex+1
           int idx = parentIndex + 1;
           while (idx < _comments.length && _comments[idx].replyToCommentId == parentId) {
             idx++;
@@ -175,11 +251,32 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              children: _buildCommentWidgets(),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(10)),
+                child: Row(
+                  children: [
+                    const Icon(Icons.wifi_off_rounded, size: 16, color: Color(0xFF92400E)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)))),
+                    GestureDetector(onTap: _loadComments, child: const Icon(Icons.refresh, size: 16, color: Color(0xFF92400E))),
+                  ],
+                ),
+              ),
             ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                : RefreshIndicator(
+                    onRefresh: _loadComments,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      children: _buildCommentWidgets(),
+                    ),
+                  ),
           ),
           // Reply target bar
           if (_replyTarget != null)
