@@ -70,7 +70,7 @@ class Message {
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
       id: (json['id'] ?? '').toString(),
-      direction: (json['direction'] ?? 'IN').toString(),
+      direction: (json['direction'] ?? 'IN').toString().toUpperCase(),
       bodyText: json['body_text']?.toString(),
       messageType: (json['message_type'] ?? 'TEXT').toString(),
       mediaUrl: json['media_url']?.toString(),
