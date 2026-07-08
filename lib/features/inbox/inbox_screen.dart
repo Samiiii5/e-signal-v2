@@ -144,6 +144,7 @@ class _InboxScreenState extends State<InboxScreen> {
       case _Filter.sms: list = list.where((t) => t.channel == 'sms').toList();
       case _Filter.email: list = list.where((t) => t.channel == 'email').toList();
       case _Filter.facebook: list = list.where((t) => t.channel == 'messenger').toList();
+      case _Filter.instagram: list = list.where((t) => t.channel == 'instagram').toList();
       case _Filter.tiktok: list = list.where((t) => t.channel == 'tiktok').toList();
       case _Filter.unread: list = list.where((t) => t.unreadCount > 0).toList();
       case _Filter.all: break;
@@ -356,7 +357,7 @@ class _InboxSkeleton extends StatelessWidget {
 
 // ── Filtres ───────────────────────────────────────────────────────────────────
 
-enum _Filter { all, whatsapp, sms, email, facebook, tiktok, unread, commentaires }
+enum _Filter { all, whatsapp, sms, email, facebook, instagram, tiktok, unread, commentaires }
 
 extension _FilterLabel on _Filter {
   String get label => switch (this) {
@@ -365,6 +366,7 @@ extension _FilterLabel on _Filter {
     _Filter.sms          => 'SMS',
     _Filter.email        => 'Email',
     _Filter.facebook     => 'Facebook',
+    _Filter.instagram    => 'Instagram',
     _Filter.tiktok       => 'TikTok',
     _Filter.unread       => 'Non lus',
     _Filter.commentaires => 'Commentaires',
@@ -613,6 +615,7 @@ class _FilterSheetState extends State<_FilterSheet> {
           _ChannelOption(label: 'SMS', value: 'sms', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF5C6BC0)),
           _ChannelOption(label: 'Email', value: 'email', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFFEA4335)),
           _ChannelOption(label: 'Facebook', value: 'messenger', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF1877F2)),
+          _ChannelOption(label: 'Instagram', value: 'instagram', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFFE1306C)),
           _ChannelOption(label: 'TikTok', value: 'tiktok', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF010101)),
 
           const SizedBox(height: 16),
