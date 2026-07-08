@@ -53,7 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final firstName = SessionService.firstName ?? '';
     final lastName  = SessionService.lastName  ?? '';
-    final fullName  = '${firstName} ${lastName}'.trim();
+    final fullName  = '$firstName $lastName'.trim();
     final displayName = fullName.isNotEmpty ? fullName : 'Non renseigné';
     final initials = _initials(firstName, lastName);
 
