@@ -87,6 +87,8 @@ class HttpInboxService implements InboxService {
         List<dynamic> items;
         if (data is List) {
           items = data;
+        } else if (data is Map && data['items'] is List) {
+          items = data['items'] as List;
         } else if (data is Map && data['data'] is List) {
           items = data['data'] as List;
         } else if (data is Map && data['threads'] is List) {
@@ -94,7 +96,12 @@ class HttpInboxService implements InboxService {
         } else {
           return List.from(mockThreads);
         }
-        return items.map((e) => Thread.fromJson(e as Map<String, dynamic>)).toList();
+        final threads = items.map((e) => Thread.fromJson(e as Map<String, dynamic>)).toList();
+        // ignore: avoid_print
+        print('=== THREADS PARSÉS : ${threads.length} ===');
+        // ignore: avoid_print
+        print('=== PREMIER THREAD : ${threads.isNotEmpty ? threads.first.contactName : "vide"} ===');
+        return threads;
       } else if (resp.statusCode == 401) {
         throw const InboxUnauthorizedException();
       } else {

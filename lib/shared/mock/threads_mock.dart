@@ -31,7 +31,11 @@ class Thread {
   factory Thread.fromJson(Map<String, dynamic> json) {
     return Thread(
       id: (json['id'] ?? json['_id'] ?? '').toString(),
-      contactName: (json['contactName'] ?? json['contact_name'] ?? json['contact'] ?? 'Inconnu').toString(),
+      contactName: () {
+        final contact = json['contact'];
+        if (contact is Map) return (contact['full_name'] ?? contact['name'] ?? 'Inconnu').toString();
+        return (json['contactName'] ?? json['contact_name'] ?? contact ?? 'Inconnu').toString();
+      }(),
       contactPictureUrl: json['contactPictureUrl']?.toString() ?? json['contact_picture_url']?.toString(),
       channel: (json['channel'] ?? '').toString().toLowerCase(),
       lastMessageAt: json['lastMessageAt']?.toString() ?? json['last_message_at']?.toString(),
