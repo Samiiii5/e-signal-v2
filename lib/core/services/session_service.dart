@@ -53,6 +53,8 @@ class SessionService {
     _email = prefs.getString('email');
     _status = prefs.getString('status');
     _kycLevel = prefs.getString('kyc_level');
+    // ignore: avoid_print
+    print('=== ORGANIZATION ID === : $_organizationId');
   }
 
   static void markOnboardingSeen() {
@@ -98,7 +100,7 @@ class SessionService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('organization_id', orgId);
     // ignore: avoid_print
-    print('ORGANIZATION ID : $organizationId');
+    print('=== ORGANIZATION ID === : $_organizationId');
   }
 
   /// Appelé par le refresh intercepteur de ApiClient.
