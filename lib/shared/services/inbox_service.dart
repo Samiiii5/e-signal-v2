@@ -67,6 +67,8 @@ class HttpInboxService implements InboxService {
   @override
   Future<List<Thread>> getThreads({String? channelFilter, bool? unreadOnly}) async {
     final orgId = SessionService.organizationId;
+    // ignore: avoid_print
+    print('CALLING API avec org_id: ${SessionService.organizationId}');
     if (orgId == null) return List.from(mockThreads);
 
     try {
@@ -75,6 +77,8 @@ class HttpInboxService implements InboxService {
       if (unreadOnly == true) params['status'] = 'unread';
 
       final resp = await ApiClient.dio.get('/inbox/threads', queryParameters: params);
+      // ignore: avoid_print
+      print('RESPONSE: ${resp.data}');
 
       if (resp.statusCode == 200) {
         final data = resp.data;

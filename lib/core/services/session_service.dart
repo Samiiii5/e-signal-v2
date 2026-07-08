@@ -97,6 +97,8 @@ class SessionService {
     _organizationId = orgId;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('organization_id', orgId);
+    // ignore: avoid_print
+    print('ORGANIZATION ID : $organizationId');
   }
 
   /// Appelé par le refresh intercepteur de ApiClient.
