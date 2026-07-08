@@ -209,7 +209,7 @@ class MockInboxService implements InboxService {
         ? List<Message>.from(mockMessagesThread001)
         : <Message>[];
     final all = [...base, ...(_extraMessages[threadId] ?? [])];
-    return MessagesResult(messages: all);
+    return MessagesResult(messages: List<Message>.from(all));
   }
 
   @override
