@@ -6,6 +6,7 @@ import '../../../core/utils/responsive.dart';
 import '../../../core/services/session_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../shared/services/auth_service.dart';
+import '../../../shared/services/notification_service.dart';
 
 class LoginPage2Screen extends StatefulWidget {
   final String identifier;
@@ -49,6 +50,9 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
       // Récupère l'organization_id depuis /auth/me
       final orgId = await authService.getMe();
       if (orgId != null) await SessionService.saveOrganizationId(orgId);
+
+      // Enregistrer le FCM token après connexion réussie
+      await NotificationService.registerFCMToken();
 
       if (!mounted) return;
       router.go('/inbox');
@@ -224,20 +228,16 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
 
   String _maskedIdentifier(String id) {
     if (id.contains('@')) {
-      // Email : masque la partie locale sauf les 2 premiers caractères.
       final parts = id.split('@');
       final local = parts[0];
       final domain = parts[1];
       if (local.length <= 2) return id;
       return '${local.substring(0, 2)}${'•' * (local.length - 2)}@$domain';
     }
-    // Numéro : masque tout sauf les 4 derniers chiffres.
     if (id.length <= 4) return id;
     return '${'•' * (id.length - 4)}${id.substring(id.length - 4)}';
   }
 }
-
-// ─── Logo ─────────────────────────────────────────────────────────────────────
 
 class _ESignalLogo extends StatelessWidget {
   const _ESignalLogo();

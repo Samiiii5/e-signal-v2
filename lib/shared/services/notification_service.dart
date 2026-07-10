@@ -1,31 +1,20 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dio/dio.dart';
-import 'session_service.dart';
+import 'package:esignal/core/services/session_service.dart';
 
 class NotificationService {
   // URL de ton backend — à changer après déploiement sur Render
-  static const String _backendUrl = 'http://127.0.0.1:8000';
+  static const String _backendUrl = 'http://192.168.1.13:8000';
 
-  static Future<void> initialize() async {
+  // Appeler au démarrage dans main.dart
+  static Future<void> initializeListeners() async {
     final messaging = FirebaseMessaging.instance;
 
-    // Demander la permission
     await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
-
-    // Récupérer le FCM token
-    final token = await messaging.getToken();
-    print('=============================');
-    print('FCM Token: $token');
-    print('=============================');
-
-    // Envoyer le token au backend
-    if (token != null) {
-      await _registerToken(token);
-    }
 
     // Gérer les notifications quand l'app est ouverte
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -39,6 +28,22 @@ class NotificationService {
       print('Notification tappée :');
       print('Titre : ${message.notification?.title}');
     });
+  }
+
+  // Appeler après connexion réussie
+  static Future<void> registerFCMToken() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final token = await messaging.getToken();
+      print('=============================');
+      print('FCM Token: $token');
+      print('=============================');
+      if (token != null) {
+        await _registerToken(token);
+      }
+    } catch (e) {
+      print('=== Erreur FCM Token : $e ===');
+    }
   }
 
   static Future<void> _registerToken(String token) async {
