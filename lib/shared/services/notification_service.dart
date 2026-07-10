@@ -4,7 +4,7 @@ import 'package:esignal/core/services/session_service.dart';
 
 class NotificationService {
   // URL de ton backend — à changer après déploiement sur Render
-  static const String _backendUrl = 'http://192.168.1.13:8000';
+  static const String _backendUrl = 'https://e-signal-v2-backend-notifications.onrender.com';
 
   // Appeler au démarrage dans main.dart
   static Future<void> initializeListeners() async {
