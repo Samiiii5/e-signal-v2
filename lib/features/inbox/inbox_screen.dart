@@ -11,7 +11,9 @@ import '../../shared/services/comments_service.dart';
 import 'publication_detail_screen.dart';
 
 class InboxScreen extends StatefulWidget {
-  const InboxScreen({super.key});
+  final String? initialChannel;
+  final String? initialThreadId;
+  const InboxScreen({super.key, this.initialChannel, this.initialThreadId});
 
   @override
   State<InboxScreen> createState() => _InboxScreenState();
@@ -41,7 +43,22 @@ class _InboxScreenState extends State<InboxScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
+    if (widget.initialChannel != null) {
+      _activeFilter = _channelToFilter(widget.initialChannel!);
+    }
     _loadThreads();
+  }
+
+  _Filter _channelToFilter(String channel) {
+    switch (channel) {
+      case 'whatsapp': return _Filter.whatsapp;
+      case 'sms': return _Filter.sms;
+      case 'email': return _Filter.email;
+      case 'messenger': return _Filter.facebook;
+      case 'instagram': return _Filter.instagram;
+      case 'tiktok': return _Filter.tiktok;
+      default: return _Filter.all;
+    }
   }
 
   @override

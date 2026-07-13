@@ -19,6 +19,12 @@ import '../../core/services/navigation_service.dart';
 import '../../core/services/session_service.dart';
 import 'app_shell.dart';
 
+// ─── Navigation globale ───────────────────────────────────────────────────────
+
+/// Utilisé hors du contexte widget (ex: notification_service.dart) pour naviguer
+/// depuis le tap sur une notification push.
+final navigatorKey = GlobalKey<NavigatorState>();
+
 // ─── Helpers de transition ────────────────────────────────────────────────────
 
 /// Slide depuis la droite — navigation en avant dans la pile.
@@ -58,6 +64,7 @@ CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
 
 GoRouter buildRouter() {
   final router = GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: '/inbox',
     redirect: _rootRedirect,
     routes: [
@@ -162,7 +169,10 @@ GoRouter buildRouter() {
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/inbox',
-              builder: (context, state) => const InboxScreen(),
+              builder: (context, state) => InboxScreen(
+                initialChannel: state.uri.queryParameters['channel'],
+                initialThreadId: state.uri.queryParameters['thread_id'],
+              ),
             ),
           ]),
           StatefulShellBranch(routes: [

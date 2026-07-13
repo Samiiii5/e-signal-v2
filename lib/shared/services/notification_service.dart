@@ -1,5 +1,8 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
+import 'package:esignal/core/navigation/app_router.dart';
 import 'package:esignal/core/services/session_service.dart';
 
 class NotificationService {
@@ -23,11 +26,23 @@ class NotificationService {
       print('Corps : ${message.notification?.body}');
     });
 
-    // Gérer le tap sur une notification
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('Notification tappée :');
-      print('Titre : ${message.notification?.title}');
-    });
+    // Gérer le tap sur une notification quand l'app est en arrière-plan
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+    // Gérer le tap sur une notification qui a lancé l'app depuis l'état terminé
+    final initialMessage = await messaging.getInitialMessage();
+    if (initialMessage != null) {
+      // navigatorKey n'est attaché qu'après le premier build de MaterialApp.router
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handleNotificationTap(initialMessage));
+    }
+  }
+
+  static void _handleNotificationTap(RemoteMessage message) {
+    final channel = message.data['channel'];
+    final threadId = message.data['thread_id'];
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    GoRouter.of(context).go('/inbox?channel=$channel&thread_id=$threadId');
   }
 
   // Appeler après connexion réussie
@@ -62,6 +77,7 @@ class NotificationService {
         data: {
           'user_id': userId,
           'fcm_token': token,
+          'platform': 'android',
           'organization_id': organizationId,
         },
       );
