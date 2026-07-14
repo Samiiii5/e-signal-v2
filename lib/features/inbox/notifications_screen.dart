@@ -1,7 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/widgets/app_snackbar.dart';
+import '../../shared/services/inbox_service.dart';
 import '../../shared/services/notification_service.dart';
+import 'widgets/notification_item.dart';
+
+enum _NotifFilter { all, message, call, payment }
+
+extension on _NotifFilter {
+  String get label => switch (this) {
+    _NotifFilter.all     => 'Tous',
+    _NotifFilter.message => 'Messages',
+    _NotifFilter.call    => 'Appels',
+    _NotifFilter.payment => 'Paiements',
+  };
+
+  NotificationType? get type => switch (this) {
+    _NotifFilter.all     => null,
+    _NotifFilter.message => NotificationType.message,
+    _NotifFilter.call    => NotificationType.call,
+    _NotifFilter.payment => NotificationType.payment,
+  };
+}
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -12,6 +35,8 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   List<AppNotification> _notifications = [];
+  final Set<String> _removingIds = {};
+  _NotifFilter _activeFilter = _NotifFilter.all;
   bool _isLoading = true;
   String? _error;
 
@@ -33,25 +58,86 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  List<AppNotification> get _filtered {
+    final type = _activeFilter.type;
+    if (type == null) return _notifications;
+    return _notifications.where((n) => n.type == type).toList();
+  }
+
+  Map<String, List<AppNotification>> _groupByDate(List<AppNotification> items) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final weekAgo = today.subtract(const Duration(days: 7));
+
+    final sections = <String, List<AppNotification>>{
+      'Aujourd\'hui': [],
+      'Hier': [],
+      'Cette semaine': [],
+      'Plus ancien': [],
+    };
+    for (final n in items) {
+      final d = DateTime(n.sentAt.year, n.sentAt.month, n.sentAt.day);
+      if (d == today) {
+        sections['Aujourd\'hui']!.add(n);
+      } else if (d == yesterday) {
+        sections['Hier']!.add(n);
+      } else if (d.isAfter(weekAgo)) {
+        sections['Cette semaine']!.add(n);
+      } else {
+        sections['Plus ancien']!.add(n);
+      }
+    }
+    sections.removeWhere((_, v) => v.isEmpty);
+    return sections;
+  }
+
   Future<void> _onTapNotification(AppNotification n) async {
     if (!n.isRead) {
       setState(() {
         final idx = _notifications.indexWhere((x) => x.id == n.id);
         if (idx != -1) _notifications[idx] = _notifications[idx].copyWith(isRead: true);
       });
-      NotificationService.markAsRead(n.id);
+      NotificationService.markAsRead(n);
     }
     if (!mounted) return;
     GoRouter.of(context).go('/inbox?channel=${n.channel}&thread_id=${n.threadId ?? ''}');
   }
 
+  void _markRead(AppNotification n) {
+    if (n.isRead) return;
+    setState(() {
+      final idx = _notifications.indexWhere((x) => x.id == n.id);
+      if (idx != -1) _notifications[idx] = _notifications[idx].copyWith(isRead: true);
+    });
+    NotificationService.markAsRead(n);
+  }
+
+  /// Fait disparaître la tuile en douceur (fade + collapse) avant de la
+  /// retirer de la liste et d'exécuter l'action réelle.
+  Future<void> _animateAndRemove(AppNotification n, VoidCallback action) async {
+    setState(() => _removingIds.add(n.id));
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
+    setState(() {
+      _notifications.removeWhere((x) => x.id == n.id);
+      _removingIds.remove(n.id);
+    });
+    action();
+  }
+
   void _deleteNotification(AppNotification n) {
-    setState(() => _notifications.removeWhere((x) => x.id == n.id));
-    NotificationService.deleteNotification(n.id, wasUnread: !n.isRead);
+    _animateAndRemove(n, () => NotificationService.deleteNotification(n));
+  }
+
+  void _archiveNotification(AppNotification n) {
+    // Pas d'endpoint d'archivage côté backend pour l'instant : on masque
+    // localement la notification sans toucher à Firestore.
+    _animateAndRemove(n, () {});
   }
 
   void _markAllAsRead() {
-    final unreadIds = _notifications.where((n) => !n.isRead).map((n) => n.id).toList();
+    final unreadIds = _notifications.where((n) => !n.isRead).toList();
     if (unreadIds.isEmpty) return;
     setState(() {
       _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
@@ -59,11 +145,49 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationService.markAllAsRead(unreadIds);
   }
 
+  Future<void> _confirmClearAll() async {
+    if (_notifications.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Vider toutes les notifications ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+        content: const Text('Cette action est irréversible.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Vider tout', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (confirmed == true) _clearAll();
+  }
+
   void _clearAll() {
-    final ids = _notifications.map((n) => n.id).toList();
-    if (ids.isEmpty) return;
+    final items = List<AppNotification>.from(_notifications);
     setState(() => _notifications = []);
-    NotificationService.clearAll(ids);
+    NotificationService.clearAll(items);
+  }
+
+  Future<void> _sendQuickReply(AppNotification n, String text) async {
+    if (n.threadId != null) {
+      await inboxService.sendMessage(n.threadId!, text);
+    }
+    _markRead(n);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Réponse envoyée'));
+  }
+
+  Future<void> _callBack(AppNotification n) async {
+    final phone = n.callerPhone;
+    if (phone == null) {
+      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Numéro indisponible'));
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
   }
 
   @override
@@ -88,29 +212,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+          ? const _SkeletonList()
           : _error != null
               ? _buildErrorState()
               : RefreshIndicator(
                   onRefresh: _load,
                   child: Column(
                     children: [
+                      _buildFilterChips(),
                       _buildActionsRow(),
                       Expanded(
                         child: _notifications.isEmpty
-                            ? _buildEmptyState()
-                            : ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                itemCount: _notifications.length,
-                                itemBuilder: (_, i) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: _NotificationTile(
-                                    notification: _notifications[i],
-                                    onTap: () => _onTapNotification(_notifications[i]),
-                                    onDismissed: () => _deleteNotification(_notifications[i]),
-                                  ),
-                                ),
-                              ),
+                            ? _buildAllCaughtUpState()
+                            : _filtered.isEmpty
+                                ? _buildEmptyFilterState()
+                                : _buildList(),
                       ),
                     ],
                   ),
@@ -118,10 +234,41 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  Widget _buildFilterChips() {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        children: _NotifFilter.values.map((f) {
+          final isActive = _activeFilter == f;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => setState(() => _activeFilter = f),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isActive ? AppColors.green : AppColors.backgroundStatus,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  f.label,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isActive ? AppColors.white : AppColors.textSecondary),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _buildActionsRow() {
     if (_notifications.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Row(
         children: [
           Expanded(
@@ -133,7 +280,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
           TextButton.icon(
-            onPressed: _clearAll,
+            onPressed: _confirmClearAll,
             icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.error),
             label: const Text('Vider tout', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.error)),
             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
@@ -143,14 +290,80 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildList() {
+    final sections = _groupByDate(_filtered);
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: ListView(
+        key: ValueKey(_activeFilter),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          for (final entry in sections.entries) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
+              child: Text(entry.key, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+            ),
+            for (final n in entry.value) ...[
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: AnimatedOpacity(
+                  opacity: _removingIds.contains(n.id) ? 0 : 1,
+                  duration: const Duration(milliseconds: 160),
+                  child: _removingIds.contains(n.id)
+                      ? const SizedBox(width: double.infinity)
+                      : NotificationItem(
+                          notification: n,
+                          onTap: () => _onTapNotification(n),
+                          onMarkRead: () => _markRead(n),
+                          onArchive: () => _archiveNotification(n),
+                          onDelete: () => _deleteNotification(n),
+                          onQuickReply: n.type == NotificationType.message ? (text) => _sendQuickReply(n, text) : null,
+                          onCallBack: n.type == NotificationType.call ? () => _callBack(n) : null,
+                        ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllCaughtUpState() {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.notifications_none_rounded, size: 48, color: AppColors.borderLight),
+          Container(
+            width: 72, height: 72,
+            decoration: const BoxDecoration(color: AppColors.greenLight, shape: BoxShape.circle),
+            child: const Icon(Icons.check_rounded, size: 36, color: AppColors.greenDark),
+          ),
+          const SizedBox(height: 16),
+          const Text('Vous êtes à jour !', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          const Text('Aucune nouvelle notification', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const SizedBox(height: 16),
+          TextButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh, size: 16, color: AppColors.green),
+            label: const Text('Actualiser', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.green)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyFilterState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.filter_alt_off_outlined, size: 40, color: AppColors.borderLight),
           const SizedBox(height: 12),
-          const Text('Aucune notification', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+          Text('Aucune notification "${_activeFilter.label}"', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         ],
       ),
     );
@@ -185,105 +398,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
-class _NotificationTile extends StatelessWidget {
-  final AppNotification notification;
-  final VoidCallback onTap;
-  final VoidCallback onDismissed;
-
-  const _NotificationTile({
-    required this.notification,
-    required this.onTap,
-    required this.onDismissed,
-  });
-
-  (Color, String) _channelStyle(String channel) => switch (channel) {
-        'whatsapp'  => (AppColors.green, 'W'),
-        'messenger' => (const Color(0xFF1877F2), 'f'),
-        'sms'       => (AppColors.purple, '💬'),
-        'email'     => (AppColors.error, '✉'),
-        'tiktok'    => (const Color(0xFF010101), '♪'),
-        'instagram' => (const Color(0xFFE1306C), '📷'),
-        _           => (AppColors.textSecondary, '?'),
-      };
-
-  String _fmtDate(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes}min';
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    if (diff.inDays == 1) return 'Hier';
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
-  }
+class _SkeletonList extends StatelessWidget {
+  const _SkeletonList();
 
   @override
   Widget build(BuildContext context) {
-    final (color, glyph) = _channelStyle(notification.channel);
-
-    return Dismissible(
-      key: ValueKey(notification.id),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => onDismissed(),
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(14)),
-        child: const Icon(Icons.delete_outline, color: AppColors.white),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.borderLight, width: 0.5),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                child: Center(child: Text(glyph, style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w800))),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            notification.title,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(_fmtDate(notification.sentAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      notification.body,
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (!notification.isRead) ...[
-                const SizedBox(width: 8),
-                Container(
-                  width: 8, height: 8,
-                  margin: const EdgeInsets.only(top: 4),
-                  decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
+    return Shimmer.fromColors(
+      baseColor: AppColors.backgroundStatus,
+      highlightColor: AppColors.white,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        itemCount: 6,
+        itemBuilder: (_, __) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(14)),
+            child: Row(
+              children: [
+                Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.backgroundStatus, shape: BoxShape.circle)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(height: 12, width: 120, color: AppColors.backgroundStatus),
+                      const SizedBox(height: 8),
+                      Container(height: 10, width: double.infinity, color: AppColors.backgroundStatus),
+                      const SizedBox(height: 6),
+                      Container(height: 10, width: 180, color: AppColors.backgroundStatus),
+                    ],
+                  ),
                 ),
               ],
-            ],
+            ),
           ),
         ),
       ),
