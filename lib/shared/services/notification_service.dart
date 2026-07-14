@@ -5,7 +5,6 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:esignal/core/navigation/app_router.dart';
 import 'package:esignal/core/services/session_service.dart';
-import 'package:esignal/shared/mock/notifications_mock.dart';
 import 'package:esignal/shared/models/notification_model.dart';
 
 export 'package:esignal/shared/models/notification_model.dart';
@@ -20,46 +19,41 @@ class NotificationService {
   /// réseau) pour un rendu immédiat côté UI.
   static final ValueNotifier<int> unreadCount = ValueNotifier<int>(0);
 
+  /// Incrémenté à chaque notification FCM reçue en foreground — écouté par
+  /// NotificationsScreen pour se rafraîchir automatiquement.
+  static final ValueNotifier<int> newNotificationTick = ValueNotifier<int>(0);
+
   static CollectionReference<Map<String, dynamic>>? _notificationsCollection() {
     final userId = SessionService.userId;
     if (userId == null) return null;
     return FirebaseFirestore.instance.collection('users').doc(userId).collection('notifications');
   }
 
-  /// GET /api/notifications/history/{user_id}, fusionné avec les
-  /// notifications de démo (appels/paiements — voir notifications_mock.dart)
-  /// tant que le backend ne les expose pas. Une erreur réseau sur le vrai
-  /// endpoint n'empêche pas d'afficher les items de démo.
+  /// GET /api/notifications/history/{user_id}
   static Future<List<AppNotification>> fetchHistory() async {
     final userId = SessionService.userId;
-    var real = <AppNotification>[];
+    if (userId == null) return [];
 
-    if (userId != null) {
-      try {
-        final dio = Dio();
-        final resp = await dio.get(
-          '$_backendUrl/api/notifications/history/$userId',
-          options: Options(headers: {'X-API-Key': _apiKey}),
-        );
-        final data = resp.data;
-        final raw = (data is Map ? data['notifications'] as List? : null) ?? [];
-        real = raw.whereType<Map>().map((e) => AppNotification.fromJson(Map<String, dynamic>.from(e))).toList();
-      } catch (e) {
-        debugPrint('=== Erreur fetchHistory : $e ===');
-      }
-    }
-
-    final merged = [...real, ...mockExtraNotifications()]
+    final dio = Dio();
+    final resp = await dio.get(
+      '$_backendUrl/api/notifications/history/$userId',
+      options: Options(headers: {'X-API-Key': _apiKey}),
+    );
+    final data = resp.data;
+    final raw = (data is Map ? data['notifications'] as List? : null) ?? [];
+    final items = raw
+        .whereType<Map>()
+        .map((e) => AppNotification.fromJson(Map<String, dynamic>.from(e)))
+        .toList()
       ..sort((a, b) => b.sentAt.compareTo(a.sentAt));
 
-    unreadCount.value = merged.where((n) => !n.isRead).length;
-    return merged;
+    unreadCount.value = items.where((n) => !n.isRead).length;
+    return items;
   }
 
   static Future<void> markAsRead(AppNotification n) async {
     if (n.isRead) return;
     unreadCount.value = (unreadCount.value - 1).clamp(0, 1 << 31);
-    if (n.isMock) return;
     try {
       await _notificationsCollection()?.doc(n.id).update({'read': true});
     } catch (e) {
@@ -69,7 +63,6 @@ class NotificationService {
 
   static Future<void> deleteNotification(AppNotification n) async {
     if (!n.isRead) unreadCount.value = (unreadCount.value - 1).clamp(0, 1 << 31);
-    if (n.isMock) return;
     try {
       await _notificationsCollection()?.doc(n.id).delete();
     } catch (e) {
@@ -78,14 +71,14 @@ class NotificationService {
   }
 
   static Future<void> markAllAsRead(List<AppNotification> items) async {
-    final realUnreadIds = items.where((n) => !n.isRead && !n.isMock).map((n) => n.id).toList();
+    final unreadIds = items.where((n) => !n.isRead).map((n) => n.id).toList();
     unreadCount.value = 0;
-    if (realUnreadIds.isEmpty) return;
+    if (unreadIds.isEmpty) return;
     final col = _notificationsCollection();
     if (col == null) return;
     try {
       final batch = FirebaseFirestore.instance.batch();
-      for (final id in realUnreadIds) {
+      for (final id in unreadIds) {
         batch.update(col.doc(id), {'read': true});
       }
       await batch.commit();
@@ -95,14 +88,14 @@ class NotificationService {
   }
 
   static Future<void> clearAll(List<AppNotification> items) async {
-    final realIds = items.where((n) => !n.isMock).map((n) => n.id).toList();
+    final ids = items.map((n) => n.id).toList();
     unreadCount.value = 0;
-    if (realIds.isEmpty) return;
+    if (ids.isEmpty) return;
     final col = _notificationsCollection();
     if (col == null) return;
     try {
       final batch = FirebaseFirestore.instance.batch();
-      for (final id in realIds) {
+      for (final id in ids) {
         batch.delete(col.doc(id));
       }
       await batch.commit();
@@ -126,6 +119,8 @@ class NotificationService {
       debugPrint('Notification reçue en foreground :');
       debugPrint('Titre : ${message.notification?.title}');
       debugPrint('Corps : ${message.notification?.body}');
+      // Signale à NotificationsScreen (si affiché) de se rafraîchir.
+      newNotificationTick.value++;
     });
 
     // Gérer le tap sur une notification quand l'app est en arrière-plan

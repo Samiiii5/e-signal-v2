@@ -2,9 +2,8 @@
 ///
 /// Le backend (GET /api/notifications/history/{user_id}) ne renvoie
 /// aujourd'hui que des notifications de type message (title/body/sent_at/
-/// data:{channel, thread_id}) — les champs appel/paiement restent optionnels
-/// et sont alimentés par shared/mock/notifications_mock.dart en attendant
-/// que le backend expose ces événements.
+/// data:{channel, thread_id}) — les champs appel/paiement restent optionnels,
+/// prêts à être renseignés quand le backend exposera ces événements.
 library;
 
 enum NotificationType { message, call, payment, generic }
@@ -28,10 +27,6 @@ class AppNotification {
   final String channel; // whatsapp | sms | email | messenger | tiktok | instagram | payment
   final String? threadId;
   final NotificationType type;
-
-  /// true pour les notifications de démo (appel/paiement) qui ne sont pas
-  /// des documents Firestore réels — évite d'appeler l'API sur des ids fictifs.
-  final bool isMock;
 
   // Champs universels
   final String senderName;
@@ -67,7 +62,6 @@ class AppNotification {
     required this.channel,
     this.threadId,
     this.type = NotificationType.message,
-    this.isMock = false,
     required this.senderName,
     this.isPriority = false,
     this.threadUnreadCount,
@@ -125,7 +119,6 @@ class AppNotification {
         channel: channel,
         threadId: threadId,
         type: type,
-        isMock: isMock,
         senderName: senderName,
         isPriority: isPriority,
         threadUnreadCount: threadUnreadCount,

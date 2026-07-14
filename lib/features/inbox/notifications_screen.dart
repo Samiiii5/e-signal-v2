@@ -44,17 +44,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _load();
+    NotificationService.newNotificationTick.addListener(_onNewNotification);
   }
 
-  Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+  @override
+  void dispose() {
+    NotificationService.newNotificationTick.removeListener(_onNewNotification);
+    super.dispose();
+  }
+
+  /// Déclenché à chaque notification FCM reçue en foreground — recharge la
+  /// liste sans afficher le skeleton, la plus récente arrive en tête grâce
+  /// au tri par sentAt fait dans fetchHistory().
+  void _onNewNotification() => _load(silent: true);
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() { _isLoading = true; _error = null; });
     try {
       final items = await NotificationService.fetchHistory();
       if (!mounted) return;
       setState(() { _notifications = items; _isLoading = false; });
     } catch (_) {
       if (!mounted) return;
-      setState(() { _isLoading = false; _error = 'Impossible de charger les notifications.'; });
+      if (!silent) setState(() { _isLoading = false; _error = 'Impossible de charger les notifications.'; });
     }
   }
 
@@ -217,19 +229,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ? _buildErrorState()
               : RefreshIndicator(
                   onRefresh: _load,
-                  child: Column(
-                    children: [
-                      _buildFilterChips(),
-                      _buildActionsRow(),
-                      Expanded(
-                        child: _notifications.isEmpty
-                            ? _buildAllCaughtUpState()
-                            : _filtered.isEmpty
-                                ? _buildEmptyFilterState()
-                                : _buildList(),
-                      ),
-                    ],
-                  ),
+                  child: _notifications.isEmpty
+                      ? _buildEmptyState()
+                      : Column(
+                          children: [
+                            _buildFilterChips(),
+                            _buildActionsRow(),
+                            Expanded(
+                              child: _filtered.isEmpty ? _buildEmptyFilterState() : _buildList(),
+                            ),
+                          ],
+                        ),
                 ),
     );
   }
@@ -331,25 +341,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildAllCaughtUpState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  Widget _buildEmptyState() {
+    return LayoutBuilder(
+      builder: (context, constraints) => ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          Container(
-            width: 72, height: 72,
-            decoration: const BoxDecoration(color: AppColors.greenLight, shape: BoxShape.circle),
-            child: const Icon(Icons.check_rounded, size: 36, color: AppColors.greenDark),
-          ),
-          const SizedBox(height: 16),
-          const Text('Vous êtes à jour !', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-          const SizedBox(height: 4),
-          const Text('Aucune nouvelle notification', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          const SizedBox(height: 16),
-          TextButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh, size: 16, color: AppColors.green),
-            label: const Text('Actualiser', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.green)),
+          SizedBox(
+            height: constraints.maxHeight,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.notifications_none_outlined, size: 72, color: AppColors.borderLight),
+                    const SizedBox(height: 16),
+                    const Text('Aucune notification', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Vous serez notifié ici dès qu\'un nouveau message ou événement arrivera',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
