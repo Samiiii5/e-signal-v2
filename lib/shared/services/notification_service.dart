@@ -97,7 +97,7 @@ class NotificationService {
     try {
       await _notificationsCollection()?.doc(notifId).update({'read': true});
     } catch (e) {
-      print('=== Erreur markAsRead : $e ===');
+      debugPrint('=== Erreur markAsRead : $e ===');
     }
   }
 
@@ -106,7 +106,7 @@ class NotificationService {
     try {
       await _notificationsCollection()?.doc(notifId).delete();
     } catch (e) {
-      print('=== Erreur deleteNotification : $e ===');
+      debugPrint('=== Erreur deleteNotification : $e ===');
     }
   }
 
@@ -122,7 +122,7 @@ class NotificationService {
       }
       await batch.commit();
     } catch (e) {
-      print('=== Erreur markAllAsRead : $e ===');
+      debugPrint('=== Erreur markAllAsRead : $e ===');
     }
   }
 
@@ -138,7 +138,7 @@ class NotificationService {
       }
       await batch.commit();
     } catch (e) {
-      print('=== Erreur clearAll : $e ===');
+      debugPrint('=== Erreur clearAll : $e ===');
     }
   }
 
@@ -154,9 +154,9 @@ class NotificationService {
 
     // Gérer les notifications quand l'app est ouverte
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Notification reçue en foreground :');
-      print('Titre : ${message.notification?.title}');
-      print('Corps : ${message.notification?.body}');
+      debugPrint('Notification reçue en foreground :');
+      debugPrint('Titre : ${message.notification?.title}');
+      debugPrint('Corps : ${message.notification?.body}');
     });
 
     // Gérer le tap sur une notification quand l'app est en arrière-plan
@@ -183,14 +183,14 @@ class NotificationService {
     try {
       final messaging = FirebaseMessaging.instance;
       final token = await messaging.getToken();
-      print('=============================');
-      print('FCM Token: $token');
-      print('=============================');
+      debugPrint('=============================');
+      debugPrint('FCM Token: $token');
+      debugPrint('=============================');
       if (token != null) {
         await _registerToken(token);
       }
     } catch (e) {
-      print('=== Erreur FCM Token : $e ===');
+      debugPrint('=== Erreur FCM Token : $e ===');
     }
   }
 
@@ -200,7 +200,7 @@ class NotificationService {
       final organizationId = SessionService.organizationId;
 
       if (userId == null || organizationId == null) {
-        print('=== FCM Token non envoyé : userId ou organizationId null ===');
+        debugPrint('=== FCM Token non envoyé : userId ou organizationId null ===');
         return;
       }
 
@@ -214,9 +214,9 @@ class NotificationService {
           'organization_id': organizationId,
         },
       );
-      print('=== FCM Token enregistré sur le backend ===');
+      debugPrint('=== FCM Token enregistré sur le backend ===');
     } catch (e) {
-      print('=== Erreur enregistrement FCM Token : $e ===');
+      debugPrint('=== Erreur enregistrement FCM Token : $e ===');
     }
   }
 }
