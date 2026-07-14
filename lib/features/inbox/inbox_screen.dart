@@ -52,15 +52,27 @@ class _InboxScreenState extends State<InboxScreen> {
     NotificationService.fetchHistory().catchError((_) => <AppNotification>[]);
   }
 
-  _Filter _channelToFilter(String channel) {
-    switch (channel) {
-      case 'whatsapp': return _Filter.whatsapp;
-      case 'sms': return _Filter.sms;
-      case 'email': return _Filter.email;
-      case 'messenger': return _Filter.facebook;
-      case 'instagram': return _Filter.instagram;
-      case 'tiktok': return _Filter.tiktok;
-      default: return _Filter.all;
+  _Filter _channelToFilter(String channel) => switch (channel) {
+    'whatsapp'  => _Filter.whatsapp,
+    'sms'       => _Filter.sms,
+    'email'     => _Filter.email,
+    'messenger' => _Filter.facebook,
+    'instagram' => _Filter.instagram,
+    'tiktok'    => _Filter.tiktok,
+    _           => _Filter.all,
+  };
+
+  @override
+  void didUpdateWidget(covariant InboxScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // L'écran reste monté (IndexedStack de la shell route) quand on tape une
+    // notification alors que l'onglet Inbox est déjà ouvert : initState ne
+    // se redéclenche pas, donc on réagit ici au changement de query params.
+    if (widget.initialChannel != null && widget.initialChannel != oldWidget.initialChannel) {
+      setState(() => _activeFilter = _channelToFilter(widget.initialChannel!));
+    }
+    if (widget.initialThreadId != null && widget.initialThreadId != oldWidget.initialThreadId) {
+      _loadThreads();
     }
   }
 
