@@ -8,6 +8,8 @@ import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/publications_mock.dart';
 import '../../shared/services/inbox_service.dart';
 import '../../shared/services/comments_service.dart';
+import '../../shared/services/notification_service.dart';
+import 'notifications_screen.dart';
 import 'publication_detail_screen.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -47,6 +49,7 @@ class _InboxScreenState extends State<InboxScreen> {
       _activeFilter = _channelToFilter(widget.initialChannel!);
     }
     _loadThreads();
+    NotificationService.fetchHistory().catchError((_) => <AppNotification>[]);
   }
 
   _Filter _channelToFilter(String channel) {
@@ -327,6 +330,38 @@ class _InboxScreenState extends State<InboxScreen> {
                 children: [
                   Image.asset('design/logo_onboarding.png', height: Responsive.h(context, 0.07).clamp(44.0, 68.0), fit: BoxFit.contain),
                   const Spacer(),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined, color: AppColors.textSecondary),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                        ),
+                      ),
+                      ValueListenableBuilder<int>(
+                        valueListenable: NotificationService.unreadCount,
+                        builder: (context, count, _) {
+                          if (count <= 0) return const SizedBox.shrink();
+                          return Positioned(
+                            top: 6,
+                            right: 6,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              constraints: const BoxConstraints(minWidth: 16),
+                              decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(9)),
+                              child: Text(
+                                count > 99 ? '99+' : '$count',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: AppColors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                   Stack(
                     children: [
                       IconButton(

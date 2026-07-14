@@ -16,6 +16,8 @@ class AppColors {
   static const Color purpleDark = Color(0xFF1A0F40);
   static const Color purpleLight = Color(0xFFF0EEFF);
 
+  static const Color error = Color(0xFFEF4444);
+
   static const Color white = Color(0xFFFFFFFF);
   static const Color backgroundPage = Color(0xFFF5F5F5);
   static const Color backgroundStatus = Color(0xFFF3F4F6);
