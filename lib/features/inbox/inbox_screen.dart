@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
@@ -9,6 +10,7 @@ import '../../shared/mock/publications_mock.dart';
 import '../../shared/services/inbox_service.dart';
 import '../../shared/services/comments_service.dart';
 import '../../shared/services/notification_service.dart';
+import '../../shared/services/websocket_service.dart';
 import 'notifications_screen.dart';
 import 'publication_detail_screen.dart';
 
@@ -41,6 +43,8 @@ class _InboxScreenState extends State<InboxScreen> {
 
   bool get _hasActiveSheetFilter => _bsChannelFilter != null || _bsUnreadOnly;
 
+  StreamSubscription<Map<String, dynamic>>? _wsSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +54,38 @@ class _InboxScreenState extends State<InboxScreen> {
     }
     _loadThreads();
     NotificationService.fetchHistory().catchError((_) => <AppNotification>[]);
+    _connectWebSocket();
+  }
+
+  void _connectWebSocket() {
+    final orgId = SessionService.organizationId;
+    final token = SessionService.accessToken;
+    if (orgId == null || token == null) return;
+    webSocketService.connect(organizationId: orgId, token: token);
+    _wsSubscription = webSocketService.events.listen(_onWsEvent);
+  }
+
+  void _onWsEvent(Map<String, dynamic> event) {
+    final data = event['data'];
+    if (data is! Map) return;
+    if (event['event'] == 'new_message') {
+      _onNewMessageEvent(Map<String, dynamic>.from(data));
+    }
+  }
+
+  void _onNewMessageEvent(Map<String, dynamic> data) {
+    final threadId = data['thread_id']?.toString();
+    if (threadId == null) return;
+    // Fait remonter le thread concerné en tête tout de suite, puis
+    // rafraîchit depuis l'API pour avoir le compteur non-lu à jour.
+    setState(() {
+      final idx = _threads.indexWhere((t) => t.id == threadId);
+      if (idx > 0) {
+        final thread = _threads.removeAt(idx);
+        _threads.insert(0, thread);
+      }
+    });
+    _loadThreads();
   }
 
   _Filter _channelToFilter(String channel) => switch (channel) {
@@ -79,6 +115,8 @@ class _InboxScreenState extends State<InboxScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _wsSubscription?.cancel();
+    webSocketService.disconnect();
     super.dispose();
   }
 
