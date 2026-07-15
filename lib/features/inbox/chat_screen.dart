@@ -23,6 +23,14 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
+/// Une ligne de la timeline : soit un séparateur de date, soit un message.
+class _TimelineRow {
+  final String? separatorLabel;
+  final Message? message;
+  const _TimelineRow.separator(this.separatorLabel) : message = null;
+  const _TimelineRow.message(this.message) : separatorLabel = null;
+}
+
 class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
@@ -680,6 +688,42 @@ class _ChatScreenState extends State<ChatScreen> {
     return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
   }
 
+  // ── Séparateurs de dates (règle WhatsApp) ────────────────────────────────────
+
+  /// Intercale un séparateur de date avant chaque premier message d'un jour.
+  List<_TimelineRow> _buildTimeline(List<Message> messages) {
+    final rows = <_TimelineRow>[];
+    DateTime? previousDay;
+    for (final msg in messages) {
+      final sentAt = msg.sentAtDt;
+      final msgDay = DateTime(sentAt.year, sentAt.month, sentAt.day);
+      if (previousDay == null || previousDay != msgDay) {
+        rows.add(_TimelineRow.separator(_formatSeparatorDate(sentAt)));
+        previousDay = msgDay;
+      }
+      rows.add(_TimelineRow.message(msg));
+    }
+    return rows;
+  }
+
+  String _formatSeparatorDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDay = DateTime(date.year, date.month, date.day);
+    final diff = today.difference(msgDay).inDays;
+
+    if (diff == 0) return 'Aujourd\'hui';
+    if (diff == 1) return 'Hier';
+    if (diff < 7) {
+      const jours = ['Lundi', 'Mardi', 'Mercredi',
+                     'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+      return jours[date.weekday - 1];
+    }
+    return '${date.day.toString().padLeft(2, '0')}/'
+         '${date.month.toString().padLeft(2, '0')}/'
+         '${date.year}';
+  }
+
   // ── Sélection de messages ────────────────────────────────────────────────────
 
   void _enterSelectionMode(String msgId) {
@@ -914,6 +958,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final displayed = _searchQuery.isEmpty
         ? _messages
         : _messages.where((m) => m.content.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+    final timeline = _buildTimeline(displayed);
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -963,7 +1008,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: displayed.isEmpty ? 1 : displayed.length + (_isLoadingMore ? 2 : 1),
+              itemCount: displayed.isEmpty ? 1 : timeline.length + (_isLoadingMore ? 2 : 1),
               itemBuilder: (_, i) {
                 if (_isLoadingMore && i == 0) {
                   return const Padding(
@@ -977,7 +1022,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       ? const _NoResultsBanner()
                       : const _SecurityBanner();
                 }
-                final msg = displayed[idx - 1];
+                final row = timeline[idx - 1];
+                if (row.separatorLabel != null) {
+                  return _DateSeparator(label: row.separatorLabel!);
+                }
+                final msg = row.message!;
                 final isSelected = _selectedIds.contains(msg.id);
                 Widget bubble = switch (msg.type) {
                   MessageType.paymentLink   => _PaymentBubble(
@@ -1329,6 +1378,33 @@ class _MessagesErrorState extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Séparateur de date (style WhatsApp) ────────────────────────────────────────
+
+class _DateSeparator extends StatelessWidget {
+  final String label;
+  const _DateSeparator({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          const Expanded(child: Divider(color: AppColors.borderLight, thickness: 0.5)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textHint),
+            ),
+          ),
+          const Expanded(child: Divider(color: AppColors.borderLight, thickness: 0.5)),
+        ],
       ),
     );
   }
