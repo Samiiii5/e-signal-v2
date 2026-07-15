@@ -75,9 +75,14 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Événements WebSocket temps réel ──────────────────────────────────────────
 
   void _onWsEvent(Map<String, dynamic> event) {
+    // Certains événements (ex: messages_read) sont plats — thread_id au
+    // niveau racine — d'autres imbriquent leurs champs sous "data". On
+    // fusionne les deux pour que les handlers lisent toujours le même shape.
     final data = event['data'];
-    if (data is! Map) return;
-    final payload = Map<String, dynamic>.from(data);
+    final payload = <String, dynamic>{
+      ...event,
+      if (data is Map) ...Map<String, dynamic>.from(data),
+    };
     if (payload['thread_id']?.toString() != widget.threadId) return;
 
     switch (event['event']) {
@@ -86,9 +91,15 @@ class _ChatScreenState extends State<ChatScreen> {
       case 'message_status_updated':
         _handleWsStatusUpdate(payload);
       case 'contact_typing':
-        _handleWsContactTyping();
+        _handleWsContactTyping(payload);
       case 'contact_presence_updated':
         _handleWsPresenceUpdate(payload);
+      case 'messages_read':
+        _handleWsMessagesRead(payload);
+      case 'thread_unassigned':
+        _handleWsThreadUnassigned();
+      case 'inbound_call':
+        _handleWsInboundCall(payload);
     }
   }
 
@@ -130,10 +141,15 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _msgStatus[messageId] = mapped);
   }
 
-  void _handleWsContactTyping() {
+  void _handleWsContactTyping(Map<String, dynamic> data) {
     _typingTimer?.cancel();
+    final isTyping = data['is_typing'] == true;
+    if (!isTyping) {
+      setState(() => _isContactTyping = false);
+      return;
+    }
     setState(() => _isContactTyping = true);
-    _typingTimer = Timer(const Duration(seconds: 3), () {
+    _typingTimer = Timer(const Duration(seconds: 7), () {
       if (mounted) setState(() => _isContactTyping = false);
     });
   }
@@ -144,6 +160,30 @@ class _ChatScreenState extends State<ChatScreen> {
     final parsed = DateTime.tryParse(lastSeen);
     if (parsed == null) return;
     setState(() => _lastSeenAt = parsed);
+  }
+
+  void _handleWsMessagesRead(Map<String, dynamic> data) {
+    final readBefore = DateTime.tryParse((data['read_before'] ?? '').toString());
+    if (readBefore == null) return;
+    setState(() {
+      for (final m in _messages) {
+        if (m.direction == 'OUT' && m.sentAtDt.isBefore(readBefore)) {
+          _msgStatus[m.id] = MessageStatus.read;
+        }
+      }
+    });
+  }
+
+  void _handleWsThreadUnassigned() {
+    if (_thread == null) return;
+    setState(() => _thread = _thread!.copyWithUnassigned());
+  }
+
+  void _handleWsInboundCall(Map<String, dynamic> data) {
+    final fromWaId = data['from_wa_id']?.toString() ?? 'numéro inconnu';
+    ScaffoldMessenger.of(context).showSnackBar(
+      AppSnackbar.success('Appel entrant WhatsApp — $fromWaId'),
+    );
   }
 
   void _onScroll() {
@@ -1237,9 +1277,14 @@ class _ChatAppBar extends StatelessWidget {
     _ => ch ?? '...',
   };
 
+  // Calculé à chaque affichage à partir de lastSeenAt — jamais mis en cache
+  // dans un booléen, pour ne pas rester bloqué sur "En ligne" au-delà de 5 min.
+  bool get _isOnline =>
+      lastSeenAt != null && DateTime.now().difference(lastSeenAt!) < const Duration(minutes: 5);
+
   String _subtitle() {
     if (isTyping) return 'en train d\'écrire...';
-    if (lastSeenAt != null) return _fmtLastSeen(lastSeenAt!);
+    if (lastSeenAt != null) return _isOnline ? 'En ligne' : _fmtLastSeen(lastSeenAt!);
     return _channelLabel(thread?.channel);
   }
 

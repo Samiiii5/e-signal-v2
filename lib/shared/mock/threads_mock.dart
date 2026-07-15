@@ -28,6 +28,18 @@ class Thread {
     return result.isNotEmpty ? result : '?';
   }
 
+  /// Copie avec assignedToUserId explicitement remis à null (thread_unassigned).
+  Thread copyWithUnassigned() => Thread(
+        id: id,
+        contactName: contactName,
+        contactPictureUrl: contactPictureUrl,
+        channel: channel,
+        lastMessageAt: lastMessageAt,
+        unreadCount: unreadCount,
+        status: status,
+        assignedToUserId: null,
+      );
+
   factory Thread.fromJson(Map<String, dynamic> json) {
     return Thread(
       id: (json['id'] ?? json['_id'] ?? '').toString(),

@@ -1,7 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:go_router/go_router.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../core/navigation/app_router.dart';
+import '../../core/services/session_service.dart';
+
+/// Codes de fermeture WebSocket ayant un sens applicatif particulier.
+/// - 4001 : session invalide côté serveur → déconnexion forcée de l'utilisateur.
+/// - 4003 : le serveur demande explicitement d'arrêter de se reconnecter.
+/// - 1000 : fermeture propre (normale) → pas de reconnexion.
+const _closeCodeUnauthorized = 4001;
+const _closeCodeStopReconnect = 4003;
+const _closeCodeNormal = 1000;
 
 /// Connexion temps réel à l'inbox.
 ///
@@ -85,9 +96,28 @@ class WebSocketService {
     _isConnected = false;
     _pingTimer?.cancel();
     _channelSubscription?.cancel();
+
+    final code = _channel?.closeCode;
+    if (code == _closeCodeUnauthorized) {
+      _manuallyDisconnected = true;
+      _forceLogout();
+      return;
+    }
+    if (code == _closeCodeStopReconnect || code == _closeCodeNormal) {
+      _manuallyDisconnected = true;
+      return;
+    }
+
     if (_manuallyDisconnected) return;
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(_reconnectDelay, _openConnection);
+  }
+
+  void _forceLogout() {
+    SessionService.logout();
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+    GoRouter.of(context).go('/login');
   }
 
   void disconnect() {
