@@ -801,19 +801,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── Statut de livraison ──────────────────────────────────────────────────────
-
-  void _simulateDelivery(String msgId) {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      setState(() => _msgStatus[msgId] = MessageStatus.delivered);
-    });
-    Future.delayed(const Duration(seconds: 4), () {
-      if (!mounted) return;
-      setState(() => _msgStatus[msgId] = MessageStatus.read);
-    });
-  }
-
   // ── URL launcher ─────────────────────────────────────────────────────────────
 
   Future<void> _launchUrl(String url) async {
@@ -851,25 +838,32 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
     final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+    final provider = _thread?.channel ?? '';
     _controller.clear();
+    // Optimistic update : le message apparaît tout de suite, avant même la
+    // réponse du serveur. Les coches réelles arrivent via message_status_updated.
     setState(() {
       _isSending = true;
       _replyToMessage = null;
       _showEmojiPicker = false;
       _msgStatus[msgId] = MessageStatus.sent;
+      _messages.add(Message(
+        id: msgId,
+        direction: 'OUT',
+        bodyText: text,
+        sentAt: DateTime.now().toIso8601String(),
+      ));
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     try {
-      await inboxService.sendMessage(widget.threadId, text);
+      await inboxService.sendMessage(threadId: widget.threadId, provider: provider, content: text);
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
-        _messages.add(Message(
-          id: msgId,
-          direction: 'OUT',
-          bodyText: text,
-          sentAt: DateTime.now().toIso8601String(),
-        ));
+        _messages.removeWhere((m) => m.id == msgId);
+        _msgStatus.remove(msgId);
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-      _simulateDelivery(msgId);
+      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Échec de l\'envoi du message'));
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
