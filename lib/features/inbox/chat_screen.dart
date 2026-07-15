@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +13,7 @@ import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/products_mock.dart';
 import '../../shared/services/inbox_service.dart';
+import '../../shared/services/websocket_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String threadId;
@@ -46,12 +48,18 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _nextBeforeId;
   bool _isLoadingMore = false;
 
+  StreamSubscription<Map<String, dynamic>>? _wsSubscription;
+  bool _isContactTyping = false;
+  Timer? _typingTimer;
+  DateTime? _lastSeenAt;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(() => setState(() {}));
     _scrollController.addListener(_onScroll);
     _loadMessages();
+    _wsSubscription = webSocketService.events.listen(_onWsEvent);
   }
 
   @override
@@ -59,7 +67,83 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.dispose();
     _scrollController.dispose();
     _searchController.dispose();
+    _wsSubscription?.cancel();
+    _typingTimer?.cancel();
     super.dispose();
+  }
+
+  // ── Événements WebSocket temps réel ──────────────────────────────────────────
+
+  void _onWsEvent(Map<String, dynamic> event) {
+    final data = event['data'];
+    if (data is! Map) return;
+    final payload = Map<String, dynamic>.from(data);
+    if (payload['thread_id']?.toString() != widget.threadId) return;
+
+    switch (event['event']) {
+      case 'new_message':
+        _handleWsNewMessage(payload);
+      case 'message_status_updated':
+        _handleWsStatusUpdate(payload);
+      case 'contact_typing':
+        _handleWsContactTyping();
+      case 'contact_presence_updated':
+        _handleWsPresenceUpdate(payload);
+    }
+  }
+
+  void _handleWsNewMessage(Map<String, dynamic> data) {
+    final msgJson = data['message'];
+    if (msgJson is! Map) return;
+    final newMsg = Message.fromJson(Map<String, dynamic>.from(msgJson));
+    if (_messages.any((m) => m.id == newMsg.id)) return;
+    // Évite de dupliquer l'écho d'un message qu'on vient nous-même d'envoyer
+    // (déjà affiché en optimiste par _send()).
+    final isEchoOfOwnMessage = newMsg.direction == 'OUT' &&
+        _messages.any((m) =>
+            m.direction == 'OUT' &&
+            m.bodyText == newMsg.bodyText &&
+            DateTime.now().difference(m.sentAtDt).inSeconds < 10);
+    if (isEchoOfOwnMessage) return;
+
+    setState(() {
+      _messages.add(newMsg);
+      if (newMsg.initialStatus != null) _msgStatus[newMsg.id] = newMsg.initialStatus!;
+      _isContactTyping = false;
+    });
+    _typingTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    if (newMsg.isFromContact) _markAsRead();
+  }
+
+  void _handleWsStatusUpdate(Map<String, dynamic> data) {
+    final messageId = data['message_id']?.toString();
+    final status = (data['status'] ?? '').toString().toLowerCase();
+    if (messageId == null) return;
+    final mapped = switch (status) {
+      'read' => MessageStatus.read,
+      'delivered' => MessageStatus.delivered,
+      'sent' => MessageStatus.sent,
+      _ => null,
+    };
+    if (mapped == null) return;
+    setState(() => _msgStatus[messageId] = mapped);
+  }
+
+  void _handleWsContactTyping() {
+    _typingTimer?.cancel();
+    setState(() => _isContactTyping = true);
+    _typingTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _isContactTyping = false);
+    });
+  }
+
+  void _handleWsPresenceUpdate(Map<String, dynamic> data) {
+    final lastSeen = data['last_seen']?.toString();
+    if (lastSeen == null) return;
+    final parsed = DateTime.tryParse(lastSeen);
+    if (parsed == null) return;
+    setState(() => _lastSeenAt = parsed);
   }
 
   void _onScroll() {
@@ -818,6 +902,8 @@ class _ChatScreenState extends State<ChatScreen> {
             : _ChatAppBar(
                 thread: _thread,
                 isMuted: _isMuted,
+                isTyping: _isContactTyping,
+                lastSeenAt: _lastSeenAt,
                 isSearching: _isSearching,
                 searchController: _searchController,
                 onSearchChanged: (v) => setState(() => _searchQuery = v),
@@ -974,6 +1060,8 @@ class _ChatAppBar extends StatelessWidget {
   final VoidCallback onExport;
   final VoidCallback onCall;
   final VoidCallback onVideoCall;
+  final bool isTyping;
+  final DateTime? lastSeenAt;
 
   const _ChatAppBar({
     required this.thread,
@@ -991,6 +1079,8 @@ class _ChatAppBar extends StatelessWidget {
     required this.onExport,
     required this.onCall,
     required this.onVideoCall,
+    this.isTyping = false,
+    this.lastSeenAt,
   });
 
   @override
@@ -1040,7 +1130,14 @@ class _ChatAppBar extends StatelessWidget {
                   ],
                 ],
               ),
-              Text(_channelLabel(thread?.channel), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Text(
+                _subtitle(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isTyping ? AppColors.green : AppColors.textSecondary,
+                  fontWeight: isTyping ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
             ],
           ),
         ),
@@ -1145,6 +1242,20 @@ class _ChatAppBar extends StatelessWidget {
     'email' => 'Email',
     _ => ch ?? '...',
   };
+
+  String _subtitle() {
+    if (isTyping) return 'en train d\'écrire...';
+    if (lastSeenAt != null) return _fmtLastSeen(lastSeenAt!);
+    return _channelLabel(thread?.channel);
+  }
+
+  String _fmtLastSeen(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'vu à l\'instant';
+    if (diff.inMinutes < 60) return 'vu il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'vu il y a ${diff.inHours} h';
+    return 'vu il y a ${diff.inDays} j';
+  }
 }
 
 // ── Bannière sécurité ─────────────────────────────────────────────────────────
