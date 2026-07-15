@@ -183,7 +183,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _sendQuickReply(AppNotification n, String text) async {
     if (n.threadId != null) {
-      await inboxService.sendMessage(n.threadId!, text);
+      await inboxService.sendMessage(threadId: n.threadId!, provider: n.channel, content: text);
     }
     _markRead(n);
     if (!mounted) return;

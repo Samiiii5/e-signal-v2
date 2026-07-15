@@ -45,8 +45,12 @@ abstract class InboxService {
     String? beforeId,
   });
 
-  /// POST /api/v1.2/inbox/threads/:id/messages
-  Future<void> sendMessage(String threadId, String content);
+  /// POST /api/v1.2/inbox/{provider}/messages
+  Future<void> sendMessage({
+    required String threadId,
+    required String provider,
+    required String content,
+  });
 
   /// POST /api/v1.2/inbox/threads/:id/read
   Future<void> markAsRead(String threadId);
@@ -157,9 +161,31 @@ class HttpInboxService implements InboxService {
     }
   }
 
+  /// POST /api/v1.2/inbox/{provider}/messages
   @override
-  Future<void> sendMessage(String threadId, String content) async {
-    await Future.delayed(const Duration(milliseconds: 250));
+  Future<void> sendMessage({
+    required String threadId,
+    required String provider,
+    required String content,
+  }) async {
+    try {
+      final resp = await ApiClient.dio.post(
+        '/inbox/$provider/messages',
+        data: {
+          'thread_id': threadId,
+          'content': content,
+          'type': 'text',
+        },
+      );
+      if (resp.statusCode == 401) {
+        throw const InboxUnauthorizedException();
+      } else if (resp.statusCode! < 200 || resp.statusCode! >= 300) {
+        throw Exception('HTTP ${resp.statusCode}');
+      }
+    } on DioException catch (e) {
+      if (_isNetworkError(e)) throw const InboxNetworkException();
+      rethrow;
+    }
   }
 
   @override
@@ -226,7 +252,11 @@ class MockInboxService implements InboxService {
   }
 
   @override
-  Future<void> sendMessage(String threadId, String content) async {
+  Future<void> sendMessage({
+    required String threadId,
+    required String provider,
+    required String content,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 250));
   }
 
