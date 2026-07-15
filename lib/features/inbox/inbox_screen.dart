@@ -66,26 +66,38 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   void _onWsEvent(Map<String, dynamic> event) {
+    // new_message arrive à plat (thread_id, contact_name, channel, message
+    // au niveau racine) — pas sous "data". On fusionne les deux formes pour
+    // rester robuste si le backend imbrique un jour ses champs sous "data".
     final data = event['data'];
-    if (data is! Map) return;
+    final payload = <String, dynamic>{
+      ...event,
+      if (data is Map) ...Map<String, dynamic>.from(data),
+    };
     if (event['event'] == 'new_message') {
-      _onNewMessageEvent(Map<String, dynamic>.from(data));
+      _onNewMessageEvent(payload);
     }
   }
 
   void _onNewMessageEvent(Map<String, dynamic> data) {
     final threadId = data['thread_id']?.toString();
     if (threadId == null) return;
-    // Fait remonter le thread concerné en tête tout de suite, puis
-    // rafraîchit depuis l'API pour avoir le compteur non-lu à jour.
+    final idx = _threads.indexWhere((t) => t.id == threadId);
+    if (idx == -1) return;
+
+    final contactName = data['contact_name']?.toString();
+    final messageJson = data['message'];
+    final sentAt = messageJson is Map ? messageJson['sent_at']?.toString() : null;
+
     setState(() {
-      final idx = _threads.indexWhere((t) => t.id == threadId);
-      if (idx > 0) {
-        final thread = _threads.removeAt(idx);
-        _threads.insert(0, thread);
-      }
+      final updated = _threads[idx].copyWith(
+        contactName: (contactName != null && contactName.isNotEmpty) ? contactName : null,
+        unreadCount: _threads[idx].unreadCount + 1,
+        lastMessageAt: sentAt,
+      );
+      _threads.removeAt(idx);
+      _threads.insert(0, updated);
     });
-    _loadThreads();
   }
 
   _Filter _channelToFilter(String channel) => switch (channel) {

@@ -28,6 +28,26 @@ class Thread {
     return result.isNotEmpty ? result : '?';
   }
 
+  /// Copie partielle — un paramètre omis (null) conserve la valeur existante.
+  Thread copyWith({
+    String? contactName,
+    String? contactPictureUrl,
+    String? channel,
+    String? lastMessageAt,
+    int? unreadCount,
+    String? status,
+    String? assignedToUserId,
+  }) => Thread(
+        id: id,
+        contactName: contactName ?? this.contactName,
+        contactPictureUrl: contactPictureUrl ?? this.contactPictureUrl,
+        channel: channel ?? this.channel,
+        lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+        unreadCount: unreadCount ?? this.unreadCount,
+        status: status ?? this.status,
+        assignedToUserId: assignedToUserId ?? this.assignedToUserId,
+      );
+
   /// Copie avec assignedToUserId explicitement remis à null (thread_unassigned).
   Thread copyWithUnassigned() => Thread(
         id: id,
