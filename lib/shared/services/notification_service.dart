@@ -34,6 +34,19 @@ class NotificationService {
       await _localNotifications.initialize(
         const InitializationSettings(android: androidSettings, iOS: iosSettings),
       );
+
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'high_importance_channel',
+        'Notifications e-Signal',
+        description: 'Notifications des messages et événements e-Signal',
+        importance: Importance.high,
+      );
+
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+
       _localNotificationsReady = true;
     } catch (e) {
       debugPrint('=== Erreur init notifications locales : $e ===');
