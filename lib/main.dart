@@ -14,6 +14,9 @@ void main() async {
   ApiClient.init();
   NetworkService.startMonitoring();
   await NotificationService.initializeListeners();
+  if (SessionService.isLoggedIn) {
+    NotificationService.registerFCMToken();
+  }
   runApp(const ESignalApp());
 }
 

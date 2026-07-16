@@ -162,6 +162,11 @@ class NotificationService {
       debugPrint('Corps : ${message.notification?.body}');
       // Signale à NotificationsScreen (si affiché) de se rafraîchir.
       newNotificationTick.value++;
+      // Rafraîchir l'historique et le badge de la cloche
+      fetchHistory().catchError((e) {
+        debugPrint('Error fetching notification history: $e');
+        return <AppNotification>[];
+      });
     });
 
     // Gérer le tap sur une notification quand l'app est en arrière-plan

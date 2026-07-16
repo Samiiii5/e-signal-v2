@@ -23,7 +23,7 @@ class InboxScreen extends StatefulWidget {
   State<InboxScreen> createState() => _InboxScreenState();
 }
 
-class _InboxScreenState extends State<InboxScreen> {
+class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   _Filter _activeFilter = _Filter.all;
@@ -48,6 +48,7 @@ class _InboxScreenState extends State<InboxScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
     if (widget.initialChannel != null) {
       _activeFilter = _channelToFilter(widget.initialChannel!);
@@ -133,6 +134,7 @@ class _InboxScreenState extends State<InboxScreen> {
       title: 'Nouveau commentaire',
       body: commenterName != null ? '$commenterName : $bodyText' : bodyText,
     );
+    NotificationService.fetchHistory().catchError((_) => <AppNotification>[]);
     if (_activeFilter == _Filter.commentaires) _loadPosts();
   }
 
@@ -161,7 +163,16 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadThreads();
+      _connectWebSocket();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _wsSubscription?.cancel();
     webSocketService.disconnect();
@@ -542,7 +553,10 @@ class _InboxScreenState extends State<InboxScreen> {
                                     padding: const EdgeInsets.only(top: 4, bottom: 16),
                                     itemCount: threads.length,
                                     separatorBuilder: (_, __) => const Divider(indent: 76, height: 0, thickness: 0.5, color: AppColors.borderLight),
-                                    itemBuilder: (_, i) => _ThreadTile(thread: threads[i]),
+                                    itemBuilder: (_, i) => _ThreadTile(
+                                      thread: threads[i],
+                                      onReturn: _loadThreads,
+                                    ),
                                   ),
                                 ),
             ),
@@ -643,13 +657,17 @@ class _FilterChip extends StatelessWidget {
 
 class _ThreadTile extends StatelessWidget {
   final Thread thread;
-  const _ThreadTile({required this.thread});
+  final VoidCallback? onReturn;
+  const _ThreadTile({required this.thread, this.onReturn});
 
   @override
   Widget build(BuildContext context) {
     final hasUnread = thread.unreadCount > 0;
     return InkWell(
-      onTap: () => context.push('/inbox/${thread.id}'),
+      onTap: () async {
+        await context.push('/inbox/${thread.id}');
+        onReturn?.call();
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
