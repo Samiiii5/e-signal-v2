@@ -67,7 +67,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.addListener(() => setState(() {}));
     _scrollController.addListener(_onScroll);
     _loadMessages();
-    _wsSubscription = webSocketService.events.listen(_onWsEvent);
+    // Ne réagit qu'aux événements de la conversation ouverte — InboxScreen
+    // gère les événements globaux (thread_assigned/unassigned/resolved,
+    // new_comment) et possède/déconnecte la connexion elle-même.
+    _wsSubscription = webSocketService.events
+        .where((e) => e['thread_id']?.toString() == widget.threadId)
+        .listen(_onWsEvent);
   }
 
   @override
@@ -83,31 +88,20 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Événements WebSocket temps réel ──────────────────────────────────────────
 
   void _onWsEvent(Map<String, dynamic> event) {
-    // Certains événements (ex: messages_read) sont plats — thread_id au
-    // niveau racine — d'autres imbriquent leurs champs sous "data". On
-    // fusionne les deux pour que les handlers lisent toujours le même shape.
-    final data = event['data'];
-    final payload = <String, dynamic>{
-      ...event,
-      if (data is Map) ...Map<String, dynamic>.from(data),
-    };
-    if (payload['thread_id']?.toString() != widget.threadId) return;
-
+    // Tous les événements documentés sont plats (thread_id à la racine).
     switch (event['event']) {
       case 'new_message':
-        _handleWsNewMessage(payload);
+        _handleWsNewMessage(event);
       case 'message_status_updated':
-        _handleWsStatusUpdate(payload);
+        _handleWsStatusUpdate(event);
       case 'contact_typing':
-        _handleWsContactTyping(payload);
+        _handleWsContactTyping(event);
       case 'contact_presence_updated':
-        _handleWsPresenceUpdate(payload);
+        _handleWsPresenceUpdate(event);
       case 'messages_read':
-        _handleWsMessagesRead(payload);
-      case 'thread_unassigned':
-        _handleWsThreadUnassigned();
+        _handleWsMessagesRead(event);
       case 'inbound_call':
-        _handleWsInboundCall(payload);
+        _handleWsInboundCall(event);
     }
   }
 
@@ -115,15 +109,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final msgJson = data['message'];
     if (msgJson is! Map) return;
     final newMsg = Message.fromJson(Map<String, dynamic>.from(msgJson));
-    if (_messages.any((m) => m.id == newMsg.id)) return;
-    // Évite de dupliquer l'écho d'un message qu'on vient nous-même d'envoyer
-    // (déjà affiché en optimiste par _send()).
-    final isEchoOfOwnMessage = newMsg.direction == 'OUT' &&
-        _messages.any((m) =>
-            m.direction == 'OUT' &&
-            m.bodyText == newMsg.bodyText &&
-            DateTime.now().difference(m.sentAtDt).inSeconds < 10);
-    if (isEchoOfOwnMessage) return;
+    if (_messages.any((m) => m.id == newMsg.id)) return; // anti-doublon
 
     setState(() {
       _messages.add(newMsg);
@@ -142,7 +128,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final mapped = switch (status) {
       'read' => MessageStatus.read,
       'delivered' => MessageStatus.delivered,
-      'sent' => MessageStatus.sent,
       _ => null,
     };
     if (mapped == null) return;
@@ -163,9 +148,9 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _handleWsPresenceUpdate(Map<String, dynamic> data) {
-    final lastSeen = data['last_seen']?.toString();
-    if (lastSeen == null) return;
-    final parsed = DateTime.tryParse(lastSeen);
+    final lastSeenAt = data['last_seen_at']?.toString();
+    if (lastSeenAt == null) return;
+    final parsed = DateTime.tryParse(lastSeenAt);
     if (parsed == null) return;
     setState(() => _lastSeenAt = parsed);
   }
@@ -182,15 +167,11 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _handleWsThreadUnassigned() {
-    if (_thread == null) return;
-    setState(() => _thread = _thread!.copyWithUnassigned());
-  }
-
   void _handleWsInboundCall(Map<String, dynamic> data) {
-    final fromWaId = data['from_wa_id']?.toString() ?? 'numéro inconnu';
+    final call = data['call'];
+    final fromWaId = (call is Map ? call['from_wa_id']?.toString() : null) ?? 'numéro inconnu';
     ScaffoldMessenger.of(context).showSnackBar(
-      AppSnackbar.success('Appel entrant WhatsApp — $fromWaId'),
+      AppSnackbar.success('📞 Appel WhatsApp entrant de $fromWaId'),
     );
   }
 
@@ -1190,13 +1171,31 @@ class _ChatAppBar extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: AppColors.backgroundPage,
-          child: Text(
-            thread?.contactInitials ?? '?',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-          ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: AppColors.backgroundPage,
+              child: Text(
+                thread?.contactInitials ?? '?',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ),
+            if (_isOnline)
+              Positioned(
+                bottom: -1,
+                right: -1,
+                child: Container(
+                  width: 12, height: 12,
+                  decoration: BoxDecoration(
+                    color: AppColors.green,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.white, width: 2),
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1331,9 +1330,11 @@ class _ChatAppBar extends StatelessWidget {
   bool get _isOnline =>
       lastSeenAt != null && DateTime.now().difference(lastSeenAt!) < const Duration(minutes: 5);
 
+  // Le point vert sur l'avatar porte déjà l'état "en ligne" — ici on
+  // n'affiche que "vu il y a X min" quand le contact n'est pas en ligne.
   String _subtitle() {
     if (isTyping) return 'en train d\'écrire...';
-    if (lastSeenAt != null) return _isOnline ? 'En ligne' : _fmtLastSeen(lastSeenAt!);
+    if (lastSeenAt != null && !_isOnline) return _fmtLastSeen(lastSeenAt!);
     return _channelLabel(thread?.channel);
   }
 
@@ -3186,10 +3187,11 @@ class _StatusTicks extends StatelessWidget {
     if (status == null) {
       return Icon(Icons.access_time, size: 11, color: Colors.white.withValues(alpha: 0.5));
     }
+    // coche simple = delivered, coche double bleue = read
     return switch (status!) {
       MessageStatus.sent      => Icon(Icons.done, size: 12, color: Colors.white.withValues(alpha: 0.65)),
-      MessageStatus.delivered => Icon(Icons.done_all, size: 12, color: Colors.white.withValues(alpha: 0.65)),
-      MessageStatus.read      => const Icon(Icons.done_all, size: 12, color: Color(0xFF34D399)),
+      MessageStatus.delivered => Icon(Icons.done, size: 12, color: Colors.white.withValues(alpha: 0.65)),
+      MessageStatus.read      => const Icon(Icons.done_all, size: 12, color: Color(0xFF34B7F1)),
     };
   }
 }

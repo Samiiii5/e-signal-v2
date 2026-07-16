@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import 'package:esignal/core/navigation/app_router.dart';
 import 'package:esignal/core/services/session_service.dart';
@@ -22,6 +23,44 @@ class NotificationService {
   /// Incrémenté à chaque notification FCM reçue en foreground — écouté par
   /// NotificationsScreen pour se rafraîchir automatiquement.
   static final ValueNotifier<int> newNotificationTick = ValueNotifier<int>(0);
+
+  static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  static bool _localNotificationsReady = false;
+
+  static Future<void> _initLocalNotifications() async {
+    try {
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings();
+      await _localNotifications.initialize(
+        const InitializationSettings(android: androidSettings, iOS: iosSettings),
+      );
+      _localNotificationsReady = true;
+    } catch (e) {
+      debugPrint('=== Erreur init notifications locales : $e ===');
+    }
+  }
+
+  /// Notification locale (ex: new_comment WebSocket) — distincte du push FCM.
+  static Future<void> showLocalNotification({required String title, required String body}) async {
+    if (!_localNotificationsReady) return;
+    const androidDetails = AndroidNotificationDetails(
+      'esignal_events',
+      'Événements e-Signal',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+    try {
+      await _localNotifications.show(
+        DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
+        title,
+        body,
+        details,
+      );
+    } catch (e) {
+      debugPrint('=== Erreur notification locale : $e ===');
+    }
+  }
 
   static CollectionReference<Map<String, dynamic>>? _notificationsCollection() {
     final userId = SessionService.userId;
@@ -106,6 +145,8 @@ class NotificationService {
 
   // Appeler au démarrage dans main.dart
   static Future<void> initializeListeners() async {
+    await _initLocalNotifications();
+
     final messaging = FirebaseMessaging.instance;
 
     await messaging.requestPermission(

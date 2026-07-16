@@ -66,38 +66,70 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   void _onWsEvent(Map<String, dynamic> event) {
-    // new_message arrive à plat (thread_id, contact_name, channel, message
-    // au niveau racine) — pas sous "data". On fusionne les deux formes pour
-    // rester robuste si le backend imbrique un jour ses champs sous "data".
-    final data = event['data'];
-    final payload = <String, dynamic>{
-      ...event,
-      if (data is Map) ...Map<String, dynamic>.from(data),
-    };
-    if (event['event'] == 'new_message') {
-      _onNewMessageEvent(payload);
+    // Tous les événements documentés sont plats (thread_id/channel/... à la
+    // racine, sans enveloppe "data").
+    switch (event['event']) {
+      case 'new_message':
+        _onNewMessageEvent(event);
+      case 'thread_assigned':
+        _updateThread(event['thread_id']?.toString(),
+            (t) => t.copyWith(assignedToUserId: event['assigned_to_user_id']?.toString()));
+      case 'thread_unassigned':
+        _updateThread(event['thread_id']?.toString(), (t) => t.copyWithUnassigned());
+      case 'thread_resolved':
+        _updateThread(event['thread_id']?.toString(), (t) => t.copyWith(status: 'resolved'));
+      case 'new_comment':
+        _onNewCommentEvent(event);
     }
+  }
+
+  void _updateThread(String? threadId, Thread Function(Thread) transform) {
+    if (threadId == null) return;
+    final idx = _threads.indexWhere((t) => t.id == threadId);
+    if (idx == -1) return;
+    setState(() => _threads[idx] = transform(_threads[idx]));
   }
 
   void _onNewMessageEvent(Map<String, dynamic> data) {
     final threadId = data['thread_id']?.toString();
     if (threadId == null) return;
     final idx = _threads.indexWhere((t) => t.id == threadId);
-    if (idx == -1) return;
+    if (idx == -1) {
+      // Conversation pas encore connue localement (nouveau contact) : un
+      // refetch complet est le seul moyen fiable de l'obtenir.
+      _loadThreads();
+      return;
+    }
 
+    final channel = data['channel']?.toString();
     final contactName = data['contact_name']?.toString();
+    // contact_name n'est fourni que pour WhatsApp — Messenger/Instagram
+    // gardent le nom déjà connu du thread.
+    final newContactName = (channel == 'whatsapp' && contactName != null && contactName.isNotEmpty)
+        ? contactName
+        : null;
     final messageJson = data['message'];
     final sentAt = messageJson is Map ? messageJson['sent_at']?.toString() : null;
 
     setState(() {
       final updated = _threads[idx].copyWith(
-        contactName: (contactName != null && contactName.isNotEmpty) ? contactName : null,
+        contactName: newContactName,
         unreadCount: _threads[idx].unreadCount + 1,
         lastMessageAt: sentAt,
       );
       _threads.removeAt(idx);
       _threads.insert(0, updated);
     });
+  }
+
+  void _onNewCommentEvent(Map<String, dynamic> data) {
+    final commenterName = data['commenter_name']?.toString();
+    final bodyText = (data['body_text'] ?? '').toString();
+    NotificationService.showLocalNotification(
+      title: 'Nouveau commentaire',
+      body: commenterName != null ? '$commenterName : $bodyText' : bodyText,
+    );
+    if (_activeFilter == _Filter.commentaires) _loadPosts();
   }
 
   _Filter _channelToFilter(String channel) => switch (channel) {
