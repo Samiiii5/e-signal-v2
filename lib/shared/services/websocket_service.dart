@@ -23,7 +23,6 @@ const _closeCodeNormal = 1000;
 /// sert qu'au keepalive) ; c'est à chaque écran (InboxScreen, ChatScreen)
 /// de filtrer les événements qui le concernent.
 class WebSocketService {
-  static const String _wsUrl = 'wss://ws.score360.africa/api/v1.2/inbox/ws';
   static const Duration _pingInterval = Duration(seconds: 30);
   static const Duration _reconnectDelay = Duration(seconds: 5);
 
@@ -52,7 +51,21 @@ class WebSocketService {
   void _openConnection() {
     if (_manuallyDisconnected || _organizationId == null || _token == null) return;
     try {
-      final uri = Uri.parse('$_wsUrl?organization_id=$_organizationId&token=$_token');
+      // Port 443 explicite : web_socket_channel v3 convertit wss:// → https://
+      // via uri.replace(scheme:'https'). Sans port explicite, uri.port retourne 0
+      // en Dart (pas de port par défaut pour wss), ce qui produit https://host:0/...
+      // et la connexion échoue. Avec port:443, la conversion donne https://host:443/
+      // que Dart omet en sérialisation (port = défaut https) → URL propre.
+      final uri = Uri(
+        scheme: 'wss',
+        host: 'ws.score360.africa',
+        port: 443,
+        path: '/api/v1.2/inbox/ws',
+        queryParameters: {
+          'organization_id': _organizationId!,
+          'token': _token!,
+        },
+      );
       final channel = WebSocketChannel.connect(uri);
       _channel = channel;
       _isConnected = true;
