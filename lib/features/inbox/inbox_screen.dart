@@ -70,6 +70,10 @@ class _InboxScreenState extends State<InboxScreen> {
     // racine, sans enveloppe "data").
     switch (event['event']) {
       case 'new_message':
+        debugPrint('WS event reçu: ${event['event']}');
+        debugPrint('WS thread_id: ${event['thread_id']}');
+        debugPrint('WS contact_name: ${event['contact_name']}');
+        debugPrint('WS threads actuels: ${_threads.map((t) => t.id).toList()}');
         _onNewMessageEvent(event);
       case 'thread_assigned':
         _updateThread(event['thread_id']?.toString(),
