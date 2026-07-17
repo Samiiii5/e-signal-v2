@@ -8,6 +8,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../shared/mock/messages_mock.dart' show PaymentStatus;
 import '../../shared/mock/payments_mock.dart';
+import '../../shared/services/payment_service.dart';
 
 class TransactionDetailScreen extends StatefulWidget {
   final PaymentLink link;
@@ -19,10 +20,64 @@ class TransactionDetailScreen extends StatefulWidget {
 
 class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   bool _downloading = false;
+  bool _cancelling = false;
+  PaymentLink? _detail;
+
+  PaymentLink get _link => _detail ?? widget.link;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDetail();
+  }
+
+  Future<void> _loadDetail() async {
+    try {
+      final detail = await paymentService.getPaymentLinkDetail(_link.id);
+      if (!mounted) return;
+      setState(() => _detail = detail);
+    } catch (_) {
+      // Silently fallback to widget.link
+    }
+  }
+
+  Future<void> _cancelLink() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Annuler ce lien ?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+        content: const Text('Cette action est irréversible. Le lien ne pourra plus être utilisé.', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Non')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Annuler le lien', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _cancelling = true);
+    try {
+      await paymentService.cancelPaymentLink(_link.id);
+      if (!mounted) return;
+      _showSnackBar('Lien annulé avec succès', AppColors.textSecondary);
+      Navigator.pop(context);
+    } on PaymentNetworkException {
+      if (!mounted) return;
+      _showSnackBar('Erreur réseau. Vérifiez votre connexion.', Colors.redAccent);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnackBar('Impossible d\'annuler le lien.', Colors.redAccent);
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final (statusBg, statusText, statusLabel, statusIcon) = _statusMeta(widget.link.status);
+    final (statusBg, statusText, statusLabel, statusIcon) = _statusMeta(_link.status);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundPage,
@@ -58,7 +113,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   Text(statusLabel, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: statusText)),
                   const SizedBox(height: 8),
                   Text(
-                    '${_fmt(widget.link.amount)} FCFA',
+                    '${_fmt(_link.amount)} FCFA',
                     style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: statusText),
                   ),
                 ],
@@ -84,14 +139,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                     child: Text('Informations', style: AppTextStyles.label),
                   ),
                   const Divider(height: 1, color: AppColors.borderLight),
-                  _InfoRow(label: 'Référence', value: widget.link.id.toUpperCase()),
-                  _InfoRow(label: 'Client', value: widget.link.contactName),
-                  _InfoRow(label: 'Description', value: widget.link.description),
-                  _InfoRow(label: 'Montant', value: '${_fmt(widget.link.amount)} FCFA'),
-                  _InfoRow(label: 'Canal', value: widget.link.paymentMethod.label),
+                  _InfoRow(label: 'Référence', value: _link.id.toUpperCase()),
+                  _InfoRow(label: 'Client', value: _link.contactName),
+                  _InfoRow(label: 'Description', value: _link.description),
+                  _InfoRow(label: 'Montant', value: '${_fmt(_link.amount)} FCFA'),
+                  _InfoRow(label: 'Canal', value: _link.paymentMethod.label),
                   _InfoRow(label: 'Statut', value: statusLabel, valueColor: statusText),
-                  _InfoRow(label: 'Créé le', value: _fmtDate(widget.link.createdAt)),
-                  _InfoRow(label: 'Expire le', value: _fmtDate(widget.link.expiresAt), isLast: true),
+                  _InfoRow(label: 'Créé le', value: _fmtDate(_link.createdAt)),
+                  _InfoRow(label: 'Expire le', value: _fmtDate(_link.expiresAt), isLast: true),
                 ],
               ),
             ),
@@ -139,6 +194,27 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               ),
             ),
 
+            // ── Bouton Annuler (seulement si pas payé/expiré) ─────────
+            if (_link.status != PaymentStatus.paid && _link.status != PaymentStatus.expired) ...[
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: _cancelling ? null : _cancelLink,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                    shape: const StadiumBorder(),
+                  ),
+                  icon: _cancelling
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.redAccent, strokeWidth: 2))
+                      : const Icon(Icons.cancel_outlined, size: 18),
+                  label: Text(_cancelling ? 'Annulation...' : 'Annuler le lien', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+
             const SizedBox(height: 16),
           ],
         ),
@@ -161,7 +237,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         dir = await getApplicationDocumentsDirectory();
       }
 
-      final fileName = 'recu_${widget.link.id}.pdf';
+      final fileName = 'recu_${_link.id}.pdf';
       final file = File('${dir.path}/$fileName');
       await file.writeAsBytes(bytes);
 
@@ -187,7 +263,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     final bgGray = PdfColor.fromHex('#F5F5F5');
     final divider = PdfColor.fromHex('#E5E7EB');
 
-    final (_, statusColor, statusLabel, _) = _statusMeta(widget.link.status);
+    final (_, statusColor, statusLabel, _) = _statusMeta(_link.status);
     final pdfStatus = PdfColor(statusColor.r, statusColor.g, statusColor.b);
 
     doc.addPage(pw.Page(
@@ -206,7 +282,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
               pw.Text('REÇU DE PAIEMENT', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: textPrimary)),
               pw.SizedBox(height: 4),
-              pw.Text('Réf : ${widget.link.id.toUpperCase()}', style: pw.TextStyle(fontSize: 10, color: textSecondary)),
+              pw.Text('Réf : ${_link.id.toUpperCase()}', style: pw.TextStyle(fontSize: 10, color: textSecondary)),
             ]),
           ]),
 
@@ -229,7 +305,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             padding: const pw.EdgeInsets.all(18),
             decoration: pw.BoxDecoration(color: bgGray, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10))),
             child: pw.Center(
-              child: pw.Text('${_fmt(widget.link.amount)} FCFA',
+              child: pw.Text('${_fmt(_link.amount)} FCFA',
                   style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold, color: textPrimary)),
             ),
           ),
@@ -237,11 +313,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
           pw.SizedBox(height: 20),
 
           // Tableau infos
-          _pdfRow('Client', widget.link.contactName, textPrimary, textSecondary, divider),
-          _pdfRow('Description', widget.link.description, textPrimary, textSecondary, divider),
-          _pdfRow('Canal de paiement', widget.link.paymentMethod.label, textPrimary, textSecondary, divider),
-          _pdfRow('Date de création', _fmtDate(widget.link.createdAt), textPrimary, textSecondary, divider),
-          _pdfRow("Date d'expiration", _fmtDate(widget.link.expiresAt), textPrimary, textSecondary, divider),
+          _pdfRow('Client', _link.contactName, textPrimary, textSecondary, divider),
+          _pdfRow('Description', _link.description, textPrimary, textSecondary, divider),
+          _pdfRow('Canal de paiement', _link.paymentMethod.label, textPrimary, textSecondary, divider),
+          _pdfRow('Date de création', _fmtDate(_link.createdAt), textPrimary, textSecondary, divider),
+          _pdfRow("Date d'expiration", _fmtDate(_link.expiresAt), textPrimary, textSecondary, divider),
 
           pw.Spacer(),
           pw.Divider(color: divider),

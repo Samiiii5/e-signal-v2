@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/navigation/app_router.dart';
+import '../../core/services/session_service.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/shimmer_box.dart';
 import '../../shared/mock/messages_mock.dart' show PaymentStatus;
 import '../../shared/mock/payments_mock.dart';
 import '../../shared/services/payment_service.dart';
@@ -19,19 +22,35 @@ class PaymentsScreen extends StatefulWidget {
 }
 
 class _PaymentsScreenState extends State<PaymentsScreen> {
-  late Future<List<PaymentLink>> _future;
+  List<PaymentLink> _links = [];
+  bool _isLoading = true;
+  String? _error;
   PaymentStatus? _filter;
 
   @override
   void initState() {
     super.initState();
-    _future = paymentService.getPaymentLinks();
+    _load();
   }
 
-  Future<void> _refresh() async {
-    final links = await paymentService.getPaymentLinks();
+  Future<void> _load() async {
     if (!mounted) return;
-    setState(() { _future = Future.value(links); });
+    setState(() { _isLoading = true; _error = null; });
+    try {
+      final links = await paymentService.getPaymentLinks();
+      if (!mounted) return;
+      setState(() { _links = links; _isLoading = false; });
+    } on PaymentUnauthorizedException {
+      if (!mounted) return;
+      SessionService.logout();
+      navigatorKey.currentContext?.go('/login');
+    } on PaymentNetworkException {
+      if (!mounted) return;
+      setState(() { _isLoading = false; _error = 'Pas de connexion internet. Vérifiez votre réseau.'; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _links = mockPaymentLinks; _isLoading = false; });
+    }
   }
 
   Future<void> _openCreateSheet() async {
@@ -42,18 +61,16 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       builder: (_) => const CreateLinkSheet(),
     );
     if (!mounted) return;
-    if (result != null) await _refresh();
+    if (result != null) await _load();
   }
 
   Future<void> _openExportSheet() async {
-    final links = await paymentService.getPaymentLinks();
-    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _ExportSheet(
-        allLinks: links,
+        allLinks: _links,
         onDone: (msg) => ScaffoldMessenger.of(context).showSnackBar(_snack(msg)),
       ),
     );
@@ -150,26 +167,28 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
 
             // ── Liste ────────────────────────────────────────────────
             Expanded(
-              child: FutureBuilder<List<PaymentLink>>(
-                future: _future,
-                builder: (context, snap) {
-                  if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator(color: AppColors.green));
-                  }
-                  var links = snap.data ?? [];
-                  if (_filter != null) links = links.where((l) => l.status == _filter).toList();
-                  if (links.isEmpty) return _EmptyState(onTap: _openCreateSheet);
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                    itemCount: links.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (ctx, i) => GestureDetector(
-                      onTap: () => ctx.push('/payment-detail', extra: links[i]),
-                      child: _PaymentItem(link: links[i]),
-                    ),
-                  );
-                },
-              ),
+              child: _isLoading
+                  ? const _PaymentsSkeleton()
+                  : _error != null
+                      ? _ErrorBanner(message: _error!, onRetry: _load)
+                      : RefreshIndicator(
+                          color: AppColors.green,
+                          onRefresh: _load,
+                          child: Builder(builder: (context) {
+                            var links = _links;
+                            if (_filter != null) links = links.where((l) => l.status == _filter).toList();
+                            if (links.isEmpty) return _EmptyState(onTap: _openCreateSheet);
+                            return ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                              itemCount: links.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 12),
+                              itemBuilder: (ctx, i) => GestureDetector(
+                                onTap: () => ctx.push('/payment-detail', extra: links[i]),
+                                child: _PaymentItem(link: links[i]),
+                              ),
+                            );
+                          }),
+                        ),
             ),
           ],
         ),
@@ -568,6 +587,74 @@ class _ExportTile extends StatelessWidget {
           ])),
           Icon(Icons.chevron_right, color: onTap == null ? AppColors.borderLight : AppColors.textSecondary, size: 20),
         ]),
+      ),
+    );
+  }
+}
+
+// ── Skeleton chargement ───────────────────────────────────────────────────────
+
+class _PaymentsSkeleton extends StatelessWidget {
+  const _PaymentsSkeleton();
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      itemCount: 5,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, __) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderLight, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const ShimmerBox(width: 100, height: 18),
+            const SizedBox(height: 8),
+            const ShimmerBox(width: 160, height: 13),
+            const SizedBox(height: 4),
+            const ShimmerBox(width: 80, height: 11),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bannière erreur réseau ────────────────────────────────────────────────────
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_outlined, size: 44, color: AppColors.borderLight),
+            const SizedBox(height: 12),
+            Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+              child: const Text('Réessayer'),
+            ),
+          ],
+        ),
       ),
     );
   }

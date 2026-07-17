@@ -1,7 +1,5 @@
 import '../mock/messages_mock.dart' show PaymentStatus;
 
-// TODO: backend paiements pas encore connecté (voir shared/services/payment_service.dart).
-// Ces données mockées alimentent l'écran Paiements en attendant l'intégration API.
 class PaymentLink {
   final String id;
   final String contactName;
@@ -12,6 +10,13 @@ class PaymentLink {
   final DateTime expiresAt;
   final PaymentMethod paymentMethod;
 
+  // Champs optionnels renvoyés par l'API (absents dans les données mockées)
+  final String? checkoutUrl;
+  final String? currency;
+  final bool orderCardSent;
+  final String? catalogItemId;
+  final String? threadId;
+
   const PaymentLink({
     required this.id,
     required this.contactName,
@@ -21,7 +26,62 @@ class PaymentLink {
     required this.createdAt,
     required this.expiresAt,
     required this.paymentMethod,
+    this.checkoutUrl,
+    this.currency,
+    this.orderCardSent = false,
+    this.catalogItemId,
+    this.threadId,
   });
+
+  factory PaymentLink.fromJson(Map<String, dynamic> json) {
+    int parsedAmount = 0;
+    final rawAmount = json['amount'];
+    if (rawAmount is int) parsedAmount = rawAmount;
+    else if (rawAmount is double) parsedAmount = rawAmount.toInt();
+    else if (rawAmount is String) parsedAmount = int.tryParse(rawAmount) ?? 0;
+
+    final rawStatus = (json['status'] ?? '').toString().toLowerCase();
+    final status = PaymentStatus.values.firstWhere(
+      (s) => s.name == rawStatus,
+      orElse: () => PaymentStatus.created,
+    );
+
+    final rawProvider = (json['provider'] ?? json['payment_method'] ?? '').toString().toLowerCase();
+    final paymentMethod = _providerToMethod(rawProvider);
+
+    DateTime parseDate(dynamic v) {
+      if (v == null) return DateTime.now();
+      return DateTime.tryParse(v.toString()) ?? DateTime.now();
+    }
+
+    return PaymentLink(
+      id: (json['id'] ?? '').toString(),
+      contactName: (json['contact_name'] ?? json['contactName'] ?? 'Inconnu').toString(),
+      description: (json['description'] ?? '').toString(),
+      amount: parsedAmount,
+      status: status,
+      createdAt: parseDate(json['created_at'] ?? json['createdAt']),
+      expiresAt: parseDate(json['expires_at'] ?? json['expiresAt']),
+      paymentMethod: paymentMethod,
+      checkoutUrl: json['checkout_url']?.toString(),
+      currency: json['currency']?.toString(),
+      orderCardSent: json['order_card_sent'] as bool? ?? false,
+      catalogItemId: json['catalog_item_id']?.toString(),
+      threadId: json['thread_id']?.toString(),
+    );
+  }
+
+  static PaymentMethod _providerToMethod(String provider) {
+    switch (provider) {
+      case 'wave':         return PaymentMethod.wave;
+      case 'orange_money': return PaymentMethod.orangeMoney;
+      case 'cinetpay':     return PaymentMethod.cinetPay;
+      case 'moov_money':   return PaymentMethod.moovMoney;
+      case 'mtn_money':    return PaymentMethod.mtnMoney;
+      case 'djamo':        return PaymentMethod.djamo;
+      default:             return PaymentMethod.wave;
+    }
+  }
 }
 
 enum PaymentMethod { wave, orangeMoney, cinetPay, moovMoney, mtnMoney, djamo }
