@@ -13,7 +13,7 @@ import '../../features/payments/create_link_screen.dart';
 import '../../features/payments/payments_screen.dart';
 import '../../features/payments/transaction_detail_screen.dart';
 import '../../features/profile/profile_screen.dart';
-import '../../shared/mock/payments_mock.dart';
+import '../../shared/models/payment_link.dart';
 import '../../features/stats/stats_screen.dart';
 import '../../core/services/navigation_service.dart';
 import '../../core/services/session_service.dart';

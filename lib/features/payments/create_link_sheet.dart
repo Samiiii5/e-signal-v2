@@ -5,9 +5,9 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
-import '../../shared/mock/payments_mock.dart';
 import '../../shared/mock/products_mock.dart';
 import '../../shared/mock/threads_mock.dart';
+import '../../shared/models/payment_link.dart';
 import '../../shared/services/inbox_service.dart';
 import '../../shared/services/payment_service.dart';
 
@@ -76,41 +76,57 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
     final frais = _hasDelivery ? 2000 : 0;
     final total = p.price + frais;
 
-    // Persiste le lien dans le service paiement
-    final link = await paymentService.createPaymentLink(CreatePaymentLinkDto(
-      contactName: _selectedThread?.contactName ?? '',
-      description: '${p.emoji} ${p.name}',
-      amount: total,
-      paymentMethod: PaymentMethodLabel.fromLabel(_selectedPayment),
-    ));
-
-    if (!mounted) return;
-
-    // Injecte le message dans la conversation du client sélectionné
-    if (_selectedThread != null && inboxService is MockInboxService) {
-      (inboxService as MockInboxService).addMessage(
-        _selectedThread!.id,
-        Message(
-          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-          direction: 'OUT',
-          bodyText: '${p.emoji} ${p.name}\n💰 $total FCFA',
-          messageType: 'PAYMENT_LINK',
-          sentAt: DateTime.now().toIso8601String(),
-          paymentAmount: total.toString(),
-          paymentCurrency: 'FCFA',
-          paymentStatus: PaymentStatus.created,
-          paymentProvider: _selectedPayment,
-        ),
+    try {
+      final link = await paymentService.createPaymentLink(
+        catalogItemId: p.id,
+        provider: _providerFor(_selectedPayment),
+        customerName: _selectedThread?.contactName,
+        customerPhone: _telephoneCtrl.text.isNotEmpty ? _telephoneCtrl.text : null,
+        threadId: _selectedThread?.id,
       );
-    }
 
-    if (!mounted) return;
-    setState(() {
-      _isGenerating = false;
-      _generatedUrl = 'https://pay.esignal.ci/l/${link.id}?a=$total';
-      _generatedLink = link;
-    });
+      if (!mounted) return;
+
+      // Injecte le message dans la conversation du client sélectionné
+      if (_selectedThread != null && inboxService is MockInboxService) {
+        (inboxService as MockInboxService).addMessage(
+          _selectedThread!.id,
+          Message(
+            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+            direction: 'OUT',
+            bodyText: '${p.emoji} ${p.name}\n💰 $total FCFA',
+            messageType: 'PAYMENT_LINK',
+            sentAt: DateTime.now().toIso8601String(),
+            paymentAmount: total.toString(),
+            paymentCurrency: 'FCFA',
+            paymentStatus: PaymentStatus.created,
+            paymentProvider: _selectedPayment,
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _isGenerating = false;
+        _generatedUrl = link.checkoutUrl.isNotEmpty ? link.checkoutUrl : 'https://pay.esignal.ci/l/${link.id}';
+        _generatedLink = link;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isGenerating = false);
+    }
   }
+
+  static String _providerFor(String label) => switch (label) {
+    'Wave'         => 'wave',
+    'FedaPay'      => 'fedapay',
+    'Orange Money' => 'orange_money',
+    'CinetPay'     => 'cinetpay',
+    'Moov Money'   => 'moov_money',
+    'MTN Money'    => 'mtn_money',
+    'Djamo'        => 'djamo',
+    _              => 'wave',
+  };
 
   static String _fmt(int n) {
     final s = n.toString();

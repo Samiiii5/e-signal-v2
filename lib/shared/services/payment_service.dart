@@ -1,71 +1,93 @@
 import 'package:dio/dio.dart';
-import '../mock/messages_mock.dart' show PaymentStatus;
 import '../mock/payments_mock.dart';
+import '../models/payment_link.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/session_service.dart';
+
+export '../models/payment_link.dart';
 
 class PaymentUnauthorizedException implements Exception {}
 class PaymentNetworkException implements Exception {}
 class PaymentNotFoundException implements Exception {}
 
-class CreatePaymentLinkDto {
-  final String contactName;
-  final String description;
-  final int amount; // en FCFA
-  final PaymentMethod paymentMethod;
-
-  const CreatePaymentLinkDto({
-    required this.contactName,
-    required this.description,
-    required this.amount,
-    required this.paymentMethod,
-  });
-}
-
 abstract class PaymentService {
-  /// GET /api/payment-links
-  Future<List<PaymentLink>> getPaymentLinks();
+  /// GET /api/v1.2/payment-links/organizations/{org_id}
+  Future<List<PaymentLink>> getPaymentLinks({
+    String? status,
+    String? paymentStatus,
+    String? provider,
+    int limit = 50,
+    int offset = 0,
+  });
 
-  /// GET /api/payment-links/:id
-  Future<PaymentLink> getPaymentLinkDetail(String id);
+  /// POST /api/v1.2/payment-links/organizations/{org_id}/product
+  Future<PaymentLink> createPaymentLink({
+    required String catalogItemId,
+    String? provider,
+    int expiresInHours = 24,
+    String? customerPhone,
+    String? customerName,
+    String? threadId,
+  });
 
-  /// POST /api/payment-links
-  Future<PaymentLink> createPaymentLink(CreatePaymentLinkDto dto);
+  /// GET /api/v1.2/payment-links/organizations/{org_id}/{payment_link_id}
+  Future<PaymentLink> getPaymentLinkDetail(String paymentLinkId);
 
-  /// DELETE /api/payment-links/:id
-  Future<void> cancelPaymentLink(String id);
+  /// GET /api/v1.2/payment-links/organizations/{org_id}/summary
+  Future<Map<String, dynamic>> getPaymentSummary({
+    String? startDate,
+    String? endDate,
+  });
 
-  /// PATCH /api/payment-links/:id/status
-  Future<void> updatePaymentStatus(String id, String status);
+  /// POST /api/v1.2/payment-links/organizations/{org_id}/{payment_link_id}/cancel
+  Future<void> cancelPaymentLink(String paymentLinkId);
 }
 
 class HttpPaymentService implements PaymentService {
-  Map<String, dynamic> get _orgParam {
-    final orgId = SessionService.organizationId;
-    return orgId != null ? {'organization_id': orgId} : {};
+  String get _orgId => SessionService.organizationId ?? '';
+  String get _base => '/payment-links/organizations/$_orgId';
+
+  List<PaymentLink> _parseList(dynamic data) {
+    List items = [];
+    if (data is List) {
+      items = data;
+    } else if (data is Map && data['items'] is List) {
+      items = data['items'] as List;
+    } else if (data is Map && data['data'] is List) {
+      items = data['data'] as List;
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(PaymentLink.fromJson)
+        .toList();
+  }
+
+  PaymentLink _parseSingle(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      if (data['data'] is Map<String, dynamic>) return PaymentLink.fromJson(data['data'] as Map<String, dynamic>);
+      return PaymentLink.fromJson(data);
+    }
+    throw FormatException('Unexpected response format');
   }
 
   @override
-  Future<List<PaymentLink>> getPaymentLinks() async {
+  Future<List<PaymentLink>> getPaymentLinks({
+    String? status,
+    String? paymentStatus,
+    String? provider,
+    int limit = 50,
+    int offset = 0,
+  }) async {
     try {
-      final resp = await ApiClient.dio.get('/payment-links', queryParameters: _orgParam);
+      final params = <String, dynamic>{'limit': limit, 'offset': offset};
+      if (status != null) params['status'] = status;
+      if (paymentStatus != null) params['payment_status'] = paymentStatus;
+      if (provider != null) params['provider'] = provider;
+
+      final resp = await ApiClient.dio.get(_base, queryParameters: params);
       if (resp.statusCode == 401) throw PaymentUnauthorizedException();
-      final data = resp.data;
-      List items = [];
-      if (data is List) {
-        items = data;
-      } else if (data is Map && data['items'] is List) {
-        items = data['items'] as List;
-      } else if (data is Map && data['data'] is List) {
-        items = data['data'] as List;
-      } else {
-        return List.from(mockPaymentLinks)..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      }
-      return items
-          .whereType<Map<String, dynamic>>()
-          .map(PaymentLink.fromJson)
-          .toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      if (resp.statusCode == 404) return List.from(mockPaymentLinks);
+      return _parseList(resp.data);
     } on PaymentUnauthorizedException {
       rethrow;
     } on DioException {
@@ -74,14 +96,41 @@ class HttpPaymentService implements PaymentService {
   }
 
   @override
-  Future<PaymentLink> getPaymentLinkDetail(String id) async {
+  Future<PaymentLink> createPaymentLink({
+    required String catalogItemId,
+    String? provider,
+    int expiresInHours = 24,
+    String? customerPhone,
+    String? customerName,
+    String? threadId,
+  }) async {
     try {
-      final resp = await ApiClient.dio.get('/payment-links/$id', queryParameters: _orgParam);
+      final body = <String, dynamic>{
+        'catalog_item_id': catalogItemId,
+        'expires_in_hours': expiresInHours,
+      };
+      if (provider != null) body['provider'] = provider;
+      if (customerPhone != null && customerPhone.isNotEmpty) body['customer_phone'] = customerPhone;
+      if (customerName != null && customerName.isNotEmpty) body['customer_name'] = customerName;
+      if (threadId != null) body['thread_id'] = threadId;
+
+      final resp = await ApiClient.dio.post('$_base/product', data: body);
+      if (resp.statusCode == 401) throw PaymentUnauthorizedException();
+      return _parseSingle(resp.data);
+    } on PaymentUnauthorizedException {
+      rethrow;
+    } on DioException {
+      throw PaymentNetworkException();
+    }
+  }
+
+  @override
+  Future<PaymentLink> getPaymentLinkDetail(String paymentLinkId) async {
+    try {
+      final resp = await ApiClient.dio.get('$_base/$paymentLinkId');
       if (resp.statusCode == 401) throw PaymentUnauthorizedException();
       if (resp.statusCode == 404) throw PaymentNotFoundException();
-      final data = resp.data;
-      final raw = data is Map && data['data'] is Map ? data['data'] as Map<String, dynamic> : data as Map<String, dynamic>;
-      return PaymentLink.fromJson(raw);
+      return _parseSingle(resp.data);
     } on PaymentUnauthorizedException {
       rethrow;
     } on PaymentNotFoundException {
@@ -92,20 +141,19 @@ class HttpPaymentService implements PaymentService {
   }
 
   @override
-  Future<PaymentLink> createPaymentLink(CreatePaymentLinkDto dto) async {
+  Future<Map<String, dynamic>> getPaymentSummary({
+    String? startDate,
+    String? endDate,
+  }) async {
     try {
-      final provider = _methodToProvider(dto.paymentMethod);
-      final resp = await ApiClient.dio.post('/payment-links', data: {
-        'contact_name': dto.contactName,
-        'description': dto.description,
-        'amount': dto.amount.toString(),
-        'provider': provider,
-        ..._orgParam,
-      });
+      final params = <String, dynamic>{};
+      if (startDate != null) params['start_date'] = startDate;
+      if (endDate != null) params['end_date'] = endDate;
+
+      final resp = await ApiClient.dio.get('$_base/summary', queryParameters: params);
       if (resp.statusCode == 401) throw PaymentUnauthorizedException();
       final data = resp.data;
-      final raw = data is Map && data['data'] is Map ? data['data'] as Map<String, dynamic> : data as Map<String, dynamic>;
-      return PaymentLink.fromJson(raw);
+      return data is Map<String, dynamic> ? data : {};
     } on PaymentUnauthorizedException {
       rethrow;
     } on DioException {
@@ -114,9 +162,9 @@ class HttpPaymentService implements PaymentService {
   }
 
   @override
-  Future<void> cancelPaymentLink(String id) async {
+  Future<void> cancelPaymentLink(String paymentLinkId) async {
     try {
-      final resp = await ApiClient.dio.delete('/payment-links/$id', queryParameters: _orgParam);
+      final resp = await ApiClient.dio.post('$_base/$paymentLinkId/cancel');
       if (resp.statusCode == 401) throw PaymentUnauthorizedException();
       if (resp.statusCode == 404) throw PaymentNotFoundException();
     } on PaymentUnauthorizedException {
@@ -125,29 +173,6 @@ class HttpPaymentService implements PaymentService {
       rethrow;
     } on DioException {
       throw PaymentNetworkException();
-    }
-  }
-
-  @override
-  Future<void> updatePaymentStatus(String id, String status) async {
-    try {
-      final resp = await ApiClient.dio.patch('/payment-links/$id/status', data: {'status': status});
-      if (resp.statusCode == 401) throw PaymentUnauthorizedException();
-    } on PaymentUnauthorizedException {
-      rethrow;
-    } on DioException {
-      throw PaymentNetworkException();
-    }
-  }
-
-  String _methodToProvider(PaymentMethod m) {
-    switch (m) {
-      case PaymentMethod.wave:        return 'wave';
-      case PaymentMethod.orangeMoney: return 'orange_money';
-      case PaymentMethod.cinetPay:    return 'cinetpay';
-      case PaymentMethod.moovMoney:   return 'moov_money';
-      case PaymentMethod.mtnMoney:    return 'mtn_money';
-      case PaymentMethod.djamo:       return 'djamo';
     }
   }
 }
@@ -156,58 +181,69 @@ class MockPaymentService implements PaymentService {
   final _links = List<PaymentLink>.from(mockPaymentLinks);
 
   @override
-  Future<List<PaymentLink>> getPaymentLinks() async {
+  Future<List<PaymentLink>> getPaymentLinks({
+    String? status,
+    String? paymentStatus,
+    String? provider,
+    int limit = 50,
+    int offset = 0,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 400));
-    return List.from(_links)..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    var result = List<PaymentLink>.from(_links);
+    if (status != null) result = result.where((l) => l.status == status).toList();
+    if (provider != null) result = result.where((l) => l.provider == provider).toList();
+    return result;
   }
 
   @override
-  Future<PaymentLink> getPaymentLinkDetail(String id) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return _links.firstWhere((l) => l.id == id, orElse: () => _links.first);
-  }
-
-  @override
-  Future<PaymentLink> createPaymentLink(CreatePaymentLinkDto dto) async {
+  Future<PaymentLink> createPaymentLink({
+    required String catalogItemId,
+    String? provider,
+    int expiresInHours = 24,
+    String? customerPhone,
+    String? customerName,
+    String? threadId,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 600));
     final link = PaymentLink(
       id: 'pay_${DateTime.now().millisecondsSinceEpoch}',
-      contactName: dto.contactName,
-      description: dto.description,
-      amount: dto.amount,
-      status: PaymentStatus.created,
-      createdAt: DateTime.now(),
-      expiresAt: DateTime.now().add(const Duration(hours: 24)),
-      paymentMethod: dto.paymentMethod,
+      checkoutUrl: 'https://pay.esignal.ci/l/pay_${DateTime.now().millisecondsSinceEpoch}',
+      provider: provider ?? 'wave',
+      amount: '0',
+      currency: 'XOF',
+      description: customerName ?? 'Nouveau lien',
+      expiresAt: DateTime.now().add(Duration(hours: expiresInHours)).toIso8601String(),
+      status: 'created',
+      catalogItemId: catalogItemId,
+      threadId: threadId,
     );
     _links.add(link);
     return link;
   }
 
   @override
-  Future<void> cancelPaymentLink(String id) async {
+  Future<PaymentLink> getPaymentLinkDetail(String paymentLinkId) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    final index = _links.indexWhere((l) => l.id == id);
-    if (index == -1) return;
-    final old = _links[index];
-    _links[index] = PaymentLink(
-      id: old.id, contactName: old.contactName, description: old.description,
-      amount: old.amount, status: PaymentStatus.expired,
-      createdAt: old.createdAt, expiresAt: old.expiresAt, paymentMethod: old.paymentMethod,
-    );
+    return _links.firstWhere((l) => l.id == paymentLinkId, orElse: () => _links.first);
   }
 
   @override
-  Future<void> updatePaymentStatus(String id, String status) async {
+  Future<Map<String, dynamic>> getPaymentSummary({String? startDate, String? endDate}) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    final parsed = PaymentStatus.values.firstWhere((s) => s.name == status, orElse: () => PaymentStatus.pending);
-    final index = _links.indexWhere((l) => l.id == id);
+    return {'total': _links.length, 'paid': _links.where((l) => l.status == 'paid').length};
+  }
+
+  @override
+  Future<void> cancelPaymentLink(String paymentLinkId) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final index = _links.indexWhere((l) => l.id == paymentLinkId);
     if (index == -1) return;
     final old = _links[index];
     _links[index] = PaymentLink(
-      id: old.id, contactName: old.contactName, description: old.description,
-      amount: old.amount, status: parsed,
-      createdAt: old.createdAt, expiresAt: old.expiresAt, paymentMethod: old.paymentMethod,
+      id: old.id, checkoutUrl: old.checkoutUrl, provider: old.provider,
+      amount: old.amount, currency: old.currency, description: old.description,
+      expiresAt: old.expiresAt, status: 'expired',
+      catalogItemId: old.catalogItemId, threadId: old.threadId,
     );
   }
 }

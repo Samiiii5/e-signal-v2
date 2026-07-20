@@ -9,10 +9,49 @@ import '../../core/navigation/app_router.dart';
 import '../../core/services/session_service.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/shimmer_box.dart';
-import '../../shared/mock/messages_mock.dart' show PaymentStatus;
 import '../../shared/mock/payments_mock.dart';
+import '../../shared/models/payment_link.dart';
 import '../../shared/services/payment_service.dart';
 import 'create_link_sheet.dart';
+
+// ── Couleurs statut (spec design) ─────────────────────────────────────────────
+const _kPaidText    = Color(0xFF27500A);
+const _kPaidBg      = Color(0xFFEAF3DE);
+const _kPendingText = Color(0xFF534AB7);
+const _kPendingBg   = Color(0xFFEEEDFE);
+const _kCreatedText = AppColors.textSecondary;
+const _kCreatedBg   = AppColors.backgroundPage;
+const _kExpiredText = Color(0xFF5F5E5A);
+const _kExpiredBg   = Color(0xFFF1EFE8);
+
+(Color, Color, String) _statusStyle(String s) => switch (s) {
+  'paid'    => (_kPaidBg,    _kPaidText,    'Payé'),
+  'pending' => (_kPendingBg, _kPendingText, 'En attente'),
+  'expired' => (_kExpiredBg, _kExpiredText, 'Expiré'),
+  _         => (_kCreatedBg, _kCreatedText, 'Créé'),
+};
+
+// ── Formatage ─────────────────────────────────────────────────────────────────
+
+String _fmtAmount(String raw) {
+  final n = int.tryParse(raw) ?? 0;
+  final s = n.toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+    buf.write(s[i]);
+  }
+  return buf.toString();
+}
+
+String _fmtDate(String iso) {
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return iso;
+  const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
+}
+
+// ── Écran principal ───────────────────────────────────────────────────────────
 
 class PaymentsScreen extends StatefulWidget {
   const PaymentsScreen({super.key});
@@ -25,7 +64,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
   List<PaymentLink> _links = [];
   bool _isLoading = true;
   String? _error;
-  PaymentStatus? _filter;
+  String? _filter; // 'paid' | 'pending' | 'expired' | null
 
   @override
   void initState() {
@@ -49,7 +88,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       setState(() { _isLoading = false; _error = 'Pas de connexion internet. Vérifiez votre réseau.'; });
     } catch (_) {
       if (!mounted) return;
-      setState(() { _links = mockPaymentLinks; _isLoading = false; });
+      setState(() { _links = List.from(mockPaymentLinks); _isLoading = false; });
     }
   }
 
@@ -101,7 +140,6 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                   Expanded(
                     child: Text('Paiements', style: AppTextStyles.h1, overflow: TextOverflow.ellipsis),
                   ),
-                  // Bouton Exporter — icône + texte compact
                   GestureDetector(
                     onTap: _openExportSheet,
                     child: Container(
@@ -121,7 +159,6 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Bouton Nouveau — compact
                   GestureDetector(
                     onTap: _openCreateSheet,
                     child: Container(
@@ -152,13 +189,13 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  _FilterPill(label: 'Tous', active: _filter == null, onTap: () => setState(() => _filter = null)),
+                  _FilterPill(label: 'Tous',       active: _filter == null,      color: AppColors.textPrimary, onTap: () => setState(() => _filter = null)),
                   const SizedBox(width: 8),
-                  _FilterPill(label: 'Payés', active: _filter == PaymentStatus.paid, onTap: () => setState(() => _filter = PaymentStatus.paid), color: AppColors.statusPaidText),
+                  _FilterPill(label: 'Payés',      active: _filter == 'paid',    color: _kPaidText,    onTap: () => setState(() => _filter = 'paid')),
                   const SizedBox(width: 8),
-                  _FilterPill(label: 'En attente', active: _filter == PaymentStatus.pending, onTap: () => setState(() => _filter = PaymentStatus.pending), color: AppColors.statusPendingText),
+                  _FilterPill(label: 'En attente', active: _filter == 'pending', color: _kPendingText, onTap: () => setState(() => _filter = 'pending')),
                   const SizedBox(width: 8),
-                  _FilterPill(label: 'Expirés', active: _filter == PaymentStatus.expired, onTap: () => setState(() => _filter = PaymentStatus.expired), color: AppColors.textSecondary),
+                  _FilterPill(label: 'Expirés',    active: _filter == 'expired', color: _kExpiredText, onTap: () => setState(() => _filter = 'expired')),
                 ],
               ),
             ),
@@ -203,19 +240,18 @@ class _FilterPill extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  final Color? color;
-  const _FilterPill({required this.label, required this.active, required this.onTap, this.color});
+  final Color color;
+  const _FilterPill({required this.label, required this.active, required this.onTap, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = color ?? AppColors.green;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: active ? activeColor : AppColors.backgroundPage,
+          color: active ? color : AppColors.backgroundPage,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -251,13 +287,13 @@ class _PaymentItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Text(_fmt(link.amount), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: statusText)),
-                  const Text(' FCFA', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w400)),
+                  Text(_fmtAmount(link.amount), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: statusText)),
+                  Text(' ${link.currency}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w400)),
                 ]),
                 const SizedBox(height: 4),
-                Text('Client : ${link.contactName}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                Text(link.catalogItemName ?? link.description, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 2),
-                Text(_fmtDate(link.createdAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+                Text(_fmtDate(link.expiresAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
               ],
             ),
           ),
@@ -273,27 +309,74 @@ class _PaymentItem extends StatelessWidget {
       ),
     );
   }
+}
 
-  (Color, Color, String) _statusStyle(PaymentStatus s) => switch (s) {
-    PaymentStatus.paid    => (AppColors.statusPaidBg,    AppColors.statusPaidText,    'Payé'),
-    PaymentStatus.pending => (AppColors.statusPendingBg, AppColors.statusPendingText, 'En attente'),
-    PaymentStatus.created => (AppColors.statusCreatedBg, AppColors.statusCreatedText, 'Créé'),
-    PaymentStatus.expired => (AppColors.statusExpiredBg, AppColors.statusExpiredText, 'Expiré'),
-  };
+// ── Skeleton chargement ───────────────────────────────────────────────────────
 
-  String _fmt(int n) {
-    final s = n.toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
-      buf.write(s[i]);
-    }
-    return buf.toString();
+class _PaymentsSkeleton extends StatelessWidget {
+  const _PaymentsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      itemCount: 5,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, __) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderLight, width: 0.5),
+        ),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ShimmerBox(width: 100, height: 18),
+            SizedBox(height: 8),
+            ShimmerBox(width: 160, height: 13),
+            SizedBox(height: 4),
+            ShimmerBox(width: 80, height: 11),
+          ],
+        ),
+      ),
+    );
   }
+}
 
-  String _fmtDate(DateTime dt) {
-    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-    return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
+// ── Bannière erreur réseau ────────────────────────────────────────────────────
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_outlined, size: 44, color: AppColors.borderLight),
+            const SizedBox(height: 12),
+            Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+              child: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -318,13 +401,18 @@ class _ExportSheetState extends State<_ExportSheet> {
     final now = DateTime.now();
     return switch (_filter) {
       _ExportFilter.all         => widget.allLinks,
-      _ExportFilter.paid        => widget.allLinks.where((l) => l.status == PaymentStatus.paid).toList(),
-      _ExportFilter.pending     => widget.allLinks.where((l) => l.status == PaymentStatus.pending).toList(),
-      _ExportFilter.thisMonth   => widget.allLinks.where((l) => l.createdAt.year == now.year && l.createdAt.month == now.month).toList(),
+      _ExportFilter.paid        => widget.allLinks.where((l) => l.status == 'paid').toList(),
+      _ExportFilter.pending     => widget.allLinks.where((l) => l.status == 'pending').toList(),
+      _ExportFilter.thisMonth   => widget.allLinks.where((l) {
+          final dt = l.expiresAtDate;
+          return dt != null && dt.year == now.year && dt.month == now.month;
+        }).toList(),
       _ExportFilter.thisQuarter => widget.allLinks.where((l) {
+          final dt = l.expiresAtDate;
+          if (dt == null) return false;
           final q = (now.month - 1) ~/ 3;
-          final lq = (l.createdAt.month - 1) ~/ 3;
-          return l.createdAt.year == now.year && lq == q;
+          final lq = (dt.month - 1) ~/ 3;
+          return dt.year == now.year && lq == q;
         }).toList(),
     };
   }
@@ -334,10 +422,12 @@ class _ExportSheetState extends State<_ExportSheet> {
     return '${now.year}${now.month.toString().padLeft(2,'0')}${now.day.toString().padLeft(2,'0')}';
   }
 
-  String _fmtDate(DateTime dt) {
-    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-    return '${dt.day} ${m[dt.month-1]} ${dt.year}';
-  }
+  String _statusLabel(String s) => switch (s) {
+    'paid'    => 'Payé',
+    'pending' => 'En attente',
+    'expired' => 'Expiré',
+    _         => 'Créé',
+  };
 
   Future<File> _saveFile(String name, List<int> bytes) async {
     final dl = Directory('/storage/emulated/0/Download');
@@ -352,15 +442,9 @@ class _ExportSheetState extends State<_ExportSheet> {
     try {
       final links = _filtered;
       final buf = StringBuffer();
-      buf.writeln('Référence,Client,Description,Montant (FCFA),Statut,Canal,Date création,Date expiration');
+      buf.writeln('Référence,Description,Montant,Devise,Statut,Fournisseur,Expiration');
       for (final l in links) {
-        final status = switch (l.status) {
-          PaymentStatus.paid    => 'Payé',
-          PaymentStatus.pending => 'En attente',
-          PaymentStatus.created => 'Créé',
-          PaymentStatus.expired => 'Expiré',
-        };
-        buf.writeln('"${l.id.toUpperCase()}","${l.contactName}","${l.description}",${l.amount},"$status","${l.paymentMethod.label}","${_fmtDate(l.createdAt)}","${_fmtDate(l.expiresAt)}"');
+        buf.writeln('"${l.id.toUpperCase()}","${l.description}",${l.amount},"${l.currency}","${_statusLabel(l.status)}","${l.provider}","${_fmtDate(l.expiresAt)}"');
       }
       final name = 'esignal_transactions_${_dateTag()}.csv';
       final file = await _saveFile(name, buf.toString().codeUnits);
@@ -384,7 +468,6 @@ class _ExportSheetState extends State<_ExportSheet> {
       final excel = Excel.createExcel();
       final sheet = excel['Transactions'];
 
-      // Style en-tête
       final headerStyle = CellStyle(
         bold: true,
         fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
@@ -392,34 +475,24 @@ class _ExportSheetState extends State<_ExportSheet> {
         horizontalAlign: HorizontalAlign.Center,
       );
 
-      // En-têtes
-      final headers = ['Référence', 'Client', 'Description', 'Montant (FCFA)', 'Statut', 'Canal', 'Date création', 'Date expiration'];
+      final headers = ['Référence', 'Description', 'Montant', 'Devise', 'Statut', 'Fournisseur', 'Expiration'];
       for (var c = 0; c < headers.length; c++) {
         final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: 0));
         cell.value = TextCellValue(headers[c]);
         cell.cellStyle = headerStyle;
       }
 
-      // Données
       for (var r = 0; r < links.length; r++) {
         final l = links[r];
-        final status = switch (l.status) {
-          PaymentStatus.paid    => 'Payé',
-          PaymentStatus.pending => 'En attente',
-          PaymentStatus.created => 'Créé',
-          PaymentStatus.expired => 'Expiré',
-        };
-        final row = [l.id.toUpperCase(), l.contactName, l.description, l.amount, status, l.paymentMethod.label, _fmtDate(l.createdAt), _fmtDate(l.expiresAt)];
+        final row = [l.id.toUpperCase(), l.description, l.amount, l.currency, _statusLabel(l.status), l.provider, _fmtDate(l.expiresAt)];
         for (var c = 0; c < row.length; c++) {
           final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r + 1));
-          final v = row[c];
-          cell.value = v is int ? IntCellValue(v) : TextCellValue(v.toString());
+          cell.value = TextCellValue(row[c]);
         }
       }
 
-      // Largeur colonnes
       for (var c = 0; c < headers.length; c++) {
-        sheet.setColumnWidth(c, 20);
+        sheet.setColumnWidth(c, 22);
       }
 
       final bytes = excel.encode()!;
@@ -450,11 +523,8 @@ class _ExportSheetState extends State<_ExportSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle
           Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 20),
-
-          // Titre + compteur
           Row(
             children: [
               const Text('Exporter les transactions', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
@@ -467,15 +537,13 @@ class _ExportSheetState extends State<_ExportSheet> {
             ],
           ),
           const SizedBox(height: 16),
-
-          // Filtres
           const Align(alignment: Alignment.centerLeft, child: Text('Filtrer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary))),
           const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _FilterChip(label: 'Toutes', active: _filter == _ExportFilter.all,         onTap: () => setState(() => _filter = _ExportFilter.all)),
+                _FilterChip(label: 'Toutes',       active: _filter == _ExportFilter.all,         onTap: () => setState(() => _filter = _ExportFilter.all)),
                 const SizedBox(width: 6),
                 _FilterChip(label: 'Payées',        active: _filter == _ExportFilter.paid,        onTap: () => setState(() => _filter = _ExportFilter.paid)),
                 const SizedBox(width: 6),
@@ -488,8 +556,6 @@ class _ExportSheetState extends State<_ExportSheet> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // CSV
           _ExportTile(
             icon: Icons.table_chart_outlined,
             label: 'Exporter en CSV',
@@ -499,8 +565,6 @@ class _ExportSheetState extends State<_ExportSheet> {
             onTap: _exporting ? null : _exportCsv,
           ),
           const SizedBox(height: 10),
-
-          // Excel
           _ExportTile(
             icon: Icons.grid_on_outlined,
             label: 'Exporter en Excel',
@@ -510,8 +574,6 @@ class _ExportSheetState extends State<_ExportSheet> {
             onTap: _exporting ? null : _exportExcel,
           ),
           const SizedBox(height: 10),
-
-          // Annuler
           SizedBox(
             width: double.infinity,
             child: TextButton(
@@ -587,74 +649,6 @@ class _ExportTile extends StatelessWidget {
           ])),
           Icon(Icons.chevron_right, color: onTap == null ? AppColors.borderLight : AppColors.textSecondary, size: 20),
         ]),
-      ),
-    );
-  }
-}
-
-// ── Skeleton chargement ───────────────────────────────────────────────────────
-
-class _PaymentsSkeleton extends StatelessWidget {
-  const _PaymentsSkeleton();
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      itemCount: 5,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, __) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.borderLight, width: 0.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const ShimmerBox(width: 100, height: 18),
-            const SizedBox(height: 8),
-            const ShimmerBox(width: 160, height: 13),
-            const SizedBox(height: 4),
-            const ShimmerBox(width: 80, height: 11),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Bannière erreur réseau ────────────────────────────────────────────────────
-
-class _ErrorBanner extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-  const _ErrorBanner({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.wifi_off_outlined, size: 44, color: AppColors.borderLight),
-            const SizedBox(height: 12),
-            Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: onRetry,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.white,
-                shape: const StadiumBorder(),
-                elevation: 0,
-              ),
-              child: const Text('Réessayer'),
-            ),
-          ],
-        ),
       ),
     );
   }

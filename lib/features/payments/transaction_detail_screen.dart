@@ -6,9 +6,18 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../../shared/mock/messages_mock.dart' show PaymentStatus;
-import '../../shared/mock/payments_mock.dart';
+import '../../shared/models/payment_link.dart';
 import '../../shared/services/payment_service.dart';
+
+// ── Couleurs statut (identiques à payments_screen.dart) ───────────────────────
+const _kPaidText    = Color(0xFF27500A);
+const _kPaidBg      = Color(0xFFEAF3DE);
+const _kPendingText = Color(0xFF534AB7);
+const _kPendingBg   = Color(0xFFEEEDFE);
+const _kCreatedText = AppColors.textSecondary;
+const _kCreatedBg   = AppColors.backgroundPage;
+const _kExpiredText = Color(0xFF5F5E5A);
+const _kExpiredBg   = Color(0xFFF1EFE8);
 
 class TransactionDetailScreen extends StatefulWidget {
   final PaymentLink link;
@@ -33,7 +42,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   Future<void> _loadDetail() async {
     try {
-      final detail = await paymentService.getPaymentLinkDetail(_link.id);
+      final detail = await paymentService.getPaymentLinkDetail(widget.link.id);
       if (!mounted) return;
       setState(() => _detail = detail);
     } catch (_) {
@@ -113,7 +122,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   Text(statusLabel, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: statusText)),
                   const SizedBox(height: 8),
                   Text(
-                    '${_fmt(_link.amount)} FCFA',
+                    '${_fmtAmount(_link.amount)} ${_link.currency}',
                     style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: statusText),
                   ),
                 ],
@@ -140,12 +149,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   ),
                   const Divider(height: 1, color: AppColors.borderLight),
                   _InfoRow(label: 'Référence', value: _link.id.toUpperCase()),
-                  _InfoRow(label: 'Client', value: _link.contactName),
+                  if (_link.catalogItemName != null)
+                    _InfoRow(label: 'Article', value: _link.catalogItemName!),
                   _InfoRow(label: 'Description', value: _link.description),
-                  _InfoRow(label: 'Montant', value: '${_fmt(_link.amount)} FCFA'),
-                  _InfoRow(label: 'Canal', value: _link.paymentMethod.label),
+                  _InfoRow(label: 'Montant', value: '${_fmtAmount(_link.amount)} ${_link.currency}'),
+                  _InfoRow(label: 'Fournisseur', value: _providerLabel(_link.provider)),
                   _InfoRow(label: 'Statut', value: statusLabel, valueColor: statusText),
-                  _InfoRow(label: 'Créé le', value: _fmtDate(_link.createdAt)),
+                  if (_link.paymentStatus != null)
+                    _InfoRow(label: 'Statut paiement', value: _link.paymentStatus!),
+                  if (_link.openedAt != null)
+                    _InfoRow(label: 'Ouvert le', value: _fmtDate(_link.openedAt!)),
                   _InfoRow(label: 'Expire le', value: _fmtDate(_link.expiresAt), isLast: true),
                 ],
               ),
@@ -195,7 +208,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             ),
 
             // ── Bouton Annuler (seulement si pas payé/expiré) ─────────
-            if (_link.status != PaymentStatus.paid && _link.status != PaymentStatus.expired) ...[
+            if (_link.status != 'paid' && _link.status != 'expired') ...[
               const SizedBox(height: 4),
               SizedBox(
                 width: double.infinity,
@@ -226,25 +239,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     setState(() => _downloading = true);
     try {
       final bytes = await _buildPdf();
-
-      // Tente le dossier Downloads standard Android
       Directory dir;
       final downloads = Directory('/storage/emulated/0/Download');
       if (await downloads.exists()) {
         dir = downloads;
       } else {
-        // Fallback : stockage interne de l'app
         dir = await getApplicationDocumentsDirectory();
       }
-
       final fileName = 'recu_${_link.id}.pdf';
       final file = File('${dir.path}/$fileName');
       await file.writeAsBytes(bytes);
-
       if (!mounted) return;
       _showSnackBar('Reçu sauvegardé dans Téléchargements/$fileName', AppColors.green);
-
-      // Ouvre le fichier directement
       await OpenFile.open(file.path);
     } catch (e) {
       if (!mounted) return;
@@ -272,7 +278,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       build: (ctx) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // En-tête
           pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
             pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
               pw.Text('e-Signal', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: green)),
@@ -285,40 +290,30 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               pw.Text('Réf : ${_link.id.toUpperCase()}', style: pw.TextStyle(fontSize: 10, color: textSecondary)),
             ]),
           ]),
-
           pw.SizedBox(height: 20),
           pw.Divider(color: divider),
           pw.SizedBox(height: 16),
-
-          // Badge statut
           pw.Container(
             padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: pw.BoxDecoration(color: pdfStatus, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
             child: pw.Text(statusLabel, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
           ),
-
           pw.SizedBox(height: 16),
-
-          // Montant
           pw.Container(
             width: double.infinity,
             padding: const pw.EdgeInsets.all(18),
             decoration: pw.BoxDecoration(color: bgGray, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10))),
             child: pw.Center(
-              child: pw.Text('${_fmt(_link.amount)} FCFA',
+              child: pw.Text('${_fmtAmount(_link.amount)} ${_link.currency}',
                   style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold, color: textPrimary)),
             ),
           ),
-
           pw.SizedBox(height: 20),
-
-          // Tableau infos
-          _pdfRow('Client', _link.contactName, textPrimary, textSecondary, divider),
+          if (_link.catalogItemName != null)
+            _pdfRow('Article', _link.catalogItemName!, textPrimary, textSecondary, divider),
           _pdfRow('Description', _link.description, textPrimary, textSecondary, divider),
-          _pdfRow('Canal de paiement', _link.paymentMethod.label, textPrimary, textSecondary, divider),
-          _pdfRow('Date de création', _fmtDate(_link.createdAt), textPrimary, textSecondary, divider),
+          _pdfRow('Fournisseur', _providerLabel(_link.provider), textPrimary, textSecondary, divider),
           _pdfRow("Date d'expiration", _fmtDate(_link.expiresAt), textPrimary, textSecondary, divider),
-
           pw.Spacer(),
           pw.Divider(color: divider),
           pw.SizedBox(height: 6),
@@ -354,27 +349,43 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     ));
   }
 
-  (Color, Color, String, IconData) _statusMeta(PaymentStatus s) => switch (s) {
-    PaymentStatus.paid    => (AppColors.statusPaidBg,    AppColors.statusPaidText,    'Payé',        Icons.check_circle_outline),
-    PaymentStatus.pending => (AppColors.statusPendingBg, AppColors.statusPendingText, 'En attente',  Icons.hourglass_empty_outlined),
-    PaymentStatus.created => (AppColors.statusCreatedBg, AppColors.statusCreatedText, 'Créé',        Icons.link_outlined),
-    PaymentStatus.expired => (AppColors.statusExpiredBg, AppColors.statusExpiredText, 'Expiré',      Icons.timer_off_outlined),
+  (Color, Color, String, IconData) _statusMeta(String s) => switch (s) {
+    'paid'    => (_kPaidBg,    _kPaidText,    'Payé',        Icons.check_circle_outline),
+    'pending' => (_kPendingBg, _kPendingText, 'En attente',  Icons.hourglass_empty_outlined),
+    'expired' => (_kExpiredBg, _kExpiredText, 'Expiré',      Icons.timer_off_outlined),
+    _         => (_kCreatedBg, _kCreatedText, 'Créé',        Icons.link_outlined),
   };
+}
 
-  String _fmt(int n) {
-    final s = n.toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
-      buf.write(s[i]);
-    }
-    return buf.toString();
+String _fmtAmount(String raw) {
+  final n = int.tryParse(raw) ?? 0;
+  final s = n.toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+    buf.write(s[i]);
   }
+  return buf.toString();
+}
 
-  String _fmtDate(DateTime dt) {
-    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-    return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
-  }
+String _fmtDate(String iso) {
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return iso;
+  const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
+}
+
+String _providerLabel(String provider) {
+  return switch (provider.toLowerCase()) {
+    'wave'         => 'Wave',
+    'fedapay'      => 'FedaPay',
+    'orange_money' => 'Orange Money',
+    'cinetpay'     => 'CinetPay',
+    'moov_money'   => 'Moov Money',
+    'mtn_money'    => 'MTN Money',
+    'djamo'        => 'Djamo',
+    _              => provider,
+  };
 }
 
 // ── Ligne d'info ──────────────────────────────────────────────────────────────
