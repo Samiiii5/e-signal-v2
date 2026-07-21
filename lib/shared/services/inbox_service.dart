@@ -49,6 +49,7 @@ abstract class InboxService {
   Future<void> sendMessage({
     required String threadId,
     required String provider,
+    String? integrationAccountId,
     required String content,
   });
 
@@ -166,27 +167,45 @@ class HttpInboxService implements InboxService {
   Future<void> sendMessage({
     required String threadId,
     required String provider,
+    String? integrationAccountId,
     required String content,
   }) async {
+    final orgId = SessionService.organizationId;
+    // Fallback sur 'whatsapp' si le channel est vide pour éviter /inbox//messages
+    final resolvedProvider = provider.isNotEmpty ? provider : 'whatsapp';
+    final body = <String, dynamic>{
+      'thread_id': threadId,
+      'body_text': content,
+      'type': 'text',
+      if (orgId != null) 'organization_id': orgId,
+      if (integrationAccountId != null) 'integration_account_id': integrationAccountId,
+    };
+    // ignore: avoid_print
+    print('=== SEND MESSAGE → POST /inbox/$resolvedProvider/messages ===');
+    // ignore: avoid_print
+    print('=== BODY : $body ===');
     try {
       final resp = await ApiClient.dio.post(
-        '/inbox/$provider/messages',
-        data: {
-          'thread_id': threadId,
-          'content': content,
-          'type': 'text',
-        },
+        '/inbox/$resolvedProvider/messages',
+        data: body,
       );
+      // ignore: avoid_print
+      print('=== SEND MESSAGE status : ${resp.statusCode} ===');
+      // ignore: avoid_print
+      print('=== SEND MESSAGE response : ${resp.data} ===');
       if (resp.statusCode == 401) {
         throw const InboxUnauthorizedException();
       } else if (resp.statusCode! < 200 || resp.statusCode! >= 300) {
         throw Exception('HTTP ${resp.statusCode}');
       }
     } on DioException catch (e) {
+      // ignore: avoid_print
+      print('=== SEND MESSAGE DioException : ${e.type} — ${e.message} ===');
       if (_isNetworkError(e)) throw const InboxNetworkException();
       rethrow;
     }
   }
+
 
   @override
   Future<void> markAsRead(String threadId) async {
@@ -255,6 +274,7 @@ class MockInboxService implements InboxService {
   Future<void> sendMessage({
     required String threadId,
     required String provider,
+    String? integrationAccountId,
     required String content,
   }) async {
     await Future.delayed(const Duration(milliseconds: 250));

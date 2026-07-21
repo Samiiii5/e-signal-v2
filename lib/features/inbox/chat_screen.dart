@@ -903,7 +903,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
     final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
-    final provider = _thread?.channel ?? '';
+    final provider = _thread?.metadataProvider ?? _thread?.channel ?? '';
+    final integrationAccountId = _thread?.integrationAccountId;
     _controller.clear();
     // Optimistic update : le message apparaît tout de suite, avant même la
     // réponse du serveur. Les coches réelles arrivent via message_status_updated.
@@ -921,7 +922,12 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     try {
-      await inboxService.sendMessage(threadId: widget.threadId, provider: provider, content: text);
+      await inboxService.sendMessage(
+        threadId: widget.threadId,
+        provider: provider,
+        integrationAccountId: integrationAccountId,
+        content: text,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -933,6 +939,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) setState(() => _isSending = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

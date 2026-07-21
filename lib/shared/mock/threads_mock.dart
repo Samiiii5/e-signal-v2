@@ -3,6 +3,8 @@ class Thread {
   final String contactName;
   final String? contactPictureUrl;
   final String channel;
+  final String? metadataProvider; // provider réel pour l'API (ex: 'facebook' vs 'messenger')
+  final String? integrationAccountId;
   final String? lastMessageAt;
   final int unreadCount;
   final String status;
@@ -13,6 +15,8 @@ class Thread {
     required this.contactName,
     this.contactPictureUrl,
     required this.channel,
+    this.metadataProvider,
+    this.integrationAccountId,
     this.lastMessageAt,
     required this.unreadCount,
     required this.status,
@@ -33,6 +37,8 @@ class Thread {
     String? contactName,
     String? contactPictureUrl,
     String? channel,
+    String? metadataProvider,
+    String? integrationAccountId,
     String? lastMessageAt,
     int? unreadCount,
     String? status,
@@ -42,6 +48,8 @@ class Thread {
         contactName: contactName ?? this.contactName,
         contactPictureUrl: contactPictureUrl ?? this.contactPictureUrl,
         channel: channel ?? this.channel,
+        metadataProvider: metadataProvider ?? this.metadataProvider,
+        integrationAccountId: integrationAccountId ?? this.integrationAccountId,
         lastMessageAt: lastMessageAt ?? this.lastMessageAt,
         unreadCount: unreadCount ?? this.unreadCount,
         status: status ?? this.status,
@@ -54,6 +62,8 @@ class Thread {
         contactName: contactName,
         contactPictureUrl: contactPictureUrl,
         channel: channel,
+        metadataProvider: metadataProvider,
+        integrationAccountId: integrationAccountId,
         lastMessageAt: lastMessageAt,
         unreadCount: unreadCount,
         status: status,
@@ -61,6 +71,8 @@ class Thread {
       );
 
   factory Thread.fromJson(Map<String, dynamic> json) {
+    final metadata = json['metadata'];
+    final metaProvider = (metadata is Map ? metadata['provider']?.toString() : null);
     return Thread(
       id: (json['id'] ?? json['_id'] ?? '').toString(),
       contactName: () {
@@ -70,6 +82,8 @@ class Thread {
       }(),
       contactPictureUrl: json['contactPictureUrl']?.toString() ?? json['contact_picture_url']?.toString(),
       channel: (json['channel'] ?? '').toString().toLowerCase(),
+      metadataProvider: metaProvider?.toLowerCase(),
+      integrationAccountId: json['integrationAccountId']?.toString() ?? json['integration_account_id']?.toString(),
       lastMessageAt: json['lastMessageAt']?.toString() ?? json['last_message_at']?.toString(),
       unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
       status: (json['status'] ?? 'open').toString().toLowerCase(),
