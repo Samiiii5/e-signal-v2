@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dio/dio.dart';
@@ -233,7 +234,7 @@ class NotificationService {
         data: {
           'user_id': userId,
           'fcm_token': token,
-          'platform': 'android',
+          'platform': Platform.isAndroid ? 'android' : 'ios',
           'organization_id': organizationId,
         },
       );
