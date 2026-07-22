@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>e-Signal a besoin d'accéder à votre position pour partager votre localisation dans une conversation.</string>
 </dict>
 </plist>

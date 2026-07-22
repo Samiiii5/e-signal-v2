@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -571,13 +572,7 @@ class _ChatScreenState extends State<ChatScreen> {
         onPayment: () { Navigator.pop(context); _openCreateLink(); },
         onLocation: () {
           Navigator.pop(context);
-          _addMessage(Message(
-            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-            direction: 'OUT',
-            bodyText: 'Boutique Score360 Africa\nCocody Riviera 3, Abidjan\n5.356, -3.987',
-            messageType: 'LOCATION',
-            sentAt: DateTime.now().toIso8601String(),
-          ));
+          _sendLocation();
         },
         onCatalogue: () { Navigator.pop(context); _showCatalogueSheet(); },
         onDevis: () { Navigator.pop(context); _showDevisSheet(); },
@@ -612,6 +607,56 @@ class _ChatScreenState extends State<ChatScreen> {
         onPhoto: () { Navigator.pop(context); _pickImage(); },
       ),
     );
+  }
+
+  Future<void> _sendLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Activez la localisation pour continuer'));
+      return;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Permission GPS refusée'));
+      return;
+    }
+
+    Position position;
+    try {
+      position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Impossible d\'obtenir votre position'));
+      return;
+    }
+
+    final content = '📍 Ma localisation :\nhttps://maps.google.com/?q=${position.latitude},${position.longitude}';
+    final provider = _thread?.channel ?? '';
+    final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+
+    setState(() {
+      _messages.add(Message(
+        id: msgId,
+        direction: 'OUT',
+        bodyText: content,
+        messageType: 'LOCATION',
+        sentAt: DateTime.now().toIso8601String(),
+      ));
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+    try {
+      await inboxService.sendMessage(threadId: widget.threadId, provider: provider, content: content);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _messages.removeWhere((m) => m.id == msgId));
+      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Échec de l\'envoi de la localisation'));
+    }
   }
 
   Future<void> _pickImage() async {
@@ -2349,6 +2394,25 @@ class _LocationBubble extends StatelessWidget {
   final Message message;
   const _LocationBubble({required this.message});
 
+  static final RegExp _urlPattern = RegExp(r'https?://\S+');
+  static final RegExp _coordsPattern = RegExp(r'q=(-?\d+\.?\d*),(-?\d+\.?\d*)');
+
+  String get _mapsUrl => _urlPattern.firstMatch(message.content)?.group(0) ?? 'https://maps.google.com/';
+
+  String get _label {
+    final firstLine = message.content.split('\n').first.replaceAll('📍', '').trim();
+    return firstLine.isNotEmpty ? firstLine : 'Position partagée';
+  }
+
+  String? get _coordsLabel {
+    final match = _coordsPattern.firstMatch(message.content);
+    if (match == null) return null;
+    final lat = double.tryParse(match.group(1)!);
+    final lng = double.tryParse(match.group(2)!);
+    if (lat == null || lng == null) return null;
+    return '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Align(
@@ -2365,7 +2429,7 @@ class _LocationBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Carte mock
+            // Carte mock — pas de rendu de carte réelle, juste un repère visuel
             Container(
               height: 110,
               decoration: BoxDecoration(
@@ -2378,14 +2442,7 @@ class _LocationBubble extends StatelessWidget {
                   CustomPaint(size: const Size(double.infinity, 110), painter: _MapGridPainter()),
                   // Pin central
                   const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.location_pin, size: 32, color: Color(0xFFE53E3E)),
-                        SizedBox(height: 2),
-                        Text('Boutique', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
-                      ],
-                    ),
+                    child: Icon(Icons.location_pin, size: 32, color: Color(0xFFE53E3E)),
                   ),
                 ],
               ),
@@ -2395,23 +2452,25 @@ class _LocationBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.store_outlined, size: 14, color: AppColors.green),
-                      SizedBox(width: 6),
-                      Text('Boutique Score360 Africa', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                      const Icon(Icons.location_on_outlined, size: 14, color: AppColors.green),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(_label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     ],
                   ),
-                  const SizedBox(height: 3),
-                  const Text('Cocody Riviera 3, Abidjan', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  if (_coordsLabel != null) ...[
+                    const SizedBox(height: 3),
+                    Text(_coordsLabel!, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  ],
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       GestureDetector(
                         onTap: () async {
-                          final uri = Uri.parse('https://maps.google.com/?q=5.3600,-4.0083');
-                          if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                          final uri = Uri.tryParse(_mapsUrl);
+                          if (uri != null && await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
