@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/session_service.dart';
 import '../mock/threads_mock.dart';
@@ -222,16 +223,15 @@ class HttpInboxService implements InboxService {
     required String integrationAccountId,
     required List<String> catalogItemIds,
   }) async {
+    final body = <String, dynamic>{
+      'thread_id': threadId,
+      'type': 'carousel',
+      'integration_account_id': integrationAccountId,
+      'catalog_item_ids': catalogItemIds,
+    };
+    debugPrint('=== CAROUSEL envoyé : $body ===');
     try {
-      final resp = await ApiClient.dio.post(
-        '/inbox/$provider/messages',
-        data: {
-          'thread_id': threadId,
-          'type': 'carousel',
-          'integration_account_id': integrationAccountId,
-          'catalog_item_ids': catalogItemIds,
-        },
-      );
+      final resp = await ApiClient.dio.post('/inbox/$provider/messages', data: body);
       if (resp.statusCode == 401) {
         throw const InboxUnauthorizedException();
       } else if (resp.statusCode! < 200 || resp.statusCode! >= 300) {

@@ -636,6 +636,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     final content = '📍 Ma localisation :\nhttps://maps.google.com/?q=${position.latitude},${position.longitude}';
+    debugPrint('=== LOCALISATION envoyée : $content ===');
     final provider = _thread?.channel ?? '';
     final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -1664,7 +1665,9 @@ class _LinkAwareText extends StatelessWidget {
       if (before.trim().isNotEmpty) {
         pieces.add(_HighlightText(text: before.trim(), query: query, baseStyle: baseStyle, highlightColor: highlightColor));
       }
-      pieces.add(_LinkChip(url: match.group(0)!, fromContact: fromContact));
+      final url = match.group(0)!;
+      debugPrint('=== LIEN détecté : $url ===');
+      pieces.add(_LinkChip(url: url, fromContact: fromContact));
       cursor = match.end;
     }
     final after = text.substring(cursor);
