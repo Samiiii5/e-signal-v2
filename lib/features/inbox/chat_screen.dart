@@ -19,7 +19,10 @@ import '../../shared/services/websocket_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String threadId;
-  const ChatScreen({super.key, required this.threadId});
+  /// Thread pré-chargé depuis l'écran parent (optionnel).
+  /// S'il est fourni, on évite un appel redondant à getThreads().
+  final Thread? thread;
+  const ChatScreen({super.key, required this.threadId, this.thread});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -66,6 +69,8 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    // Utiliser le thread pré-chargé si disponible — évite un appel getThreads() inutile.
+    if (widget.thread != null) _thread = widget.thread;
     _controller.addListener(() => setState(() {}));
     _scrollController.addListener(_onScroll);
     _loadMessages();
@@ -188,14 +193,23 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadMessages() async {
     if (!_isLoadingMessages) setState(() { _isLoadingMessages = true; _loadError = null; });
     try {
+      // Charger les messages et (si nécessaire) le thread en parallèle.
+      final Future<List<Thread>?> threadsFuture = _thread == null
+          ? inboxService.getThreads()
+          : Future.value(null);
       final result = await inboxService.getMessages(widget.threadId);
-      final threads = await inboxService.getThreads();
+      final threads = await threadsFuture;
       if (!mounted) return;
       setState(() {
         _messages = result.messages;
         _hasMore = result.hasMore;
         _nextBeforeId = result.nextBeforeId;
-        _thread = threads.where((t) => t.id == widget.threadId).firstOrNull;
+        // Ne mettre à jour _thread que s'il n'était pas déjà connu.
+        if (threads != null) {
+          _thread = threads.where((t) => t.id == widget.threadId).firstOrNull;
+        }
+        // ignore: avoid_print
+        print('=== _loadMessages: thread=${_thread?.id} provider=${_thread?.metadataProvider} channel=${_thread?.channel} ===');
         for (final m in result.messages) {
           if (m.initialStatus != null && !_msgStatus.containsKey(m.id)) {
             _msgStatus[m.id] = m.initialStatus!;
@@ -978,6 +992,15 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isSending) return;
+
+    // Vérification que le thread est chargé
+    if (_thread == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Conversation non chargée. Veuillez patienter ou rafraîchir.'),
+      );
+      return;
+    }
+
     final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
     final provider = _thread?.metadataProvider ?? _thread?.channel ?? '';
     final integrationAccountId = _thread?.integrationAccountId;
@@ -998,19 +1021,33 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     try {
+      // ignore: avoid_print
+      print('=== _send() → threadId=${widget.threadId} provider=$provider integrationAccountId=$integrationAccountId ===');
       await inboxService.sendMessage(
         threadId: widget.threadId,
         provider: provider,
         integrationAccountId: integrationAccountId,
         content: text,
       );
-    } catch (_) {
+    } catch (e) {
+      // ignore: avoid_print
+      print('=== _send() ERREUR : $e ===');
       if (!mounted) return;
       setState(() {
         _messages.removeWhere((m) => m.id == msgId);
         _msgStatus.remove(msgId);
       });
-      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Échec de l\'envoi du message'));
+      String errorMsg = 'Échec de l\'envoi du message';
+      if (e is InboxNetworkException) {
+        errorMsg = 'Pas de connexion internet';
+      } else if (e is InboxUnauthorizedException) {
+        errorMsg = 'Session expirée, veuillez vous reconnecter';
+      } else if (e.toString().contains('422')) {
+        errorMsg = 'Message rejeté par le serveur (contenu invalide)';
+      } else if (e.toString().contains('500')) {
+        errorMsg = 'Erreur serveur, réessayez plus tard';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error(errorMsg));
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
@@ -2831,6 +2868,7 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
         _selectedIds.add(id);
       }
     });
+    debugPrint('=== TOGGLE $id → selectedIds: $_selectedIds ===');
   }
 
   void _confirmSend() {
@@ -2968,64 +3006,103 @@ class _ProductTile extends StatelessWidget {
     final currency = (product['currency'] ?? 'FCFA').toString();
     final imageUrl = product['image_url']?.toString();
 
-    return Opacity(
-      opacity: isDisabled ? 0.4 : 1,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? AppColors.green : AppColors.borderLight, width: isSelected ? 1.2 : 0.5),
+    return GestureDetector(
+      onTap: isDisabled ? null : onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.green : AppColors.borderLight,
+            width: isSelected ? 1.5 : 0.5,
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 52, height: 52,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.borderLight)),
-                child: (imageUrl != null && imageUrl.isNotEmpty)
-                    ? Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.inventory_2_outlined, color: AppColors.textHint),
-                      )
-                    : const Icon(Icons.inventory_2_outlined, color: AppColors.textHint),
+        ),
+        child: Row(
+          children: [
+            // Image produit
+            Container(
+              width: 52, height: 52,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.borderLight),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (description != null && description.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(description, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              child: (imageUrl != null && imageUrl.isNotEmpty)
+                  ? Image.network(imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.inventory_2_outlined,
+                              color: AppColors.textHint))
+                  : const Icon(Icons.inventory_2_outlined,
+                      color: AppColors.textHint),
+            ),
+            const SizedBox(width: 12),
+            // Nom + description
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_fmt(product['price']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
-                  Text(currency, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  Text(name,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  if (description != null && description.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(description,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                  ],
                 ],
               ),
-              const SizedBox(width: 4),
-              IgnorePointer(
-                child: Checkbox(
-                  value: isSelected,
-                  onChanged: (_) {},
-                  activeColor: AppColors.green,
+            ),
+            const SizedBox(width: 8),
+            // Prix
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(_fmt(product['price']),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.green)),
+                Text(currency,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary)),
+              ],
+            ),
+            const SizedBox(width: 8),
+            // Indicateur de sélection custom (PAS un Checkbox natif)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected ? AppColors.green : Colors.transparent,
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.green
+                      : (isDisabled
+                          ? AppColors.borderLight
+                          : AppColors.textSecondary),
+                  width: 2,
                 ),
               ),
-            ],
-          ),
+              child: isSelected
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                  : null,
+            ),
+          ],
         ),
       ),
     );
