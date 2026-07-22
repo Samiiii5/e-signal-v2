@@ -7,7 +7,6 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/products_mock.dart';
 import '../../shared/mock/threads_mock.dart';
-import '../../shared/models/payment_link.dart';
 import '../../shared/services/inbox_service.dart';
 import '../../shared/services/payment_service.dart';
 

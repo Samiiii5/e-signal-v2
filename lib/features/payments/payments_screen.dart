@@ -10,7 +10,6 @@ import '../../core/services/session_service.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/shimmer_box.dart';
 import '../../shared/mock/payments_mock.dart';
-import '../../shared/models/payment_link.dart';
 import '../../shared/services/payment_service.dart';
 import 'create_link_sheet.dart';
 

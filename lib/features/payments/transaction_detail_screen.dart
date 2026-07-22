@@ -6,7 +6,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../../shared/models/payment_link.dart';
 import '../../shared/services/payment_service.dart';
 
 // ── Couleurs statut (identiques à payments_screen.dart) ───────────────────────

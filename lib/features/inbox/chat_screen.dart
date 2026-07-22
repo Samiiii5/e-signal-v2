@@ -1511,11 +1511,12 @@ class _MessageBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _HighlightText(
+                _LinkAwareText(
                   text: message.content,
                   query: searchQuery,
                   baseStyle: TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4),
                   highlightColor: fromContact ? const Color(0xFFFFE082) : const Color(0xFFFFF176),
+                  fromContact: fromContact,
                 ),
                 const SizedBox(height: 4),
                 Row(
@@ -1550,6 +1551,134 @@ class _MessageBubble extends StatelessWidget {
   }
 
   String _formatTime(DateTime dt) => '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+}
+
+// ── Texte avec détection de liens ─────────────────────────────────────────────
+
+/// Découpe le texte d'un message autour des URLs qu'il contient : le texte
+/// normal garde le surlignage de recherche existant (_HighlightText), et
+/// chaque URL devient un lien cliquable formaté selon son type.
+class _LinkAwareText extends StatelessWidget {
+  final String text;
+  final String query;
+  final TextStyle baseStyle;
+  final Color highlightColor;
+  final bool fromContact;
+
+  const _LinkAwareText({
+    required this.text,
+    required this.query,
+    required this.baseStyle,
+    required this.highlightColor,
+    required this.fromContact,
+  });
+
+  static final RegExp _urlPattern = RegExp(r'https?://[^\s]+', caseSensitive: false);
+
+  @override
+  Widget build(BuildContext context) {
+    final matches = _urlPattern.allMatches(text).toList();
+    if (matches.isEmpty) {
+      return _HighlightText(text: text, query: query, baseStyle: baseStyle, highlightColor: highlightColor);
+    }
+
+    final pieces = <Widget>[];
+    int cursor = 0;
+    for (final match in matches) {
+      final before = text.substring(cursor, match.start);
+      if (before.trim().isNotEmpty) {
+        pieces.add(_HighlightText(text: before.trim(), query: query, baseStyle: baseStyle, highlightColor: highlightColor));
+      }
+      pieces.add(_LinkChip(url: match.group(0)!, fromContact: fromContact));
+      cursor = match.end;
+    }
+    final after = text.substring(cursor);
+    if (after.trim().isNotEmpty) {
+      pieces.add(_HighlightText(text: after.trim(), query: query, baseStyle: baseStyle, highlightColor: highlightColor));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < pieces.length; i++) ...[
+          if (i > 0) const SizedBox(height: 6),
+          pieces[i],
+        ],
+      ],
+    );
+  }
+}
+
+/// Lien cliquable dans une bulle de message — mis en forme selon son type
+/// (carte, paiement, ou lien générique raccourci).
+class _LinkChip extends StatelessWidget {
+  final String url;
+  final bool fromContact;
+  const _LinkChip({required this.url, required this.fromContact});
+
+  bool get _isMapLink {
+    final lower = url.toLowerCase();
+    return lower.contains('maps.google.com') || lower.contains('google.com/maps') || lower.contains('goo.gl/maps');
+  }
+
+  bool get _isPaymentLink {
+    final lower = url.toLowerCase();
+    return lower.contains('wave.com') || lower.contains('cinetpay.com');
+  }
+
+  String _shorten(String u) => u.length > 40 ? '${u.substring(0, 40)}...' : u;
+
+  Future<void> _openLink(BuildContext context) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Impossible d\'ouvrir le lien'));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? icon;
+    final String label;
+    if (_isMapLink) {
+      icon = '📍';
+      label = 'Voir sur la carte';
+    } else if (_isPaymentLink) {
+      icon = '💳';
+      label = 'Lien de paiement';
+    } else {
+      icon = null;
+      label = _shorten(url);
+    }
+    final linkColor = fromContact ? const Color(0xFF1565C0) : AppColors.white;
+
+    return InkWell(
+      onTap: () => _openLink(context),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Text(icon, style: const TextStyle(fontSize: 13)),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: linkColor,
+                decoration: TextDecoration.underline,
+                decorationColor: linkColor,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Bulle paiement ────────────────────────────────────────────────────────────
