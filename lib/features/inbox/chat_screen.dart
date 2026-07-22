@@ -12,6 +12,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/products_mock.dart';
+import '../../shared/services/catalog_service.dart';
 import '../../shared/services/inbox_service.dart';
 import '../../shared/services/websocket_service.dart';
 
@@ -637,16 +638,45 @@ class _ChatScreenState extends State<ChatScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _CatalogueSheet(
-        onSend: (product) {
+        onSend: (selectedProducts) {
           Navigator.pop(context);
-          _sendTextMessage(
-            '📦 ${product.emoji} *${product.name}*\n'
-            'Prix : ${product.price} FCFA\n'
-            'Intéressé(e) ? Répondez OUI pour commander !',
-          );
+          _sendCatalogSelection(selectedProducts);
         },
       ),
     );
+  }
+
+  Future<void> _sendCatalogSelection(List<Map<String, dynamic>> selectedProducts) async {
+    final channel = _thread?.channel;
+    if (channel == null || channel.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Conversation introuvable'));
+      return;
+    }
+    try {
+      final accountId = await catalogService.getIntegrationAccountId(channel);
+      if (accountId == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Aucun compte intégré pour ce canal'));
+        return;
+      }
+      final ids = selectedProducts.map((p) => p['id'].toString()).toList();
+      await inboxService.sendCarousel(
+        threadId: widget.threadId,
+        provider: channel,
+        integrationAccountId: accountId,
+        catalogItemIds: ids,
+      );
+      if (!mounted) return;
+      _addMessage(Message(
+        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+        direction: 'OUT',
+        bodyText: '📦 Catalogue envoyé — ${selectedProducts.length} produit${selectedProducts.length > 1 ? 's' : ''}',
+        sentAt: DateTime.now().toIso8601String(),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Échec de l\'envoi du catalogue'));
+    }
   }
 
   void _showDevisSheet() {
@@ -2695,16 +2725,63 @@ class _AttachItem extends StatelessWidget {
   }
 }
 
-// ── BottomSheet catalogue ─────────────────────────────────────────────────────
+// ── BottomSheet catalogue (sélection multiple, max 10) ────────────────────────
 
-class _CatalogueSheet extends StatelessWidget {
-  final void Function(Product) onSend;
+class _CatalogueSheet extends StatefulWidget {
+  final void Function(List<Map<String, dynamic>>) onSend;
   const _CatalogueSheet({required this.onSend});
 
   @override
+  State<_CatalogueSheet> createState() => _CatalogueSheetState();
+}
+
+class _CatalogueSheetState extends State<_CatalogueSheet> {
+  static const _maxSelection = 10;
+
+  List<Map<String, dynamic>> _products = [];
+  final Set<String> _selectedIds = {};
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _isLoading = true; _error = null; });
+    try {
+      final items = await catalogService.getProducts();
+      if (!mounted) return;
+      setState(() { _products = items; _isLoading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _isLoading = false; _error = 'Impossible de charger le catalogue.'; });
+    }
+  }
+
+  void _toggle(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else if (_selectedIds.length < _maxSelection) {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _confirmSend() {
+    final selected = _products.where((p) => _selectedIds.contains(p['id'].toString())).toList();
+    if (selected.isEmpty) return;
+    widget.onSend(selected);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final count = _selectedIds.length;
     return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
       decoration: const BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -2721,78 +2798,178 @@ class _CatalogueSheet extends StatelessWidget {
                 const SizedBox(height: 18),
                 const Text('Catalogue produits', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                 const SizedBox(height: 4),
-                const Text('Appuyez sur un produit pour l\'envoyer', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                Text(
+                  count == 0
+                      ? 'Sélectionnez jusqu\'à $_maxSelection produits à envoyer'
+                      : '$count produit${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: count == 0 ? FontWeight.w400 : FontWeight.w600,
+                    color: count == 0 ? AppColors.textSecondary : AppColors.green,
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
             ),
           ),
           Flexible(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              shrinkWrap: true,
-              itemCount: mockProducts.length,
-              itemBuilder: (_, i) => _ProductTile(product: mockProducts[i], onTap: () => onSend(mockProducts[i])),
-            ),
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Center(child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2)),
+                  )
+                : _error != null
+                    ? _buildError()
+                    : _products.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 40),
+                            child: Center(child: Text('Aucun produit dans le catalogue', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                            shrinkWrap: true,
+                            itemCount: _products.length,
+                            itemBuilder: (_, i) {
+                              final product = _products[i];
+                              final id = product['id'].toString();
+                              final isSelected = _selectedIds.contains(id);
+                              final isDisabled = !isSelected && count >= _maxSelection;
+                              return _ProductTile(
+                                product: product,
+                                isSelected: isSelected,
+                                isDisabled: isDisabled,
+                                onTap: isDisabled ? null : () => _toggle(id),
+                              );
+                            },
+                          ),
           ),
+          if (!_isLoading && _error == null && _products.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 16 + MediaQuery.of(context).padding.bottom),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: count == 0 ? null : _confirmSend,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.green,
+                    foregroundColor: AppColors.white,
+                    disabledBackgroundColor: AppColors.borderLight,
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    count == 0 ? 'Envoyer' : 'Envoyer ($count produit${count > 1 ? 's' : ''})',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_outlined, size: 40, color: AppColors.borderLight),
+            const SizedBox(height: 12),
+            Text(_error!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _load,
+              child: const Text('Réessayer', style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _ProductTile extends StatelessWidget {
-  final Product product;
-  final VoidCallback onTap;
-  const _ProductTile({required this.product, required this.onTap});
+  final Map<String, dynamic> product;
+  final bool isSelected;
+  final bool isDisabled;
+  final VoidCallback? onTap;
+  const _ProductTile({required this.product, required this.isSelected, required this.isDisabled, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.backgroundPage,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderLight, width: 0.5),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52, height: 52,
-              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.borderLight)),
-              child: Center(child: Text(product.emoji, style: const TextStyle(fontSize: 26))),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final name = (product['name'] ?? '').toString();
+    final description = product['description']?.toString();
+    final currency = (product['currency'] ?? 'FCFA').toString();
+    final imageUrl = product['image_url']?.toString();
+
+    return Opacity(
+      opacity: isDisabled ? 0.4 : 1,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isSelected ? AppColors.green : AppColors.borderLight, width: isSelected ? 1.2 : 0.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 52, height: 52,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.borderLight)),
+                child: (imageUrl != null && imageUrl.isNotEmpty)
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.inventory_2_outlined, color: AppColors.textHint),
+                      )
+                    : const Icon(Icons.inventory_2_outlined, color: AppColors.textHint),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (description != null && description.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(description, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text(product.category, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  Text(_fmt(product['price']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
+                  Text(currency, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(_fmt(product.price), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
-                const Text('FCFA', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-              ],
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.send_rounded, size: 18, color: AppColors.green),
-          ],
+              const SizedBox(width: 4),
+              Checkbox(
+                value: isSelected,
+                onChanged: isDisabled ? null : (_) => onTap?.call(),
+                activeColor: AppColors.green,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  static String _fmt(int n) {
-    final s = n.toString();
+  static String _fmt(dynamic n) {
+    final val = n is num ? n.toInt() : int.tryParse(n?.toString() ?? '') ?? 0;
+    final s = val.toString();
     final buf = StringBuffer();
     for (int i = 0; i < s.length; i++) {
       if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');

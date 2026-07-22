@@ -53,6 +53,14 @@ abstract class InboxService {
     required String content,
   });
 
+  /// POST /api/v1.2/inbox/{provider}/messages (type: "carousel")
+  Future<void> sendCarousel({
+    required String threadId,
+    required String provider,
+    required String integrationAccountId,
+    required List<String> catalogItemIds,
+  });
+
   /// POST /api/v1.2/inbox/threads/:id/read
   Future<void> markAsRead(String threadId);
 
@@ -206,6 +214,34 @@ class HttpInboxService implements InboxService {
     }
   }
 
+  /// POST /api/v1.2/inbox/{provider}/messages (type: "carousel")
+  @override
+  Future<void> sendCarousel({
+    required String threadId,
+    required String provider,
+    required String integrationAccountId,
+    required List<String> catalogItemIds,
+  }) async {
+    try {
+      final resp = await ApiClient.dio.post(
+        '/inbox/$provider/messages',
+        data: {
+          'thread_id': threadId,
+          'type': 'carousel',
+          'integration_account_id': integrationAccountId,
+          'catalog_item_ids': catalogItemIds,
+        },
+      );
+      if (resp.statusCode == 401) {
+        throw const InboxUnauthorizedException();
+      } else if (resp.statusCode! < 200 || resp.statusCode! >= 300) {
+        throw Exception('HTTP ${resp.statusCode}');
+      }
+    } on DioException catch (e) {
+      if (_isNetworkError(e)) throw const InboxNetworkException();
+      rethrow;
+    }
+  }
 
   @override
   Future<void> markAsRead(String threadId) async {
@@ -276,6 +312,16 @@ class MockInboxService implements InboxService {
     required String provider,
     String? integrationAccountId,
     required String content,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 250));
+  }
+
+  @override
+  Future<void> sendCarousel({
+    required String threadId,
+    required String provider,
+    required String integrationAccountId,
+    required List<String> catalogItemIds,
   }) async {
     await Future.delayed(const Duration(milliseconds: 250));
   }
