@@ -3017,10 +3017,12 @@ class _ProductTile extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 4),
-              Checkbox(
-                value: isSelected,
-                onChanged: isDisabled ? null : (_) => onTap?.call(),
-                activeColor: AppColors.green,
+              IgnorePointer(
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: (_) {},
+                  activeColor: AppColors.green,
+                ),
               ),
             ],
           ),
