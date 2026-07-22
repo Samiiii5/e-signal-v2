@@ -719,7 +719,10 @@ class _ChatScreenState extends State<ChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Aucun compte intégré pour ce canal'));
         return;
       }
-      final ids = selectedProducts.map((p) => p['id'].toString()).toList();
+      final ids = selectedProducts
+          .map((p) => (p['id'] ?? p['product_id'] ?? p['_id'] ?? p['uuid'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toList();
       await inboxService.sendCarousel(
         threadId: widget.threadId,
         provider: channel,
@@ -2852,6 +2855,7 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
     setState(() { _isLoading = true; _error = null; });
     try {
       final items = await catalogService.getProducts();
+      debugPrint('=== PRODUIT : ${items.isNotEmpty ? items.first : "vide"} ===');
       if (!mounted) return;
       setState(() { _products = items; _isLoading = false; });
     } catch (_) {
@@ -2931,7 +2935,15 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
                             itemCount: _products.length,
                             itemBuilder: (_, i) {
                               final product = _products[i];
-                              final id = product['id'].toString();
+                              final id = (product['id'] ??
+                                      product['product_id'] ??
+                                      product['_id'] ??
+                                      product['uuid'] ??
+                                      '')
+                                  .toString();
+
+                              if (id.isEmpty) return const SizedBox.shrink();
+
                               final isSelected = _selectedIds.contains(id);
                               final isDisabled = !isSelected && count >= _maxSelection;
                               return _ProductTile(

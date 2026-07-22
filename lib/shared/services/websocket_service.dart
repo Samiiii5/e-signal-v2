@@ -51,31 +51,45 @@ class WebSocketService {
   void _openConnection() {
     if (_manuallyDisconnected || _organizationId == null || _token == null) return;
     try {
-      // Port 443 explicite : web_socket_channel v3 convertit wss:// → https://
-      // via uri.replace(scheme:'https'). Sans port explicite, uri.port retourne 0
-      // en Dart (pas de port par défaut pour wss), ce qui produit https://host:0/...
-      // et la connexion échoue. Avec port:443, la conversion donne https://host:443/
-      // que Dart omet en sérialisation (port = défaut https) → URL propre.
+      // Le serveur WebSocket écoute sur le port 48440.
+      // web_socket_channel v3 convertit wss:// en https:// pour la poignée de main TLS ;
+      // le port doit être explicite sinon Dart utilise 0 par défaut et la connexion échoue.
       final uri = Uri(
         scheme: 'wss',
         host: 'ws.score360.africa',
-        port: 443,
+        port: 48440,
         path: '/api/v1.2/inbox/ws',
         queryParameters: {
           'organization_id': _organizationId!,
           'token': _token!,
         },
       );
+      debugPrint('=== WebSocket connect → $uri ===');
       final channel = WebSocketChannel.connect(uri);
       _channel = channel;
-      _isConnected = true;
+
+      // channel.ready se résout une fois la poignée de main WebSocket réussie.
+      // Sans ce catchError, une erreur de connexion (timeout, refus TLS…) remonte
+      // comme "Unhandled Exception" et peut faire planter l'application.
+      channel.ready.then((_) {
+        debugPrint('=== WebSocket connecté ✓ ===');
+        _isConnected = true;
+        _startPing();
+      }).catchError((e) {
+        debugPrint('=== WebSocket échec de connexion : $e ===');
+        _isConnected = false;
+        _handleDisconnect();
+      });
+
       _channelSubscription = channel.stream.listen(
         _onData,
-        onError: (_) => _handleDisconnect(),
+        onError: (e) {
+          debugPrint('=== WebSocket stream erreur : $e ===');
+          _handleDisconnect();
+        },
         onDone: _handleDisconnect,
         cancelOnError: true,
       );
-      _startPing();
     } catch (e) {
       debugPrint('=== Erreur connexion WebSocket : $e ===');
       _handleDisconnect();

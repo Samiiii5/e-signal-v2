@@ -665,7 +665,7 @@ class _ThreadTile extends StatelessWidget {
     final hasUnread = thread.unreadCount > 0;
     return InkWell(
       onTap: () async {
-        await context.push('/inbox/${thread.id}');
+        await context.push('/inbox/${thread.id}', extra: thread);
         onReturn?.call();
       },
       child: Padding(

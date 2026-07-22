@@ -31,8 +31,14 @@ class CatalogService {
       if (response.statusCode != 200) return null;
       final items = response.data['items'] as List? ?? [];
       final accounts = items.whereType<Map>().map((e) => Map<String, dynamic>.from(e));
+      
+      // ignore: avoid_print
+      print('=== ACCOUNTS : $items ===');
+      // ignore: avoid_print
+      print('=== CHANNEL CHERCHÉ : $channel ===');
+
       final account = accounts.firstWhere(
-        (a) => a['channel'] == channel,
+        (a) => a['channel'].toString().toLowerCase() == channel.toLowerCase(),
         orElse: () => <String, dynamic>{},
       );
       return account['id']?.toString();

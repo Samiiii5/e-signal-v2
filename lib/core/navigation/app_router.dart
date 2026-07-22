@@ -13,6 +13,7 @@ import '../../features/payments/create_link_screen.dart';
 import '../../features/payments/payments_screen.dart';
 import '../../features/payments/transaction_detail_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../shared/mock/threads_mock.dart';
 import '../../shared/models/payment_link.dart';
 import '../../features/stats/stats_screen.dart';
 import '../../core/services/navigation_service.dart';
@@ -157,7 +158,10 @@ GoRouter buildRouter() {
         path: '/inbox/:threadId',
         pageBuilder: (context, state) => _slidePage(
           state,
-          ChatScreen(threadId: state.pathParameters['threadId']!),
+          ChatScreen(
+            threadId: state.pathParameters['threadId']!,
+            thread: state.extra is Thread ? state.extra as Thread : null,
+          ),
         ),
       ),
       StatefulShellRoute.indexedStack(
