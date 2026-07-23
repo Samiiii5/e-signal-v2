@@ -49,8 +49,9 @@ class WebSocketService {
   }
 
   void _openConnection() {
-    if (_manuallyDisconnected || _organizationId == null || _token == null)
+    if (_manuallyDisconnected || _organizationId == null || _token == null) {
       return;
+    }
     try {
       // Construire l'Uri directement avec les composants pour éviter le port 0
       final uri = Uri(

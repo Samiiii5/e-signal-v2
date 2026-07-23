@@ -122,8 +122,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() {
       _messages.add(newMsg);
-      if (newMsg.initialStatus != null)
+      if (newMsg.initialStatus != null) {
         _msgStatus[newMsg.id] = newMsg.initialStatus!;
+      }
       _isContactTyping = false;
     });
     _typingTimer?.cancel();
@@ -199,11 +200,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadMessages() async {
-    if (!_isLoadingMessages)
+    if (!_isLoadingMessages) {
       setState(() {
         _isLoadingMessages = true;
         _loadError = null;
       });
+    }
     try {
       // Charger les messages et (si nécessaire) le thread en parallèle.
       final Future<List<Thread>?> threadsFuture = _thread == null
@@ -747,10 +749,11 @@ class _ChatScreenState extends State<ChatScreen> {
     // 1. Vérifier que le GPS est activé
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           AppSnackbar.error('Activez la localisation de votre téléphone'),
         );
+      }
       return;
     }
 
@@ -761,10 +764,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(AppSnackbar.error('Permission GPS refusée'));
+      }
       return;
     }
 
@@ -853,10 +857,11 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(AppSnackbar.error('Impossible d\'accéder à la galerie'));
+      }
     }
   }
 
@@ -1202,10 +1207,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(AppSnackbar.error('Impossible d\'ouvrir le lien'));
+      }
     }
   }
 
@@ -3463,11 +3469,12 @@ class _LocationBubble extends StatelessWidget {
                         child: GestureDetector(
                           onTap: () async {
                             final uri = Uri.tryParse(_mapsUrl);
-                            if (uri != null && await canLaunchUrl(uri))
+                            if (uri != null && await canLaunchUrl(uri)) {
                               launchUrl(
                                 uri,
                                 mode: LaunchMode.externalApplication,
                               );
+                            }
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(

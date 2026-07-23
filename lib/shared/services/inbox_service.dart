@@ -334,10 +334,12 @@ class MockInboxService implements InboxService {
   }) async {
     await Future.delayed(const Duration(milliseconds: 400));
     var results = List<Thread>.from(mockThreads);
-    if (channelFilter != null)
+    if (channelFilter != null) {
       results = results.where((t) => t.channel == channelFilter).toList();
-    if (unreadOnly == true)
+    }
+    if (unreadOnly == true) {
       results = results.where((t) => t.unreadCount > 0).toList();
+    }
     return results;
   }
 

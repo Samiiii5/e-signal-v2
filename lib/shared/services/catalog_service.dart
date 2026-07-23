@@ -53,8 +53,6 @@ class CatalogService {
       for (final account in accounts) {
         final displayName =
             account['display_name']?.toString().toLowerCase() ?? '';
-        final accountType =
-            account['account_type']?.toString().toLowerCase() ?? '';
 
         // Messenger correspond aux comptes Facebook
         if (channel.toLowerCase() == 'messenger' &&
