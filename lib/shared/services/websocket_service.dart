@@ -51,19 +51,14 @@ class WebSocketService {
   void _openConnection() {
     if (_manuallyDisconnected || _organizationId == null || _token == null) return;
     try {
-      // Le serveur WebSocket écoute sur le port 48440.
-      // web_socket_channel v3 convertit wss:// en https:// pour la poignée de main TLS ;
-      // le port doit être explicite sinon Dart utilise 0 par défaut et la connexion échoue.
-      final uri = Uri(
-        scheme: 'wss',
-        host: 'ws.score360.africa',
-        port: 48440,
-        path: '/api/v1.2/inbox/ws',
-        queryParameters: {
-          'organization_id': _organizationId!,
-          'token': _token!,
-        },
-      );
+      // Uri.parse() sur une string complète — construire l'Uri avec des
+      // paramètres séparés (scheme/host/port) fait retomber le port sur 0
+      // par défaut pour le scheme wss, ce qui fait échouer la connexion.
+      final wsUrl = 'wss://ws.score360.africa'
+          '/api/v1.2/inbox/ws'
+          '?organization_id=$_organizationId'
+          '&token=$_token';
+      final uri = Uri.parse(wsUrl);
       debugPrint('=== WebSocket URI : $uri ===');
       final channel = WebSocketChannel.connect(uri);
       _channel = channel;

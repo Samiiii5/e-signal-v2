@@ -728,7 +728,7 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
       final ids = selectedProducts
-          .map((p) => (p['id'] ?? p['product_id'] ?? p['_id'] ?? p['uuid'] ?? '').toString())
+          .map((p) => (p['product_id'] ?? p['id'] ?? p['_id'] ?? '').toString())
           .where((id) => id.isNotEmpty)
           .toList();
       debugPrint('=== CAROUSEL body : thread=${widget.threadId} provider=$channel accountId=$accountId ids=$ids ===');
@@ -3122,7 +3122,7 @@ class _AttachmentSheet extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 20,
             crossAxisSpacing: 8,
-            childAspectRatio: 0.80,
+            childAspectRatio: 0.75,
             children: options.map((o) => _AttachItem(opt: o)).toList(),
           ),
           const SizedBox(height: 8),
@@ -3209,10 +3209,9 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
   }
 
   String _idFor(Map<String, dynamic> product, int index) {
-    return (product['id'] ??
-            product['product_id'] ??
+    return (product['product_id'] ??
+            product['id'] ??
             product['_id'] ??
-            product['uuid'] ??
             index.toString())
         .toString();
   }
@@ -3367,7 +3366,8 @@ class _ProductTile extends StatelessWidget {
     final name = (product['name'] ?? '').toString();
     final description = product['description']?.toString();
     final currency = (product['currency'] ?? 'FCFA').toString();
-    final imageUrl = product['image_url']?.toString();
+    final imageUrl = product['thumbnail_url']?.toString() ?? product['image_url']?.toString();
+    final price = product['base_price'] ?? product['price'];
 
     return Opacity(
       opacity: isDisabled ? 0.4 : 1,
@@ -3428,7 +3428,7 @@ class _ProductTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis),
                     ],
                     const SizedBox(height: 4),
-                    Text('${_fmt(product['price'])} $currency',
+                    Text('${_fmt(price)} $currency',
                         style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
