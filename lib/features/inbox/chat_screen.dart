@@ -20,6 +20,7 @@ import '../../shared/services/websocket_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String threadId;
+
   /// Thread pré-chargé depuis l'écran parent (optionnel).
   /// S'il est fourni, on évite un appel redondant à getThreads().
   final Thread? thread;
@@ -121,7 +122,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() {
       _messages.add(newMsg);
-      if (newMsg.initialStatus != null) _msgStatus[newMsg.id] = newMsg.initialStatus!;
+      if (newMsg.initialStatus != null)
+        _msgStatus[newMsg.id] = newMsg.initialStatus!;
       _isContactTyping = false;
     });
     _typingTimer?.cancel();
@@ -164,7 +166,9 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _handleWsMessagesRead(Map<String, dynamic> data) {
-    final readBefore = DateTime.tryParse((data['read_before'] ?? '').toString());
+    final readBefore = DateTime.tryParse(
+      (data['read_before'] ?? '').toString(),
+    );
     if (readBefore == null) return;
     setState(() {
       for (final m in _messages) {
@@ -177,14 +181,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _handleWsInboundCall(Map<String, dynamic> data) {
     final call = data['call'];
-    final fromWaId = (call is Map ? call['from_wa_id']?.toString() : null) ?? 'numéro inconnu';
+    final fromWaId =
+        (call is Map ? call['from_wa_id']?.toString() : null) ??
+        'numéro inconnu';
     ScaffoldMessenger.of(context).showSnackBar(
       AppSnackbar.success('📞 Appel WhatsApp entrant de $fromWaId'),
     );
   }
 
   void _onScroll() {
-    if (_hasMore && !_isLoadingMore &&
+    if (_hasMore &&
+        !_isLoadingMore &&
         _scrollController.hasClients &&
         _scrollController.offset <= 80) {
       _loadMoreMessages();
@@ -192,7 +199,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadMessages() async {
-    if (!_isLoadingMessages) setState(() { _isLoadingMessages = true; _loadError = null; });
+    if (!_isLoadingMessages)
+      setState(() {
+        _isLoadingMessages = true;
+        _loadError = null;
+      });
     try {
       // Charger les messages et (si nécessaire) le thread en parallèle.
       final Future<List<Thread>?> threadsFuture = _thread == null
@@ -210,7 +221,9 @@ class _ChatScreenState extends State<ChatScreen> {
           _thread = threads.where((t) => t.id == widget.threadId).firstOrNull;
         }
         // ignore: avoid_print
-        print('=== _loadMessages: thread=${_thread?.id} provider=${_thread?.metadataProvider} channel=${_thread?.channel} ===');
+        print(
+          '=== _loadMessages: thread=${_thread?.id} provider=${_thread?.metadataProvider} channel=${_thread?.channel} ===',
+        );
         for (final m in result.messages) {
           if (m.initialStatus != null && !_msgStatus.containsKey(m.id)) {
             _msgStatus[m.id] = m.initialStatus!;
@@ -227,14 +240,23 @@ class _ChatScreenState extends State<ChatScreen> {
       GoRouter.of(context).go('/login');
     } on InboxForbiddenException {
       if (!mounted) return;
-      setState(() { _isLoadingMessages = false; _loadError = 'Accès non autorisé à cette conversation.'; });
+      setState(() {
+        _isLoadingMessages = false;
+        _loadError = 'Accès non autorisé à cette conversation.';
+      });
     } on InboxNetworkException {
       if (!mounted) return;
-      setState(() { _isLoadingMessages = false; _loadError = 'Vérifiez votre connexion internet.'; });
+      setState(() {
+        _isLoadingMessages = false;
+        _loadError = 'Vérifiez votre connexion internet.';
+      });
       _fallbackToMock();
     } catch (_) {
       if (!mounted) return;
-      setState(() { _isLoadingMessages = false; _loadError = null; });
+      setState(() {
+        _isLoadingMessages = false;
+        _loadError = null;
+      });
       _fallbackToMock();
     }
   }
@@ -300,7 +322,9 @@ class _ChatScreenState extends State<ChatScreen> {
         onCopy: () {
           Navigator.pop(context);
           Clipboard.setData(ClipboardData(text: msg.content));
-          ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message copié'));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(AppSnackbar.success('Message copié'));
         },
         onReply: () {
           Navigator.pop(context);
@@ -327,7 +351,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 Navigator.pop(context);
                 if (_msgStatus[msg.id] == MessageStatus.read) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    AppSnackbar.error('Ce message a déjà été lu et ne peut plus être modifié'),
+                    AppSnackbar.error(
+                      'Ce message a déjà été lu et ne peut plus être modifié',
+                    ),
                   );
                   return;
                 }
@@ -348,7 +374,10 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Modifier le message', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Modifier le message',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
         content: TextField(
           controller: editController,
           maxLines: 4,
@@ -357,14 +386,20 @@ class _ChatScreenState extends State<ChatScreen> {
           decoration: InputDecoration(
             filled: true,
             fillColor: AppColors.backgroundPage,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
             contentPadding: const EdgeInsets.all(12),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text(
+              'Annuler',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -389,7 +424,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 }
               });
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message modifié'));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(AppSnackbar.success('Message modifié'));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.green,
@@ -409,18 +446,29 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Supprimer ce message ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: const Text('Cette action est irréversible.', style: TextStyle(color: AppColors.textSecondary)),
+        title: const Text(
+          'Supprimer ce message ?',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Cette action est irréversible.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text(
+              'Annuler',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
               setState(() => _messages.removeWhere((m) => m.id == msg.id));
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message supprimé'));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(AppSnackbar.success('Message supprimé'));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
@@ -440,7 +488,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void _toggleSearch() {
     setState(() {
       _isSearching = !_isSearching;
-      if (!_isSearching) { _searchController.clear(); _searchQuery = ''; }
+      if (!_isSearching) {
+        _searchController.clear();
+        _searchQuery = '';
+      }
     });
   }
 
@@ -462,15 +513,20 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (_) => _ClientProfileSheet(
         thread: _thread,
         messageCount: _messages.length,
-        onPayment: () { Navigator.pop(context); _openCreateLink(); },
+        onPayment: () {
+          Navigator.pop(context);
+          _openCreateLink();
+        },
       ),
     );
   }
 
   void _showConversationStats() {
-    final sent     = _messages.where((m) => !m.isFromContact).length;
-    final received = _messages.where((m) =>  m.isFromContact).length;
-    final links    = _messages.where((m) => m.messageType.toUpperCase() == 'PAYMENT_LINK').length;
+    final sent = _messages.where((m) => !m.isFromContact).length;
+    final received = _messages.where((m) => m.isFromContact).length;
+    final links = _messages
+        .where((m) => m.messageType.toUpperCase() == 'PAYMENT_LINK')
+        .length;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -486,9 +542,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _toggleMute() {
     setState(() => _isMuted = !_isMuted);
-    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success(
-      _isMuted ? 'Conversation mise en sourdine' : 'Sourdine désactivée',
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      AppSnackbar.success(
+        _isMuted ? 'Conversation mise en sourdine' : 'Sourdine désactivée',
+      ),
+    );
   }
 
   void _showBlockDialog() {
@@ -497,16 +555,35 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Bloquer le contact ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: Text('Bloquer $name ? Vous ne recevrez plus ses messages.', style: const TextStyle(color: AppColors.textSecondary)),
+        title: const Text(
+          'Bloquer le contact ?',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Bloquer $name ? Vous ne recevrez plus ses messages.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Annuler',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('$name a été bloqué'));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(AppSnackbar.error('$name a été bloqué'));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: AppColors.white, shape: const StadiumBorder(), elevation: 0),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: AppColors.white,
+              shape: const StadiumBorder(),
+              elevation: 0,
+            ),
             child: const Text('Bloquer'),
           ),
         ],
@@ -519,16 +596,33 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Supprimer la conversation ?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: const Text('Cette action est irréversible.', style: TextStyle(color: AppColors.textSecondary)),
+        title: const Text(
+          'Supprimer la conversation ?',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'Cette action est irréversible.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler', style: TextStyle(color: AppColors.textSecondary))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Annuler',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               context.pop();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: AppColors.white, shape: const StadiumBorder(), elevation: 0),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: AppColors.white,
+              shape: const StadiumBorder(),
+              elevation: 0,
+            ),
             child: const Text('Supprimer'),
           ),
         ],
@@ -542,21 +636,30 @@ class _ChatScreenState extends State<ChatScreen> {
     buf.writeln('Exportée le ${_fmtDate(DateTime.now())}');
     buf.writeln('─' * 40);
     for (final m in _messages) {
-      final who = m.isFromContact ? (_thread?.contactName ?? 'Contact') : 'Vous';
+      final who = m.isFromContact
+          ? (_thread?.contactName ?? 'Contact')
+          : 'Vous';
       final dt = m.sentAtDt;
-      final time = '${dt.day.toString().padLeft(2,'0')}/${dt.month.toString().padLeft(2,'0')}/${dt.year} ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+      final time =
+          '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
       buf.writeln('[$time] $who : ${m.content}');
     }
-    await Share.share(buf.toString(), subject: 'Conversation ${_thread?.contactName ?? ''}');
+    await Share.share(
+      buf.toString(),
+      subject: 'Conversation ${_thread?.contactName ?? ''}',
+    );
   }
 
   // ── Lien de paiement ─────────────────────────────────────────────────────────
 
   void _openCreateLink() {
-    context.push('/create-link', extra: <String, String?>{
-      'contactName': _thread?.contactName ?? 'Client',
-      'threadId': widget.threadId,
-    });
+    context.push(
+      '/create-link',
+      extra: <String, String?>{
+        'contactName': _thread?.contactName ?? 'Client',
+        'threadId': widget.threadId,
+      },
+    );
   }
 
   // ── Helpers message ──────────────────────────────────────────────────────────
@@ -567,12 +670,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _sendTextMessage(String content) {
-    _addMessage(Message(
-      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-      direction: 'OUT',
-      bodyText: content,
-      sentAt: DateTime.now().toIso8601String(),
-    ));
+    _addMessage(
+      Message(
+        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+        direction: 'OUT',
+        bodyText: content,
+        sentAt: DateTime.now().toIso8601String(),
+      ),
+    );
   }
 
   // ── Pièce jointe ─────────────────────────────────────────────────────────────
@@ -584,13 +689,22 @@ class _ChatScreenState extends State<ChatScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _AttachmentSheet(
-        onPayment: () { Navigator.pop(context); _openCreateLink(); },
+        onPayment: () {
+          Navigator.pop(context);
+          _openCreateLink();
+        },
         onLocation: () {
           Navigator.pop(context);
           _sendLocation();
         },
-        onCatalogue: () { Navigator.pop(context); _showCatalogueSheet(); },
-        onDevis: () { Navigator.pop(context); _showDevisSheet(); },
+        onCatalogue: () {
+          Navigator.pop(context);
+          _showCatalogueSheet();
+        },
+        onDevis: () {
+          Navigator.pop(context);
+          _showDevisSheet();
+        },
         onPromotion: () {
           Navigator.pop(context);
           _sendTextMessage(
@@ -602,13 +716,15 @@ class _ChatScreenState extends State<ChatScreen> {
         },
         onTracking: () {
           Navigator.pop(context);
-          _addMessage(Message(
-            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-            direction: 'OUT',
-            bodyText: 'CMD-${DateTime.now().millisecondsSinceEpoch % 100000}',
-            messageType: 'ORDER_TRACKING',
-            sentAt: DateTime.now().toIso8601String(),
-          ));
+          _addMessage(
+            Message(
+              id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+              direction: 'OUT',
+              bodyText: 'CMD-${DateTime.now().millisecondsSinceEpoch % 100000}',
+              messageType: 'ORDER_TRACKING',
+              sentAt: DateTime.now().toIso8601String(),
+            ),
+          );
         },
         onReview: () {
           Navigator.pop(context);
@@ -619,7 +735,10 @@ class _ChatScreenState extends State<ChatScreen> {
             'Votre avis compte beaucoup pour nous !',
           );
         },
-        onPhoto: () { Navigator.pop(context); _pickImage(); },
+        onPhoto: () {
+          Navigator.pop(context);
+          _pickImage();
+        },
       ),
     );
   }
@@ -627,7 +746,10 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendLocation() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Activez la localisation pour continuer'));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppSnackbar.error('Activez la localisation pour continuer'),
+        );
       return;
     }
 
@@ -635,35 +757,47 @@ class _ChatScreenState extends State<ChatScreen> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Permission GPS refusée'));
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(AppSnackbar.error('Permission GPS refusée'));
       return;
     }
 
     Position position;
     try {
       position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Impossible d\'obtenir votre position'));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppSnackbar.error('Impossible d\'obtenir votre position'),
+        );
       return;
     }
 
-    final content = '📍 Ma localisation :\nhttps://maps.google.com/?q=${position.latitude},${position.longitude}';
+    final content =
+        '📍 Ma localisation :\nhttps://maps.google.com/?q=${position.latitude},${position.longitude}';
     debugPrint('=== LOCALISATION envoyée : $content ===');
     final provider = _thread?.metadataProvider ?? _thread?.channel ?? '';
     final integrationAccountId = _thread?.integrationAccountId;
     final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
 
     setState(() {
-      _messages.add(Message(
-        id: msgId,
-        direction: 'OUT',
-        bodyText: content,
-        messageType: 'LOCATION',
-        sentAt: DateTime.now().toIso8601String(),
-      ));
+      _messages.add(
+        Message(
+          id: msgId,
+          direction: 'OUT',
+          bodyText: content,
+          messageType: 'LOCATION',
+          sentAt: DateTime.now().toIso8601String(),
+        ),
+      );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
@@ -678,25 +812,35 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _messages.removeWhere((m) => m.id == msgId));
-      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Échec de l\'envoi de la localisation'));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(AppSnackbar.error('Échec de l\'envoi de la localisation'));
     }
   }
 
   Future<void> _pickImage() async {
     try {
       final picker = ImagePicker();
-      final xFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      final xFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
       if (xFile == null || !mounted) return;
-      _addMessage(Message(
-        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-        direction: 'OUT',
-        bodyText: 'Photo produit',
-        messageType: 'IMAGE',
-        mediaUrl: xFile.path,
-        sentAt: DateTime.now().toIso8601String(),
-      ));
+      _addMessage(
+        Message(
+          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+          direction: 'OUT',
+          bodyText: 'Photo produit',
+          messageType: 'IMAGE',
+          mediaUrl: xFile.path,
+          sentAt: DateTime.now().toIso8601String(),
+        ),
+      );
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Impossible d\'accéder à la galerie'));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(AppSnackbar.error('Impossible d\'accéder à la galerie'));
     }
   }
 
@@ -714,40 +858,62 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Future<void> _sendCatalogSelection(List<Map<String, dynamic>> selectedProducts) async {
-    final channel = _thread?.channel;
-    if (channel == null || channel.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Conversation introuvable'));
+  Future<void> _sendCatalogSelection(
+    List<Map<String, dynamic>> selectedProducts,
+  ) async {
+    final provider = _thread?.metadataProvider ?? _thread?.channel;
+    final accountId = _thread?.integrationAccountId;
+    if (provider == null || provider.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(AppSnackbar.error('Conversation introuvable'));
+      return;
+    }
+    if (accountId == null || accountId.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(AppSnackbar.error('Compte d\'intégration introuvable'));
       return;
     }
     try {
-      final accountId = await catalogService.getIntegrationAccountId(channel);
-      if (accountId == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Aucun compte intégré pour ce canal'));
-        return;
-      }
-      final ids = selectedProducts
-          .map((p) => p['product_id'].toString())
-          .where((id) => id.isNotEmpty)
+      debugPrint(
+        '=== Account ID du thread: $accountId pour provider: $provider ===',
+      );
+      final items = selectedProducts
+          .map(
+            (p) => {
+              'product_id': p['product_id'].toString(),
+              'title': p['name']?.toString() ?? '',
+              'image_url': p['thumbnail_url']?.toString() ?? '',
+            },
+          )
+          .where((item) => item['product_id'].toString().isNotEmpty)
           .toList();
-      debugPrint('=== CAROUSEL body : thread=${widget.threadId} provider=$channel accountId=$accountId ids=$ids ===');
+      debugPrint(
+        '=== CAROUSEL body : thread=${widget.threadId} provider=$provider accountId=$accountId items=$items ===',
+      );
       await inboxService.sendCarousel(
         threadId: widget.threadId,
-        provider: channel,
+        provider: provider,
         integrationAccountId: accountId,
-        catalogItemIds: ids,
+        catalogItemIds: items,
       );
       if (!mounted) return;
-      _addMessage(Message(
-        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-        direction: 'OUT',
-        bodyText: '📦 Catalogue envoyé — ${selectedProducts.length} produit${selectedProducts.length > 1 ? 's' : ''}',
-        sentAt: DateTime.now().toIso8601String(),
-      ));
-    } catch (_) {
+      _addMessage(
+        Message(
+          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+          direction: 'OUT',
+          bodyText:
+              '📦 Catalogue envoyé — ${selectedProducts.length} produit${selectedProducts.length > 1 ? 's' : ''}',
+          sentAt: DateTime.now().toIso8601String(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('=== Erreur envoi catalogue: $e ===');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Échec de l\'envoi du catalogue'));
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Échec de l\'envoi du catalogue: ${e.toString()}'),
+      );
     }
   }
 
@@ -767,7 +933,20 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   String _fmtDate(DateTime dt) {
-    const m = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    const m = [
+      'Jan',
+      'Fév',
+      'Mar',
+      'Avr',
+      'Mai',
+      'Jun',
+      'Jul',
+      'Aoû',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Déc',
+    ];
     return '${dt.day} ${m[dt.month - 1]} ${dt.year}';
   }
 
@@ -798,13 +977,20 @@ class _ChatScreenState extends State<ChatScreen> {
     if (diff == 0) return 'Aujourd\'hui';
     if (diff == 1) return 'Hier';
     if (diff < 7) {
-      const jours = ['Lundi', 'Mardi', 'Mercredi',
-                     'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+      const jours = [
+        'Lundi',
+        'Mardi',
+        'Mercredi',
+        'Jeudi',
+        'Vendredi',
+        'Samedi',
+        'Dimanche',
+      ];
       return jours[date.weekday - 1];
     }
     return '${date.day.toString().padLeft(2, '0')}/'
-         '${date.month.toString().padLeft(2, '0')}/'
-         '${date.year}';
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
   }
 
   // ── Sélection de messages ────────────────────────────────────────────────────
@@ -827,7 +1013,9 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       if (_selectedIds.contains(msgId)) {
         _selectedIds.remove(msgId);
-        if (_selectedIds.isEmpty) { _isSelectionMode = false; }
+        if (_selectedIds.isEmpty) {
+          _isSelectionMode = false;
+        }
       } else {
         _selectedIds.add(msgId);
       }
@@ -841,13 +1029,18 @@ class _ChatScreenState extends State<ChatScreen> {
       _selectedIds.clear();
       _isSelectionMode = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('$count message(s) supprimé(s)'));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(AppSnackbar.success('$count message(s) supprimé(s)'));
   }
 
   void _replySelected() {
     if (_selectedIds.isEmpty) return;
     final msgId = _selectedIds.first;
-    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    final msg = _messages.firstWhere(
+      (m) => m.id == msgId,
+      orElse: () => _messages.first,
+    );
     _exitSelectionMode();
     setState(() => _replyToMessage = msg);
   }
@@ -863,7 +1056,9 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
     _exitSelectionMode();
-    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Favori mis à jour'));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(AppSnackbar.success('Favori mis à jour'));
   }
 
   void _copySelected() {
@@ -871,7 +1066,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = msgs.map((m) => m.content).join('\n');
     Clipboard.setData(ClipboardData(text: text));
     _exitSelectionMode();
-    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message copié'));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(AppSnackbar.success('Message copié'));
   }
 
   void _forwardSelected() {
@@ -893,7 +1090,9 @@ class _ChatScreenState extends State<ChatScreen> {
         onForward: (thread) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            AppSnackbar.success('$count message(s) transféré(s) à ${thread.contactName}'),
+            AppSnackbar.success(
+              '$count message(s) transféré(s) à ${thread.contactName}',
+            ),
           );
         },
       ),
@@ -903,7 +1102,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showInfoSelected() {
     if (_selectedIds.isEmpty) return;
     final msgId = _selectedIds.first;
-    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    final msg = _messages.firstWhere(
+      (m) => m.id == msgId,
+      orElse: () => _messages.first,
+    );
     final status = _msgStatus[msgId];
     _exitSelectionMode();
     showModalBottomSheet(
@@ -924,17 +1126,24 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
     _exitSelectionMode();
-    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Message épinglé'));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(AppSnackbar.success('Message épinglé'));
   }
 
   void _editSelected() {
     if (_selectedIds.isEmpty) return;
     final msgId = _selectedIds.first;
-    final msg = _messages.firstWhere((m) => m.id == msgId, orElse: () => _messages.first);
+    final msg = _messages.firstWhere(
+      (m) => m.id == msgId,
+      orElse: () => _messages.first,
+    );
     _exitSelectionMode();
     if (_msgStatus[msgId] == MessageStatus.read) {
       ScaffoldMessenger.of(context).showSnackBar(
-        AppSnackbar.error('Ce message a déjà été lu et ne peut plus être modifié'),
+        AppSnackbar.error(
+          'Ce message a déjà été lu et ne peut plus être modifié',
+        ),
       );
       return;
     }
@@ -963,7 +1172,10 @@ class _ChatScreenState extends State<ChatScreen> {
         message: msg,
         globalPosition: globalPos,
         currentReactions: _reactions[msg.id] ?? [],
-        onToggle: (emoji) { Navigator.pop(context); _toggleReaction(msg.id, emoji); },
+        onToggle: (emoji) {
+          Navigator.pop(context);
+          _toggleReaction(msg.id, emoji);
+        },
       ),
     );
   }
@@ -974,17 +1186,23 @@ class _ChatScreenState extends State<ChatScreen> {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Impossible d\'ouvrir le lien'));
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(AppSnackbar.error('Impossible d\'ouvrir le lien'));
     }
   }
 
   // ── Image plein écran ────────────────────────────────────────────────────────
 
   void _showFullscreenImage(Message msg) {
-    Navigator.push(context, MaterialPageRoute(
-      fullscreenDialog: true,
-      builder: (_) => _FullscreenImageViewer(message: msg),
-    ));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _FullscreenImageViewer(message: msg),
+      ),
+    );
   }
 
   // ── Appel / vidéo ────────────────────────────────────────────────────────────
@@ -1008,7 +1226,9 @@ class _ChatScreenState extends State<ChatScreen> {
     // Vérification que le thread est chargé
     if (_thread == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        AppSnackbar.error('Conversation non chargée. Veuillez patienter ou rafraîchir.'),
+        AppSnackbar.error(
+          'Conversation non chargée. Veuillez patienter ou rafraîchir.',
+        ),
       );
       return;
     }
@@ -1024,12 +1244,14 @@ class _ChatScreenState extends State<ChatScreen> {
       _replyToMessage = null;
       _showEmojiPicker = false;
       _msgStatus[msgId] = MessageStatus.sent;
-      _messages.add(Message(
-        id: msgId,
-        direction: 'OUT',
-        bodyText: text,
-        sentAt: DateTime.now().toIso8601String(),
-      ));
+      _messages.add(
+        Message(
+          id: msgId,
+          direction: 'OUT',
+          bodyText: text,
+          sentAt: DateTime.now().toIso8601String(),
+        ),
+      );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     try {
@@ -1037,7 +1259,9 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint('threadId: ${widget.threadId}');
       debugPrint('thread.channel: ${_thread?.channel}');
       debugPrint('thread.metadataProvider: ${_thread?.metadataProvider}');
-      debugPrint('thread.integrationAccountId: ${_thread?.integrationAccountId}');
+      debugPrint(
+        'thread.integrationAccountId: ${_thread?.integrationAccountId}',
+      );
       debugPrint('provider utilisé: $provider');
       debugPrint('integrationAccountId utilisé: $integrationAccountId');
       debugPrint('content: $text');
@@ -1068,7 +1292,8 @@ class _ChatScreenState extends State<ChatScreen> {
       var errorMsg = 'Échec de l\'envoi du message';
       if (e is DioException) {
         final status = e.response?.statusCode;
-        final serverMsg = e.response?.data?['detail'] ?? e.response?.data?['message'] ?? '';
+        final serverMsg =
+            e.response?.data?['detail'] ?? e.response?.data?['message'] ?? '';
         errorMsg = switch (status) {
           400 => 'Message invalide : $serverMsg',
           401 => 'Session expirée, reconnectez-vous',
@@ -1088,19 +1313,26 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     final displayed = _searchQuery.isEmpty
         ? _messages
-        : _messages.where((m) => m.content.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+        : _messages
+              .where(
+                (m) => m.content.toLowerCase().contains(
+                  _searchQuery.toLowerCase(),
+                ),
+              )
+              .toList();
     final timeline = _buildTimeline(displayed);
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.white,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(_isSelectionMode ? 60 : (_isSearching ? 60 : 64)),
+        preferredSize: Size.fromHeight(
+          _isSelectionMode ? 60 : (_isSearching ? 60 : 64),
+        ),
         child: _isSelectionMode
             ? _SelectionAppBar(
                 count: _selectedIds.length,
@@ -1137,50 +1369,76 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           if (_isLoadingMessages)
-            const Expanded(child: Center(child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2.5)))
+            const Expanded(
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.green,
+                  strokeWidth: 2.5,
+                ),
+              ),
+            )
           else if (_loadError != null && _messages.isEmpty)
-            Expanded(child: _MessagesErrorState(error: _loadError!, onRetry: _loadMessages))
-          else Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: displayed.isEmpty ? 1 : timeline.length + (_isLoadingMore ? 2 : 1),
-              itemBuilder: (_, i) {
-                if (_isLoadingMore && i == 0) {
-                  return const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2))),
-                  );
-                }
-                final idx = _isLoadingMore ? i - 1 : i;
-                if (idx == 0) {
-                  return _searchQuery.isNotEmpty && displayed.isEmpty
-                      ? const _NoResultsBanner()
-                      : const _SecurityBanner();
-                }
-                final row = timeline[idx - 1];
-                if (row.separatorLabel != null) {
-                  return _DateSeparator(label: row.separatorLabel!);
-                }
-                final msg = row.message!;
-                final isSelected = _selectedIds.contains(msg.id);
-                Widget bubble = switch (msg.type) {
-                  MessageType.paymentLink   => _PaymentBubble(
+            Expanded(
+              child: _MessagesErrorState(
+                error: _loadError!,
+                onRetry: _loadMessages,
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                itemCount: displayed.isEmpty
+                    ? 1
+                    : timeline.length + (_isLoadingMore ? 2 : 1),
+                itemBuilder: (_, i) {
+                  if (_isLoadingMore && i == 0) {
+                    return const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: AppColors.green,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  final idx = _isLoadingMore ? i - 1 : i;
+                  if (idx == 0) {
+                    return _searchQuery.isNotEmpty && displayed.isEmpty
+                        ? const _NoResultsBanner()
+                        : const _SecurityBanner();
+                  }
+                  final row = timeline[idx - 1];
+                  if (row.separatorLabel != null) {
+                    return _DateSeparator(label: row.separatorLabel!);
+                  }
+                  final msg = row.message!;
+                  final isSelected = _selectedIds.contains(msg.id);
+                  Widget bubble = switch (msg.type) {
+                    MessageType.paymentLink => _PaymentBubble(
                       message: msg,
                       onTap: () => _launchUrl('https://pay.wave.com/mock'),
                     ),
-                  MessageType.location      => _LocationBubble(message: msg),
-                  MessageType.orderTracking => _OrderTrackingBubble(message: msg),
-                  MessageType.image         => _ImageBubble(
+                    MessageType.location => _LocationBubble(message: msg),
+                    MessageType.orderTracking => _OrderTrackingBubble(
+                      message: msg,
+                    ),
+                    MessageType.image => _ImageBubble(
                       message: msg,
                       onTap: () => _showFullscreenImage(msg),
                     ),
-                  MessageType.audio         => _AudioBubble(message: msg),
-                  MessageType.video         => _VideoBubble(message: msg),
-                  MessageType.document      => _DocumentBubble(message: msg),
-                  MessageType.carousel      => _CarouselBubble(message: msg),
-                  MessageType.contact       => _ContactBubble(message: msg),
-                  _                         => _MessageBubble(
+                    MessageType.audio => _AudioBubble(message: msg),
+                    MessageType.video => _VideoBubble(message: msg),
+                    MessageType.document => _DocumentBubble(message: msg),
+                    MessageType.carousel => _CarouselBubble(message: msg),
+                    MessageType.contact => _ContactBubble(message: msg),
+                    _ => _MessageBubble(
                       message: msg,
                       isStarred: _starredIds.contains(msg.id),
                       isPinned: _pinnedIds.contains(msg.id),
@@ -1189,64 +1447,75 @@ class _ChatScreenState extends State<ChatScreen> {
                       status: _msgStatus[msg.id],
                       onReactionTap: (emoji) => _toggleReaction(msg.id, emoji),
                     ),
-                };
-                return GestureDetector(
-                  onLongPress: () {
-                    if (_isSelectionMode) {
-                      _toggleSelection(msg.id);
-                    } else {
-                      _enterSelectionMode(msg.id);
-                    }
-                  },
-                  onTap: () {
-                    if (_isSelectionMode) {
-                      _toggleSelection(msg.id);
-                    } else {
-                      _showMessageOptions(msg);
-                    }
-                  },
-                  onDoubleTap: () {
-                    final box = context.findRenderObject() as RenderBox?;
-                    final pos = box?.localToGlobal(Offset.zero) ?? Offset.zero;
-                    _showReactionPicker(msg, pos);
-                  },
-                  child: Container(
-                    color: (isSelected && _isSelectionMode)
-                        ? const Color(0xFFE8F8F0)
-                        : Colors.transparent,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        if (_isSelectionMode)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              width: 22,
-                              height: 22,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isSelected ? AppColors.green : Colors.transparent,
-                                border: Border.all(
-                                  color: isSelected ? AppColors.green : Colors.grey.withValues(alpha: 0.5),
-                                  width: 2,
+                  };
+                  return GestureDetector(
+                    onLongPress: () {
+                      if (_isSelectionMode) {
+                        _toggleSelection(msg.id);
+                      } else {
+                        _enterSelectionMode(msg.id);
+                      }
+                    },
+                    onTap: () {
+                      if (_isSelectionMode) {
+                        _toggleSelection(msg.id);
+                      } else {
+                        _showMessageOptions(msg);
+                      }
+                    },
+                    onDoubleTap: () {
+                      final box = context.findRenderObject() as RenderBox?;
+                      final pos =
+                          box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                      _showReactionPicker(msg, pos);
+                    },
+                    child: Container(
+                      color: (isSelected && _isSelectionMode)
+                          ? const Color(0xFFE8F8F0)
+                          : Colors.transparent,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (_isSelectionMode)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isSelected
+                                      ? AppColors.green
+                                      : Colors.transparent,
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? AppColors.green
+                                        : Colors.grey.withValues(alpha: 0.5),
+                                    width: 2,
+                                  ),
                                 ),
+                                child: isSelected
+                                    ? const Icon(
+                                        Icons.check,
+                                        size: 14,
+                                        color: Colors.white,
+                                      )
+                                    : null,
                               ),
-                              child: isSelected
-                                  ? const Icon(Icons.check, size: 14, color: Colors.white)
-                                  : null,
                             ),
-                          ),
-                        Expanded(child: bubble),
-                      ],
+                          Expanded(child: bubble),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
           Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).padding.bottom,
+            ),
             child: _InputBar(
               controller: _controller,
               isSending: _isSending,
@@ -1256,7 +1525,8 @@ class _ChatScreenState extends State<ChatScreen> {
               replyTo: _replyToMessage,
               onCancelReply: () => setState(() => _replyToMessage = null),
               showEmojiPicker: _showEmojiPicker,
-              onEmojiToggle: () => setState(() => _showEmojiPicker = !_showEmojiPicker),
+              onEmojiToggle: () =>
+                  setState(() => _showEmojiPicker = !_showEmojiPicker),
               onCamera: _pickImage,
             ),
           ),
@@ -1312,7 +1582,9 @@ class _ChatAppBar extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 0.5)),
+        border: Border(
+          bottom: BorderSide(color: AppColors.borderLight, width: 0.5),
+        ),
       ),
       child: SafeArea(
         bottom: false,
@@ -1328,7 +1600,11 @@ class _ChatAppBar extends StatelessWidget {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back,
+            size: 22,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => context.pop(),
         ),
         Stack(
@@ -1339,7 +1615,11 @@ class _ChatAppBar extends StatelessWidget {
               backgroundColor: AppColors.backgroundPage,
               child: Text(
                 thread?.contactInitials ?? '?',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
             if (_isOnline)
@@ -1347,7 +1627,8 @@ class _ChatAppBar extends StatelessWidget {
                 bottom: -1,
                 right: -1,
                 child: Container(
-                  width: 12, height: 12,
+                  width: 12,
+                  height: 12,
                   decoration: BoxDecoration(
                     color: AppColors.green,
                     shape: BoxShape.circle,
@@ -1365,10 +1646,24 @@ class _ChatAppBar extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Flexible(child: Text(thread?.contactName ?? '...', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)),
+                  Flexible(
+                    child: Text(
+                      thread?.contactName ?? '...',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   if (isMuted) ...[
                     const SizedBox(width: 6),
-                    const Icon(Icons.volume_off, size: 14, color: AppColors.textHint),
+                    const Icon(
+                      Icons.volume_off,
+                      size: 14,
+                      color: AppColors.textHint,
+                    ),
                   ],
                 ],
               ),
@@ -1385,13 +1680,21 @@ class _ChatAppBar extends StatelessWidget {
         ),
         // Appel audio
         IconButton(
-          icon: const Icon(Icons.call_outlined, size: 20, color: AppColors.green),
+          icon: const Icon(
+            Icons.call_outlined,
+            size: 20,
+            color: AppColors.green,
+          ),
           onPressed: onCall,
           tooltip: 'Appel audio',
         ),
         // Appel vidéo
         IconButton(
-          icon: const Icon(Icons.videocam_outlined, size: 22, color: AppColors.green),
+          icon: const Icon(
+            Icons.videocam_outlined,
+            size: 22,
+            color: AppColors.green,
+          ),
           onPressed: onVideoCall,
           tooltip: 'Appel vidéo',
         ),
@@ -1399,32 +1702,81 @@ class _ChatAppBar extends StatelessWidget {
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
           color: AppColors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           elevation: 8,
           onSelected: (v) {
             switch (v) {
-              case 'search'  : onToggleSearch();
-              case 'starred' : onStarred();
-              case 'profile' : onProfile();
-              case 'stats'   : onStats();
-              case 'mute'    : onMute();
-              case 'block'   : onBlock();
-              case 'delete'  : onDeleteConversation();
-              case 'export'  : onExport();
+              case 'search':
+                onToggleSearch();
+              case 'starred':
+                onStarred();
+              case 'profile':
+                onProfile();
+              case 'stats':
+                onStats();
+              case 'mute':
+                onMute();
+              case 'block':
+                onBlock();
+              case 'delete':
+                onDeleteConversation();
+              case 'export':
+                onExport();
             }
           },
           itemBuilder: (_) => [
-            _menuItem('search',  Icons.search_outlined,           AppColors.green,         'Rechercher'),
-            _menuItem('starred', Icons.star_outline_rounded,      const Color(0xFFF59E0B), 'Messages importants'),
-            _menuItem('profile', Icons.person_outline,            AppColors.primary,       'Profil du client'),
-            _menuItem('stats',   Icons.bar_chart_outlined,        const Color(0xFF3B82F6), 'Statistiques'),
+            _menuItem(
+              'search',
+              Icons.search_outlined,
+              AppColors.green,
+              'Rechercher',
+            ),
+            _menuItem(
+              'starred',
+              Icons.star_outline_rounded,
+              const Color(0xFFF59E0B),
+              'Messages importants',
+            ),
+            _menuItem(
+              'profile',
+              Icons.person_outline,
+              AppColors.primary,
+              'Profil du client',
+            ),
+            _menuItem(
+              'stats',
+              Icons.bar_chart_outlined,
+              const Color(0xFF3B82F6),
+              'Statistiques',
+            ),
             const PopupMenuDivider(),
-            _menuItem('mute',    isMuted ? Icons.volume_up_outlined : Icons.volume_off_outlined,
-                                                                   AppColors.textSecondary, isMuted ? 'Réactiver' : 'Mettre en sourdine'),
-            _menuItem('export',  Icons.upload_outlined,           AppColors.textSecondary, 'Exporter'),
+            _menuItem(
+              'mute',
+              isMuted ? Icons.volume_up_outlined : Icons.volume_off_outlined,
+              AppColors.textSecondary,
+              isMuted ? 'Réactiver' : 'Mettre en sourdine',
+            ),
+            _menuItem(
+              'export',
+              Icons.upload_outlined,
+              AppColors.textSecondary,
+              'Exporter',
+            ),
             const PopupMenuDivider(),
-            _menuItem('block',   Icons.block_outlined,            Colors.redAccent,        'Bloquer le contact'),
-            _menuItem('delete',  Icons.delete_outline,            Colors.redAccent,        'Supprimer la conversation'),
+            _menuItem(
+              'block',
+              Icons.block_outlined,
+              Colors.redAccent,
+              'Bloquer le contact',
+            ),
+            _menuItem(
+              'delete',
+              Icons.delete_outline,
+              Colors.redAccent,
+              'Supprimer la conversation',
+            ),
           ],
         ),
       ],
@@ -1435,22 +1787,36 @@ class _ChatAppBar extends StatelessWidget {
     return Row(
       children: [
         IconButton(
-          icon: const Icon(Icons.arrow_back, size: 22, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back,
+            size: 22,
+            color: AppColors.textPrimary,
+          ),
           onPressed: onToggleSearch,
         ),
         Expanded(
           child: Container(
             height: 40,
-            decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(
+              color: AppColors.backgroundPage,
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: TextField(
               controller: searchController,
               onChanged: onSearchChanged,
               autofocus: true,
-              style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+              ),
               decoration: const InputDecoration(
                 hintText: 'Rechercher dans la conversation...',
                 hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
-                prefixIcon: Icon(Icons.search, size: 18, color: AppColors.textHint),
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 18,
+                  color: AppColors.textHint,
+                ),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(vertical: 10),
               ),
@@ -1462,15 +1828,30 @@ class _ChatAppBar extends StatelessWidget {
     );
   }
 
-  static PopupMenuItem<String> _menuItem(String value, IconData icon, Color color, String label) {
+  static PopupMenuItem<String> _menuItem(
+    String value,
+    IconData icon,
+    Color color,
+    String label,
+  ) {
     return PopupMenuItem<String>(
       value: value,
       child: Row(
         children: [
-          Container(width: 32, height: 32, decoration: BoxDecoration(color: color.withValues(alpha: 0.10), shape: BoxShape.circle),
-              child: Icon(icon, size: 16, color: color)),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 16, color: color),
+          ),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+          ),
         ],
       ),
     );
@@ -1488,7 +1869,8 @@ class _ChatAppBar extends StatelessWidget {
   // Calculé à chaque affichage à partir de lastSeenAt — jamais mis en cache
   // dans un booléen, pour ne pas rester bloqué sur "En ligne" au-delà de 5 min.
   bool get _isOnline =>
-      lastSeenAt != null && DateTime.now().difference(lastSeenAt!) < const Duration(minutes: 5);
+      lastSeenAt != null &&
+      DateTime.now().difference(lastSeenAt!) < const Duration(minutes: 5);
 
   // Le point vert sur l'avatar porte déjà l'état "en ligne" — ici on
   // n'affiche que "vu il y a X min" quand le contact n'est pas en ligne.
@@ -1522,9 +1904,20 @@ class _MessagesErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_outlined, size: 48, color: AppColors.borderLight),
+            const Icon(
+              Icons.wifi_off_outlined,
+              size: 48,
+              color: AppColors.borderLight,
+            ),
             const SizedBox(height: 12),
-            Text(error, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: onRetry,
@@ -1556,15 +1949,23 @@ class _DateSeparator extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          const Expanded(child: Divider(color: AppColors.borderLight, thickness: 0.5)),
+          const Expanded(
+            child: Divider(color: AppColors.borderLight, thickness: 0.5),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
               label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textHint),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textHint,
+              ),
             ),
           ),
-          const Expanded(child: Divider(color: AppColors.borderLight, thickness: 0.5)),
+          const Expanded(
+            child: Divider(color: AppColors.borderLight, thickness: 0.5),
+          ),
         ],
       ),
     );
@@ -1591,7 +1992,11 @@ class _SecurityBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Messages et appels chiffrés de bout en bout. Personne en dehors de cette conversation ne peut les lire ou les écouter.',
-              style: TextStyle(fontSize: 11, color: Color(0xFF92400E), height: 1.4),
+              style: TextStyle(
+                fontSize: 11,
+                color: Color(0xFF92400E),
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -1627,7 +2032,9 @@ class _MessageBubble extends StatelessWidget {
     return Align(
       alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
       child: Column(
-        crossAxisAlignment: fromContact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        crossAxisAlignment: fromContact
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.end,
         children: [
           // Étoile si marqué
           if (isStarred || isPinned)
@@ -1640,14 +2047,26 @@ class _MessageBubble extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (isStarred) const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+                  if (isStarred)
+                    const Icon(
+                      Icons.star_rounded,
+                      size: 14,
+                      color: Color(0xFFF59E0B),
+                    ),
                   if (isStarred && isPinned) const SizedBox(width: 4),
-                  if (isPinned) const Icon(Icons.push_pin, size: 13, color: AppColors.textSecondary),
+                  if (isPinned)
+                    const Icon(
+                      Icons.push_pin,
+                      size: 13,
+                      color: AppColors.textSecondary,
+                    ),
                 ],
               ),
             ),
           Container(
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.72,
+            ),
             margin: EdgeInsets.only(bottom: reactions.isNotEmpty ? 4 : 8),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
@@ -1658,8 +2077,18 @@ class _MessageBubble extends StatelessWidget {
                 bottomLeft: Radius.circular(fromContact ? 4 : 18),
                 bottomRight: Radius.circular(fromContact ? 18 : 4),
               ),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: fromContact ? 0.06 : 0.12), blurRadius: 6, offset: const Offset(0, 2))],
-              border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: fromContact ? 0.06 : 0.12,
+                  ),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+              border: fromContact
+                  ? Border.all(color: AppColors.borderLight, width: 0.5)
+                  : null,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -1667,8 +2096,16 @@ class _MessageBubble extends StatelessWidget {
                 _LinkAwareText(
                   text: message.content,
                   query: searchQuery,
-                  baseStyle: TextStyle(fontSize: 14, color: fromContact ? AppColors.textPrimary : AppColors.white, height: 1.4),
-                  highlightColor: fromContact ? const Color(0xFFFFE082) : const Color(0xFFFFF176),
+                  baseStyle: TextStyle(
+                    fontSize: 14,
+                    color: fromContact
+                        ? AppColors.textPrimary
+                        : AppColors.white,
+                    height: 1.4,
+                  ),
+                  highlightColor: fromContact
+                      ? const Color(0xFFFFE082)
+                      : const Color(0xFFFFF176),
                   fromContact: fromContact,
                 ),
                 const SizedBox(height: 4),
@@ -1677,7 +2114,12 @@ class _MessageBubble extends StatelessWidget {
                   children: [
                     Text(
                       _formatTime(message.sentAtDt),
-                      style: TextStyle(fontSize: 10, color: fromContact ? AppColors.textHint : AppColors.white.withValues(alpha: 0.65)),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: fromContact
+                            ? AppColors.textHint
+                            : AppColors.white.withValues(alpha: 0.65),
+                      ),
                     ),
                     if (!fromContact) ...[
                       const SizedBox(width: 4),
@@ -1703,7 +2145,8 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  String _formatTime(DateTime dt) => '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  String _formatTime(DateTime dt) =>
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
 // ── Texte avec détection de liens ─────────────────────────────────────────────
@@ -1726,13 +2169,21 @@ class _LinkAwareText extends StatelessWidget {
     required this.fromContact,
   });
 
-  static final RegExp _urlPattern = RegExp(r'https?://[^\s]+', caseSensitive: false);
+  static final RegExp _urlPattern = RegExp(
+    r'https?://[^\s]+',
+    caseSensitive: false,
+  );
 
   @override
   Widget build(BuildContext context) {
     final matches = _urlPattern.allMatches(text).toList();
     if (matches.isEmpty) {
-      return _HighlightText(text: text, query: query, baseStyle: baseStyle, highlightColor: highlightColor);
+      return _HighlightText(
+        text: text,
+        query: query,
+        baseStyle: baseStyle,
+        highlightColor: highlightColor,
+      );
     }
 
     final pieces = <Widget>[];
@@ -1740,7 +2191,14 @@ class _LinkAwareText extends StatelessWidget {
     for (final match in matches) {
       final before = text.substring(cursor, match.start);
       if (before.trim().isNotEmpty) {
-        pieces.add(_HighlightText(text: before.trim(), query: query, baseStyle: baseStyle, highlightColor: highlightColor));
+        pieces.add(
+          _HighlightText(
+            text: before.trim(),
+            query: query,
+            baseStyle: baseStyle,
+            highlightColor: highlightColor,
+          ),
+        );
       }
       final url = match.group(0)!;
       debugPrint('=== LIEN détecté : $url ===');
@@ -1749,7 +2207,14 @@ class _LinkAwareText extends StatelessWidget {
     }
     final after = text.substring(cursor);
     if (after.trim().isNotEmpty) {
-      pieces.add(_HighlightText(text: after.trim(), query: query, baseStyle: baseStyle, highlightColor: highlightColor));
+      pieces.add(
+        _HighlightText(
+          text: after.trim(),
+          query: query,
+          baseStyle: baseStyle,
+          highlightColor: highlightColor,
+        ),
+      );
     }
 
     return Column(
@@ -1774,7 +2239,9 @@ class _LinkChip extends StatelessWidget {
 
   bool get _isMapLink {
     final lower = url.toLowerCase();
-    return lower.contains('maps.google.com') || lower.contains('google.com/maps') || lower.contains('goo.gl/maps');
+    return lower.contains('maps.google.com') ||
+        lower.contains('google.com/maps') ||
+        lower.contains('goo.gl/maps');
   }
 
   bool get _isPaymentLink {
@@ -1789,7 +2256,9 @@ class _LinkChip extends StatelessWidget {
     if (uri == null) return;
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Impossible d\'ouvrir le lien'));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(AppSnackbar.error('Impossible d\'ouvrir le lien'));
     }
   }
 
@@ -1848,13 +2317,21 @@ class _PaymentBubble extends StatelessWidget {
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.greenLight, width: 1.5),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1869,9 +2346,17 @@ class _PaymentBubble extends StatelessWidget {
                 children: [
                   const Icon(Icons.link, size: 14, color: AppColors.greenDark),
                   const SizedBox(width: 6),
-                  const Text('Lien de paiement', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
+                  const Text(
+                    'Lien de paiement',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.greenDark,
+                    ),
+                  ),
                   const Spacer(),
-                  if (message.paymentStatus != null) _PaymentStatusBadge(status: message.paymentStatus!),
+                  if (message.paymentStatus != null)
+                    _PaymentStatusBadge(status: message.paymentStatus!),
                 ],
               ),
             ),
@@ -1879,12 +2364,19 @@ class _PaymentBubble extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
               child: Text(
                 '${message.paymentAmount ?? "0"} FCFA',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
             const Padding(
               padding: EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Text('Valide 7 jours', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              child: Text(
+                'Valide 7 jours',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
             ),
             if (message.paymentStatus != PaymentStatus.paid)
               Padding(
@@ -1900,7 +2392,13 @@ class _PaymentBubble extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       elevation: 0,
                     ),
-                    child: const Text('Voir le lien', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      'Voir le lien',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1918,15 +2416,41 @@ class _PaymentStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, text, label) = switch (status) {
-      PaymentStatus.paid    => (AppColors.statusPaidBg,    AppColors.statusPaidText,    'Payé'),
-      PaymentStatus.pending => (AppColors.statusPendingBg, AppColors.statusPendingText, 'En attente'),
-      PaymentStatus.created => (AppColors.statusCreatedBg, AppColors.statusCreatedText, 'Créé'),
-      PaymentStatus.expired => (AppColors.statusExpiredBg, AppColors.statusExpiredText, 'Expiré'),
+      PaymentStatus.paid => (
+        AppColors.statusPaidBg,
+        AppColors.statusPaidText,
+        'Payé',
+      ),
+      PaymentStatus.pending => (
+        AppColors.statusPendingBg,
+        AppColors.statusPendingText,
+        'En attente',
+      ),
+      PaymentStatus.created => (
+        AppColors.statusCreatedBg,
+        AppColors.statusCreatedText,
+        'Créé',
+      ),
+      PaymentStatus.expired => (
+        AppColors.statusExpiredBg,
+        AppColors.statusExpiredText,
+        'Expiré',
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: text)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: text,
+        ),
+      ),
     );
   }
 }
@@ -1968,8 +2492,12 @@ class _MessageOptionsSheet extends StatelessWidget {
           // Poignée
           Center(
             child: Container(
-              width: 36, height: 4,
-              decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -1979,7 +2507,14 @@ class _MessageOptionsSheet extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
-                Text('Options du message', style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+                Text(
+                  'Options du message',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),
@@ -2001,7 +2536,10 @@ class _MessageOptionsSheet extends StatelessWidget {
                 message.content,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           ),
@@ -2044,7 +2582,12 @@ class _MessageOptionsSheet extends StatelessWidget {
               onTap: onEdit!,
             ),
 
-          const Divider(height: 16, indent: 20, endIndent: 20, color: AppColors.borderLight),
+          const Divider(
+            height: 16,
+            indent: 20,
+            endIndent: 20,
+            color: AppColors.borderLight,
+          ),
 
           _OptionTile(
             icon: Icons.delete_outline,
@@ -2085,7 +2628,8 @@ class _OptionTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 36, height: 36,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: iconColor.withValues(alpha: 0.10),
                 shape: BoxShape.circle,
@@ -2121,7 +2665,10 @@ class _NoResultsBanner extends StatelessWidget {
         children: [
           Icon(Icons.search_off_rounded, size: 40, color: AppColors.textHint),
           SizedBox(height: 8),
-          Text('Aucun message trouvé', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+          Text(
+            'Aucun message trouvé',
+            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+          ),
         ],
       ),
     );
@@ -2135,7 +2682,12 @@ class _HighlightText extends StatelessWidget {
   final String query;
   final TextStyle baseStyle;
   final Color highlightColor;
-  const _HighlightText({required this.text, required this.query, required this.baseStyle, required this.highlightColor});
+  const _HighlightText({
+    required this.text,
+    required this.query,
+    required this.baseStyle,
+    required this.highlightColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2147,14 +2699,21 @@ class _HighlightText extends StatelessWidget {
     int idx;
     while ((idx = lower.indexOf(q, start)) != -1) {
       if (idx > start) spans.add(TextSpan(text: text.substring(start, idx)));
-      spans.add(TextSpan(
-        text: text.substring(idx, idx + q.length),
-        style: TextStyle(backgroundColor: highlightColor, fontWeight: FontWeight.w700),
-      ));
+      spans.add(
+        TextSpan(
+          text: text.substring(idx, idx + q.length),
+          style: TextStyle(
+            backgroundColor: highlightColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
       start = idx + q.length;
     }
     if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
-    return RichText(text: TextSpan(style: baseStyle, children: spans));
+    return RichText(
+      text: TextSpan(style: baseStyle, children: spans),
+    );
   }
 }
 
@@ -2173,24 +2732,60 @@ class _StarredMessagesSheet extends StatelessWidget {
       maxChildSize: 0.9,
       expand: false,
       builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         child: Column(
           children: [
             const SizedBox(height: 12),
-            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderLight,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  const Icon(Icons.star_rounded, size: 20, color: Color(0xFFF59E0B)),
+                  const Icon(
+                    Icons.star_rounded,
+                    size: 20,
+                    color: Color(0xFFF59E0B),
+                  ),
                   const SizedBox(width: 8),
-                  const Text('Messages importants', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  const Text(
+                    'Messages importants',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(10)),
-                    child: Text('${messages.length}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundPage,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${messages.length}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -2199,16 +2794,34 @@ class _StarredMessagesSheet extends StatelessWidget {
             const Divider(height: 1, color: AppColors.borderLight),
             Expanded(
               child: messages.isEmpty
-                  ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.star_border_rounded, size: 44, color: AppColors.textHint),
-                      SizedBox(height: 8),
-                      Text('Aucun message marqué', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
-                    ]))
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star_border_rounded,
+                            size: 44,
+                            color: AppColors.textHint,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Aucun message marqué',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
                   : ListView.separated(
                       controller: ctrl,
                       padding: const EdgeInsets.all(16),
                       itemCount: messages.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.borderLight),
+                      separatorBuilder: (_, __) => const Divider(
+                        height: 1,
+                        color: AppColors.borderLight,
+                      ),
                       itemBuilder: (_, i) {
                         final m = messages[i];
                         final fromContact = m.isFromContact;
@@ -2219,25 +2832,55 @@ class _StarredMessagesSheet extends StatelessWidget {
                             children: [
                               CircleAvatar(
                                 radius: 16,
-                                backgroundColor: fromContact ? AppColors.backgroundPage : AppColors.greenLight,
-                                child: Text(fromContact ? (thread?.contactInitials ?? '?') : 'Moi',
-                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                                        color: fromContact ? AppColors.textPrimary : AppColors.greenDark)),
+                                backgroundColor: fromContact
+                                    ? AppColors.backgroundPage
+                                    : AppColors.greenLight,
+                                child: Text(
+                                  fromContact
+                                      ? (thread?.contactInitials ?? '?')
+                                      : 'Moi',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: fromContact
+                                        ? AppColors.textPrimary
+                                        : AppColors.greenDark,
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(fromContact ? (thread?.contactName ?? '') : 'Vous',
-                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                    Text(
+                                      fromContact
+                                          ? (thread?.contactName ?? '')
+                                          : 'Vous',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
                                     const SizedBox(height: 3),
-                                    Text(m.content, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
+                                    Text(
+                                      m.content,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.textSecondary,
+                                        height: 1.4,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 14,
+                                color: Color(0xFFF59E0B),
+                              ),
                             ],
                           ),
                         );
@@ -2257,49 +2900,125 @@ class _ClientProfileSheet extends StatelessWidget {
   final Thread? thread;
   final int messageCount;
   final VoidCallback onPayment;
-  const _ClientProfileSheet({required this.thread, required this.messageCount, required this.onPayment});
+  const _ClientProfileSheet({
+    required this.thread,
+    required this.messageCount,
+    required this.onPayment,
+  });
 
   @override
   Widget build(BuildContext context) {
-    const avatarColors = [Color(0xFF6C5CE7), AppColors.green, Color(0xFFF59E0B), Color(0xFF3B82F6), Color(0xFFEC4899)];
-    final color = thread == null ? AppColors.green : avatarColors[(thread!.contactInitials.hashCode.abs()) % avatarColors.length];
+    const avatarColors = [
+      Color(0xFF6C5CE7),
+      AppColors.green,
+      Color(0xFFF59E0B),
+      Color(0xFF3B82F6),
+      Color(0xFFEC4899),
+    ];
+    final color = thread == null
+        ? AppColors.green
+        : avatarColors[(thread!.contactInitials.hashCode.abs()) %
+              avatarColors.length];
     final channelLabel = switch (thread?.channel) {
-      'whatsapp' => 'WhatsApp', 'messenger' => 'Facebook',
-      'sms' => 'SMS', 'tiktok' => 'TikTok', 'email' => 'Email', _ => '—',
+      'whatsapp' => 'WhatsApp',
+      'messenger' => 'Facebook',
+      'sms' => 'SMS',
+      'tiktok' => 'TikTok',
+      'email' => 'Email',
+      _ => '—',
     };
 
     return Container(
-      decoration: const BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
           // Avatar
           Container(
-            width: 72, height: 72,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
-            child: Center(child: Text(thread?.contactInitials ?? '?',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: color))),
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                thread?.contactInitials ?? '?',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 12),
-          Text(thread?.contactName ?? 'Inconnu', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          Text(
+            thread?.contactName ?? 'Inconnu',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(12)),
-            child: Text(channelLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+            decoration: BoxDecoration(
+              color: AppColors.backgroundPage,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              channelLabel,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
           const SizedBox(height: 24),
           // Infos
           Container(
-            decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight, width: 0.5)),
+            decoration: BoxDecoration(
+              color: AppColors.backgroundPage,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.borderLight, width: 0.5),
+            ),
             child: Column(
               children: [
-                _ProfileInfoRow(Icons.chat_bubble_outline, 'Messages échangés', '$messageCount', isFirst: true),
-                _ProfileInfoRow(Icons.calendar_today_outlined, 'Premier contact', '15 Jan 2025'),
-                _ProfileInfoRow(Icons.link_outlined, 'Liens de paiement', '2 envoyés', isLast: true),
+                _ProfileInfoRow(
+                  Icons.chat_bubble_outline,
+                  'Messages échangés',
+                  '$messageCount',
+                  isFirst: true,
+                ),
+                _ProfileInfoRow(
+                  Icons.calendar_today_outlined,
+                  'Premier contact',
+                  '15 Jan 2025',
+                ),
+                _ProfileInfoRow(
+                  Icons.link_outlined,
+                  'Liens de paiement',
+                  '2 envoyés',
+                  isLast: true,
+                ),
               ],
             ),
           ),
@@ -2310,7 +3029,10 @@ class _ClientProfileSheet extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: onPayment,
               icon: const Icon(Icons.credit_card_outlined, size: 16),
-              label: const Text('Créer un lien de paiement', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              label: const Text(
+                'Créer un lien de paiement',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
@@ -2331,7 +3053,13 @@ class _ProfileInfoRow extends StatelessWidget {
   final String value;
   final bool isFirst;
   final bool isLast;
-  const _ProfileInfoRow(this.icon, this.label, this.value, {this.isFirst = false, this.isLast = false});
+  const _ProfileInfoRow(
+    this.icon,
+    this.label,
+    this.value, {
+    this.isFirst = false,
+    this.isLast = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2343,12 +3071,33 @@ class _ProfileInfoRow extends StatelessWidget {
             children: [
               Icon(icon, size: 16, color: AppColors.textSecondary),
               const SizedBox(width: 10),
-              Expanded(child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))),
-              Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
             ],
           ),
         ),
-        if (!isLast) const Divider(height: 1, color: AppColors.borderLight, indent: 16, endIndent: 16),
+        if (!isLast)
+          const Divider(
+            height: 1,
+            color: AppColors.borderLight,
+            indent: 16,
+            endIndent: 16,
+          ),
       ],
     );
   }
@@ -2361,45 +3110,109 @@ class _ConversationStatsSheet extends StatelessWidget {
   final int sent;
   final int received;
   final int links;
-  const _ConversationStatsSheet({required this.total, required this.sent, required this.received, required this.links});
+  const _ConversationStatsSheet({
+    required this.total,
+    required this.sent,
+    required this.received,
+    required this.links,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           const SizedBox(height: 20),
           const Row(
             children: [
-              Icon(Icons.bar_chart_outlined, size: 20, color: Color(0xFF3B82F6)),
+              Icon(
+                Icons.bar_chart_outlined,
+                size: 20,
+                color: Color(0xFF3B82F6),
+              ),
               SizedBox(width: 8),
-              Text('Statistiques', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              Text(
+                'Statistiques',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
           // Grille de métriques 2x2
-          Row(children: [
-            Expanded(child: _StatCard('Total messages', '$total', Icons.chat_bubble_outline, const Color(0xFF3B82F6))),
-            const SizedBox(width: 12),
-            Expanded(child: _StatCard('Envoyés', '$sent', Icons.send_outlined, AppColors.green)),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                  'Total messages',
+                  '$total',
+                  Icons.chat_bubble_outline,
+                  const Color(0xFF3B82F6),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                  'Envoyés',
+                  '$sent',
+                  Icons.send_outlined,
+                  AppColors.green,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _StatCard('Reçus', '$received', Icons.inbox_outlined, const Color(0xFF6C5CE7))),
-            const SizedBox(width: 12),
-            Expanded(child: _StatCard('Liens paiement', '$links', Icons.link_outlined, const Color(0xFFF59E0B))),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                  'Reçus',
+                  '$received',
+                  Icons.inbox_outlined,
+                  const Color(0xFF6C5CE7),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                  'Liens paiement',
+                  '$links',
+                  Icons.link_outlined,
+                  const Color(0xFFF59E0B),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           // Carte taux de réponse
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF1E9E5E), Color(0xFF1A6B3A)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E9E5E), Color(0xFF1A6B3A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Row(
@@ -2409,9 +3222,19 @@ class _ConversationStatsSheet extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Temps de réponse moyen', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                    Text(
+                      'Temps de réponse moyen',
+                      style: TextStyle(fontSize: 12, color: Colors.white70),
+                    ),
                     SizedBox(height: 2),
-                    Text('~5 min', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+                    Text(
+                      '~5 min',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
                   ],
                 ),
                 Spacer(),
@@ -2423,12 +3246,29 @@ class _ConversationStatsSheet extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight)),
+            decoration: BoxDecoration(
+              color: AppColors.backgroundPage,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.borderLight),
+            ),
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Montant encaissé', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                Text('45 000 FCFA', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.green)),
+                Text(
+                  'Montant encaissé',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  '45 000 FCFA',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.green,
+                  ),
+                ),
               ],
             ),
           ),
@@ -2459,9 +3299,22 @@ class _StatCard extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -2477,10 +3330,16 @@ class _LocationBubble extends StatelessWidget {
   static final RegExp _urlPattern = RegExp(r'https?://\S+');
   static final RegExp _coordsPattern = RegExp(r'q=(-?\d+\.?\d*),(-?\d+\.?\d*)');
 
-  String get _mapsUrl => _urlPattern.firstMatch(message.content)?.group(0) ?? 'https://maps.google.com/';
+  String get _mapsUrl =>
+      _urlPattern.firstMatch(message.content)?.group(0) ??
+      'https://maps.google.com/';
 
   String get _label {
-    final firstLine = message.content.split('\n').first.replaceAll('📍', '').trim();
+    final firstLine = message.content
+        .split('\n')
+        .first
+        .replaceAll('📍', '')
+        .trim();
     return firstLine.isNotEmpty ? firstLine : 'Position partagée';
   }
 
@@ -2498,13 +3357,21 @@ class _LocationBubble extends StatelessWidget {
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.72,
+        ),
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.borderLight, width: 0.5),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2514,15 +3381,24 @@ class _LocationBubble extends StatelessWidget {
               height: 110,
               decoration: BoxDecoration(
                 color: const Color(0xFFE8F4F0),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(15),
+                ),
               ),
               child: Stack(
                 children: [
                   // Grille de rues simulée
-                  CustomPaint(size: const Size(double.infinity, 110), painter: _MapGridPainter()),
+                  CustomPaint(
+                    size: const Size(double.infinity, 110),
+                    painter: _MapGridPainter(),
+                  ),
                   // Pin central
                   const Center(
-                    child: Icon(Icons.location_pin, size: 32, color: Color(0xFFE53E3E)),
+                    child: Icon(
+                      Icons.location_pin,
+                      size: 32,
+                      color: Color(0xFFE53E3E),
+                    ),
                   ),
                 ],
               ),
@@ -2534,40 +3410,87 @@ class _LocationBubble extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined, size: 14, color: AppColors.green),
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 14,
+                        color: AppColors.green,
+                      ),
                       const SizedBox(width: 6),
-                      Expanded(child: Text(_label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      Expanded(
+                        child: Text(
+                          _label,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
                   if (_coordsLabel != null) ...[
                     const SizedBox(height: 3),
-                    Text(_coordsLabel!, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    Text(
+                      _coordsLabel!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 8),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      GestureDetector(
-                        onTap: () async {
-                          final uri = Uri.tryParse(_mapsUrl);
-                          if (uri != null && await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(8)),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.map_outlined, size: 13, color: AppColors.greenDark),
-                              SizedBox(width: 4),
-                              Text('Voir sur la carte', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
-                            ],
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () async {
+                            final uri = Uri.tryParse(_mapsUrl);
+                            if (uri != null && await canLaunchUrl(uri))
+                              launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.greenLight,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.map_outlined,
+                                  size: 13,
+                                  color: AppColors.greenDark,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Voir sur la carte',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.greenDark,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
-                        '${message.sentAtDt.hour.toString().padLeft(2,'0')}:${message.sentAtDt.minute.toString().padLeft(2,'0')}',
-                        style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+                        '${message.sentAtDt.hour.toString().padLeft(2, '0')}:${message.sentAtDt.minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textHint,
+                        ),
                       ),
                     ],
                   ),
@@ -2584,7 +3507,9 @@ class _LocationBubble extends StatelessWidget {
 class _MapGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFCDE8DC)..strokeWidth = 1;
+    final paint = Paint()
+      ..color = const Color(0xFFCDE8DC)
+      ..strokeWidth = 1;
     for (double x = 0; x < size.width; x += 28) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
@@ -2592,7 +3517,9 @@ class _MapGridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
-  @override bool shouldRepaint(covariant CustomPainter o) => false;
+
+  @override
+  bool shouldRepaint(covariant CustomPainter o) => false;
 }
 
 // ── Bulle suivi commande ──────────────────────────────────────────────────────
@@ -2613,13 +3540,21 @@ class _OrderTrackingBubble extends StatelessWidget {
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE0E7FF), width: 1.5),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2632,14 +3567,38 @@ class _OrderTrackingBubble extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.local_shipping_outlined, size: 14, color: Color(0xFF4F46E5)),
+                  const Icon(
+                    Icons.local_shipping_outlined,
+                    size: 14,
+                    color: Color(0xFF4F46E5),
+                  ),
                   const SizedBox(width: 6),
-                  const Text('Suivi commande', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4F46E5))),
+                  const Text(
+                    'Suivi commande',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF4F46E5),
+                    ),
+                  ),
                   const Spacer(),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(color: const Color(0xFFE0E7FF), borderRadius: BorderRadius.circular(8)),
-                    child: Text('CMD-${message.content}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF4F46E5))),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0E7FF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'CMD-${message.content}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF4F46E5),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -2656,25 +3615,62 @@ class _OrderTrackingBubble extends StatelessWidget {
                     children: [
                       Column(
                         children: [
-                          Icon(icon, size: 20, color: done ? AppColors.green : (isCurrent ? const Color(0xFFF59E0B) : AppColors.borderLight)),
-                          if (!isLast) Container(width: 2, height: 22, color: done ? AppColors.green.withValues(alpha: 0.3) : AppColors.borderLight),
+                          Icon(
+                            icon,
+                            size: 20,
+                            color: done
+                                ? AppColors.green
+                                : (isCurrent
+                                      ? const Color(0xFFF59E0B)
+                                      : AppColors.borderLight),
+                          ),
+                          if (!isLast)
+                            Container(
+                              width: 2,
+                              height: 22,
+                              color: done
+                                  ? AppColors.green.withValues(alpha: 0.3)
+                                  : AppColors.borderLight,
+                            ),
                         ],
                       ),
                       const SizedBox(width: 12),
                       Padding(
                         padding: const EdgeInsets.only(top: 1),
-                        child: Text(label, style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: (done || isCurrent) ? FontWeight.w600 : FontWeight.w400,
-                          color: done ? AppColors.green : (isCurrent ? const Color(0xFFF59E0B) : AppColors.textHint),
-                        )),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: (done || isCurrent)
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: done
+                                ? AppColors.green
+                                : (isCurrent
+                                      ? const Color(0xFFF59E0B)
+                                      : AppColors.textHint),
+                          ),
+                        ),
                       ),
                       if (isCurrent) ...[
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
-                          child: const Text('En cours', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFD97706))),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'En cours',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFD97706),
+                            ),
+                          ),
                         ),
                       ],
                     ],
@@ -2687,8 +3683,11 @@ class _OrderTrackingBubble extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Text(
-                  '${message.sentAtDt.hour.toString().padLeft(2,'0')}:${message.sentAtDt.minute.toString().padLeft(2,'0')}',
-                  style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+                  '${message.sentAtDt.hour.toString().padLeft(2, '0')}:${message.sentAtDt.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textHint,
+                  ),
                 ),
               ),
             ),
@@ -2711,44 +3710,65 @@ class _ImageBubble extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 6, offset: const Offset(0, 2))],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            children: [
-              Image.file(
-                File(message.mediaUrl!),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: 200,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 160,
-                  color: AppColors.backgroundPage,
-                  child: const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textHint, size: 40)),
-                ),
-              ),
-              Positioned(
-                bottom: 6, right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(8)),
-                  child: Text(
-                    '${message.sentAtDt.hour.toString().padLeft(2,'0')}:${message.sentAtDt.minute.toString().padLeft(2,'0')}',
-                    style: const TextStyle(fontSize: 10, color: Colors.white),
-                  ),
-                ),
+        alignment: Alignment.centerRight,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.65,
+          ),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                Image.file(
+                  File(message.mediaUrl!),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: 200,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 160,
+                    color: AppColors.backgroundPage,
+                    child: const Center(
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: AppColors.textHint,
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 6,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${message.sentAtDt.hour.toString().padLeft(2, '0')}:${message.sentAtDt.minute.toString().padLeft(2, '0')}',
+                      style: const TextStyle(fontSize: 10, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
       ),
     );
   }
@@ -2771,20 +3791,32 @@ class _AudioBubbleState extends State<_AudioBubble> {
   Widget build(BuildContext context) {
     final fromContact = widget.message.isFromContact;
     final fg = fromContact ? AppColors.textPrimary : AppColors.white;
-    final track = fromContact ? AppColors.borderLight : Colors.white.withValues(alpha: 0.3);
+    final track = fromContact
+        ? AppColors.borderLight
+        : Colors.white.withValues(alpha: 0.3);
     final progress = fromContact ? AppColors.green : AppColors.white;
 
     return Align(
       alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.72,
+        ),
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: fromContact ? AppColors.white : AppColors.primary,
           borderRadius: BorderRadius.circular(16),
-          border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+          border: fromContact
+              ? Border.all(color: AppColors.borderLight, width: 0.5)
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -2792,9 +3824,12 @@ class _AudioBubbleState extends State<_AudioBubble> {
             GestureDetector(
               onTap: () => setState(() => _isPlaying = !_isPlaying),
               child: Container(
-                width: 34, height: 34,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  color: fromContact ? AppColors.greenLight : Colors.white.withValues(alpha: 0.2),
+                  color: fromContact
+                      ? AppColors.greenLight
+                      : Colors.white.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -2805,17 +3840,29 @@ class _AudioBubbleState extends State<_AudioBubble> {
               ),
             ),
             const SizedBox(width: 10),
-            Icon(Icons.mic_none_rounded, size: 16, color: fg.withValues(alpha: 0.7)),
+            Icon(
+              Icons.mic_none_rounded,
+              size: 16,
+              color: fg.withValues(alpha: 0.7),
+            ),
             const SizedBox(width: 6),
             SizedBox(
               width: 100,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(value: 0.35, minHeight: 3, backgroundColor: track, color: progress),
+                child: LinearProgressIndicator(
+                  value: 0.35,
+                  minHeight: 3,
+                  backgroundColor: track,
+                  color: progress,
+                ),
               ),
             ),
             const SizedBox(width: 8),
-            Text('0:32', style: TextStyle(fontSize: 11, color: fg.withValues(alpha: 0.7))),
+            Text(
+              '0:32',
+              style: TextStyle(fontSize: 11, color: fg.withValues(alpha: 0.7)),
+            ),
           ],
         ),
       ),
@@ -2835,31 +3882,63 @@ class _VideoBubble extends StatelessWidget {
     return Align(
       alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
       child: GestureDetector(
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Lecture vidéo non disponible')),
+        onTap: () => ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(AppSnackbar.error('Lecture vidéo non disponible')),
         child: Container(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.65,
+          ),
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Container(height: 180, width: double.infinity, color: const Color(0xFF3A3A45)),
                 Container(
-                  width: 48, height: 48,
-                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), shape: BoxShape.circle),
-                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+                  height: 180,
+                  width: double.infinity,
+                  color: const Color(0xFF3A3A45),
+                ),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
                 Positioned(
-                  bottom: 8, right: 10,
+                  bottom: 8,
+                  right: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8)),
-                    child: const Text('1:24', style: TextStyle(fontSize: 10, color: Colors.white)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      '1:24',
+                      style: TextStyle(fontSize: 10, color: Colors.white),
+                    ),
                   ),
                 ),
               ],
@@ -2880,31 +3959,52 @@ class _DocumentBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fromContact = message.isFromContact;
-    final fileName = message.content.trim().isNotEmpty ? message.content.trim() : 'Document';
+    final fileName = message.content.trim().isNotEmpty
+        ? message.content.trim()
+        : 'Document';
     final fg = fromContact ? AppColors.textPrimary : AppColors.white;
-    final sub = fromContact ? AppColors.textSecondary : Colors.white.withValues(alpha: 0.7);
+    final sub = fromContact
+        ? AppColors.textSecondary
+        : Colors.white.withValues(alpha: 0.7);
 
     return Align(
       alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.72,
+        ),
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: fromContact ? AppColors.white : AppColors.primary,
           borderRadius: BorderRadius.circular(16),
-          border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+          border: fromContact
+              ? Border.all(color: AppColors.borderLight, width: 0.5)
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
-              width: 40, height: 40,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: fromContact ? AppColors.backgroundPage : Colors.white.withValues(alpha: 0.15),
+                color: fromContact
+                    ? AppColors.backgroundPage
+                    : Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.insert_drive_file_outlined, color: fromContact ? AppColors.textSecondary : AppColors.white, size: 20),
+              child: Icon(
+                Icons.insert_drive_file_outlined,
+                color: fromContact ? AppColors.textSecondary : AppColors.white,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -2912,7 +4012,16 @@ class _DocumentBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(fileName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    fileName,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 2),
                   Text('245 KB', style: TextStyle(fontSize: 11, color: sub)),
                 ],
@@ -2920,14 +4029,26 @@ class _DocumentBubble extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             TextButton(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Ouverture non disponible')),
+              onPressed: () => ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(AppSnackbar.error('Ouverture non disponible')),
               style: TextButton.styleFrom(
-                backgroundColor: fromContact ? AppColors.greenLight : Colors.white.withValues(alpha: 0.2),
-                foregroundColor: fromContact ? AppColors.greenDark : AppColors.white,
+                backgroundColor: fromContact
+                    ? AppColors.greenLight
+                    : Colors.white.withValues(alpha: 0.2),
+                foregroundColor: fromContact
+                    ? AppColors.greenDark
+                    : AppColors.white,
                 shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
               ),
-              child: const Text('Ouvrir', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              child: const Text(
+                'Ouvrir',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
@@ -2953,13 +4074,21 @@ class _CarouselBubble extends StatelessWidget {
     return Align(
       alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.72,
+        ),
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.greenLight,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -2970,11 +4099,23 @@ class _CarouselBubble extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Catalogue envoyé', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
+                const Text(
+                  'Catalogue envoyé',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.greenDark,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
-                  _productCount > 0 ? '$_productCount produit${_productCount > 1 ? 's' : ''}' : 'Produits envoyés',
-                  style: const TextStyle(fontSize: 12, color: AppColors.greenDark),
+                  _productCount > 0
+                      ? '$_productCount produit${_productCount > 1 ? 's' : ''}'
+                      : 'Produits envoyés',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.greenDark,
+                  ),
                 ),
               ],
             ),
@@ -2998,13 +4139,16 @@ class _ContactBubble extends StatelessWidget {
     return firstLine.isNotEmpty ? firstLine : 'Contact';
   }
 
-  String? get _phone => _phonePattern.firstMatch(message.content)?.group(0)?.trim();
+  String? get _phone =>
+      _phonePattern.firstMatch(message.content)?.group(0)?.trim();
 
   String get _initials {
     final parts = _name.split(RegExp(r'\s+'));
     if (parts.isEmpty) return '?';
     final f = parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '';
-    final l = parts.length > 1 && parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
+    final l = parts.length > 1 && parts.last.isNotEmpty
+        ? parts.last[0].toUpperCase()
+        : '';
     final result = f + l;
     return result.isNotEmpty ? result : '?';
   }
@@ -3013,26 +4157,47 @@ class _ContactBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final fromContact = message.isFromContact;
     final fg = fromContact ? AppColors.textPrimary : AppColors.white;
-    final sub = fromContact ? AppColors.textSecondary : Colors.white.withValues(alpha: 0.7);
+    final sub = fromContact
+        ? AppColors.textSecondary
+        : Colors.white.withValues(alpha: 0.7);
 
     return Align(
       alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.72,
+        ),
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: fromContact ? AppColors.white : AppColors.primary,
           borderRadius: BorderRadius.circular(16),
-          border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+          border: fromContact
+              ? Border.all(color: AppColors.borderLight, width: 0.5)
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 20,
-              backgroundColor: fromContact ? AppColors.backgroundPage : Colors.white.withValues(alpha: 0.2),
-              child: Text(_initials, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg)),
+              backgroundColor: fromContact
+                  ? AppColors.backgroundPage
+                  : Colors.white.withValues(alpha: 0.2),
+              child: Text(
+                _initials,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: fg,
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -3040,7 +4205,16 @@ class _ContactBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    _name,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: fg,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   if (_phone != null) ...[
                     const SizedBox(height: 2),
                     Text(_phone!, style: TextStyle(fontSize: 12, color: sub)),
@@ -3050,8 +4224,14 @@ class _ContactBubble extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             IconButton(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Appel en cours...')),
-              icon: Icon(Icons.call, color: fromContact ? AppColors.green : AppColors.white, size: 20),
+              onPressed: () => ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(AppSnackbar.success('Appel en cours...')),
+              icon: Icon(
+                Icons.call,
+                color: fromContact ? AppColors.green : AppColors.white,
+                size: 20,
+              ),
               tooltip: 'Appeler',
             ),
           ],
@@ -3089,14 +4269,62 @@ class _AttachmentSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = [
-      _AttachOpt(Icons.credit_card_outlined,    const Color(0xFF6C5CE7), const Color(0xFFF0EEFF), 'Paiement',       onPayment),
-      _AttachOpt(Icons.location_on_outlined,    AppColors.green,         AppColors.greenLight,    'Localisation',   onLocation),
-      _AttachOpt(Icons.grid_view_outlined,      const Color(0xFFF97316), const Color(0xFFFFF3E0), 'Catalogue',      onCatalogue),
-      _AttachOpt(Icons.receipt_long_outlined,   const Color(0xFF3B82F6), const Color(0xFFEFF6FF), 'Devis rapide',   onDevis),
-      _AttachOpt(Icons.local_offer_outlined,    const Color(0xFFEC4899), const Color(0xFFFDF2F8), 'Promotion',      onPromotion),
-      _AttachOpt(Icons.local_shipping_outlined, const Color(0xFF4F46E5), const Color(0xFFEEF2FF), 'Suivi commande', onTracking),
-      _AttachOpt(Icons.star_outline_rounded,    const Color(0xFFF59E0B), const Color(0xFFFEF3C7), 'Avis client',    onReview),
-      _AttachOpt(Icons.photo_camera_outlined,   const Color(0xFF059669), const Color(0xFFECFDF5), 'Photo produit',  onPhoto),
+      _AttachOpt(
+        Icons.credit_card_outlined,
+        const Color(0xFF6C5CE7),
+        const Color(0xFFF0EEFF),
+        'Paiement',
+        onPayment,
+      ),
+      _AttachOpt(
+        Icons.location_on_outlined,
+        AppColors.green,
+        AppColors.greenLight,
+        'Localisation',
+        onLocation,
+      ),
+      _AttachOpt(
+        Icons.grid_view_outlined,
+        const Color(0xFFF97316),
+        const Color(0xFFFFF3E0),
+        'Catalogue',
+        onCatalogue,
+      ),
+      _AttachOpt(
+        Icons.receipt_long_outlined,
+        const Color(0xFF3B82F6),
+        const Color(0xFFEFF6FF),
+        'Devis rapide',
+        onDevis,
+      ),
+      _AttachOpt(
+        Icons.local_offer_outlined,
+        const Color(0xFFEC4899),
+        const Color(0xFFFDF2F8),
+        'Promotion',
+        onPromotion,
+      ),
+      _AttachOpt(
+        Icons.local_shipping_outlined,
+        const Color(0xFF4F46E5),
+        const Color(0xFFEEF2FF),
+        'Suivi commande',
+        onTracking,
+      ),
+      _AttachOpt(
+        Icons.star_outline_rounded,
+        const Color(0xFFF59E0B),
+        const Color(0xFFFEF3C7),
+        'Avis client',
+        onReview,
+      ),
+      _AttachOpt(
+        Icons.photo_camera_outlined,
+        const Color(0xFF059669),
+        const Color(0xFFECFDF5),
+        'Photo produit',
+        onPhoto,
+      ),
     ];
 
     return Container(
@@ -3109,11 +4337,27 @@ class _AttachmentSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Handle
-          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           const SizedBox(height: 18),
           const Align(
             alignment: Alignment.centerLeft,
-            child: Text('Raccourcis', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            child: Text(
+              'Raccourcis',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
           ),
           const SizedBox(height: 20),
           GridView.count(
@@ -3153,7 +4397,8 @@ class _AttachItem extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 56, height: 56,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(color: opt.bg, shape: BoxShape.circle),
             child: Icon(opt.icon, size: 24, color: opt.color),
           ),
@@ -3161,7 +4406,11 @@ class _AttachItem extends StatelessWidget {
           Text(
             opt.label,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -3192,7 +4441,9 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
 
   List<Map<String, dynamic>> get _filteredProducts {
     if (_filter == 'all') return _products;
-    return _products.where((p) => p['item_type']?.toString() == _filter).toList();
+    return _products
+        .where((p) => p['item_type']?.toString() == _filter)
+        .toList();
   }
 
   @override
@@ -3202,15 +4453,26 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
   }
 
   Future<void> _load() async {
-    setState(() { _isLoading = true; _error = null; });
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final items = await catalogService.getProducts();
-      debugPrint('=== PRODUIT : ${items.isNotEmpty ? items.first : "vide"} ===');
+      debugPrint(
+        '=== PRODUIT : ${items.isNotEmpty ? items.first : "vide"} ===',
+      );
       if (!mounted) return;
-      setState(() { _products = items; _isLoading = false; });
+      setState(() {
+        _products = items;
+        _isLoading = false;
+      });
     } catch (_) {
       if (!mounted) return;
-      setState(() { _isLoading = false; _error = 'Impossible de charger le catalogue.'; });
+      setState(() {
+        _isLoading = false;
+        _error = 'Impossible de charger le catalogue.';
+      });
     }
   }
 
@@ -3244,7 +4506,9 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
   Widget build(BuildContext context) {
     final count = _selectedIds.length;
     return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.8,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -3257,9 +4521,25 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.borderLight,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 18),
-                const Text('Catalogue produits', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                const Text(
+                  'Catalogue produits',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   count == 0
@@ -3268,7 +4548,9 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: count == 0 ? FontWeight.w400 : FontWeight.w600,
-                    color: count == 0 ? AppColors.textSecondary : AppColors.green,
+                    color: count == 0
+                        ? AppColors.textSecondary
+                        : AppColors.green,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -3290,42 +4572,68 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
             child: _isLoading
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Center(child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2)),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.green,
+                        strokeWidth: 2,
+                      ),
+                    ),
                   )
                 : _error != null
-                    ? _buildError()
-                    : _products.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 40),
-                            child: Center(child: Text('Aucun produit dans le catalogue', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
-                          )
-                        : _filteredProducts.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 40),
-                                child: Center(child: Text('Aucun produit dans cette catégorie', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
-                              )
-                            : ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                                shrinkWrap: true,
-                                itemCount: _filteredProducts.length,
-                                itemBuilder: (_, i) {
-                                  final product = _filteredProducts[i];
-                                  final id = _idFor(product, i);
+                ? _buildError()
+                : _products.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Center(
+                      child: Text(
+                        'Aucun produit dans le catalogue',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  )
+                : _filteredProducts.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Center(
+                      child: Text(
+                        'Aucun produit dans cette catégorie',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    shrinkWrap: true,
+                    itemCount: _filteredProducts.length,
+                    itemBuilder: (_, i) {
+                      final product = _filteredProducts[i];
+                      final id = _idFor(product, i);
 
-                                  final isSelected = _selectedIds.contains(id);
-                                  final isDisabled = !isSelected && count >= _maxSelection;
-                                  return _ProductTile(
-                                    product: product,
-                                    isSelected: isSelected,
-                                    isDisabled: isDisabled,
-                                    onTap: isDisabled ? null : () => _toggle(id),
-                                  );
-                                },
-                              ),
+                      final isSelected = _selectedIds.contains(id);
+                      final isDisabled = !isSelected && count >= _maxSelection;
+                      return _ProductTile(
+                        product: product,
+                        isSelected: isSelected,
+                        isDisabled: isDisabled,
+                        onTap: isDisabled ? null : () => _toggle(id),
+                      );
+                    },
+                  ),
           ),
           if (!_isLoading && _error == null && _products.isNotEmpty)
             Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 16 + MediaQuery.of(context).padding.bottom),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                0,
+                20,
+                16 + MediaQuery.of(context).padding.bottom,
+              ),
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -3339,8 +4647,13 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
                     elevation: 0,
                   ),
                   child: Text(
-                    count == 0 ? 'Envoyer' : 'Envoyer ($count produit${count > 1 ? 's' : ''})',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                    count == 0
+                        ? 'Envoyer'
+                        : 'Envoyer ($count produit${count > 1 ? 's' : ''})',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -3379,13 +4692,29 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_outlined, size: 40, color: AppColors.borderLight),
+            const Icon(
+              Icons.wifi_off_outlined,
+              size: 40,
+              color: AppColors.borderLight,
+            ),
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            Text(
+              _error!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 12),
             TextButton(
               onPressed: _load,
-              child: const Text('Réessayer', style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w600)),
+              child: const Text(
+                'Réessayer',
+                style: TextStyle(
+                  color: AppColors.green,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
@@ -3399,7 +4728,12 @@ class _ProductTile extends StatelessWidget {
   final bool isSelected;
   final bool isDisabled;
   final VoidCallback? onTap;
-  const _ProductTile({required this.product, required this.isSelected, required this.isDisabled, this.onTap});
+  const _ProductTile({
+    required this.product,
+    required this.isSelected,
+    required this.isDisabled,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3431,7 +4765,8 @@ class _ProductTile extends StatelessWidget {
             children: [
               // Image produit
               Container(
-                width: 72, height: 72,
+                width: 72,
+                height: 72,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: AppColors.white,
@@ -3439,13 +4774,18 @@ class _ProductTile extends StatelessWidget {
                   border: Border.all(color: AppColors.borderLight),
                 ),
                 child: (imageUrl != null && imageUrl.isNotEmpty)
-                    ? Image.network(imageUrl,
+                    ? Image.network(
+                        imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.inventory_2_outlined,
-                                color: AppColors.textHint))
-                    : const Icon(Icons.inventory_2_outlined,
-                        color: AppColors.textHint),
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.inventory_2_outlined,
+                          color: AppColors.textHint,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.inventory_2_outlined,
+                        color: AppColors.textHint,
+                      ),
               ),
               const SizedBox(width: 12),
               // Nom + description + prix
@@ -3456,60 +4796,81 @@ class _ProductTile extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(name,
-                              style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         if (isService) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.statusCreatedBg,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Text('Service',
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.statusCreatedText)),
+                            child: const Text(
+                              'Service',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.statusCreatedText,
+                              ),
+                            ),
                           ),
                         ],
                       ],
                     ),
                     if (description != null && description.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(description,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text('${_fmt(price)} $currency',
-                            style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.green)),
+                        Text(
+                          '${_fmt(price)} $currency',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.green,
+                          ),
+                        ),
                         if (sku != null && sku.isNotEmpty) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.backgroundStatus,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Text(sku,
-                                style: const TextStyle(
-                                    fontSize: 10,
-                                    color: AppColors.textSecondary)),
+                            child: Text(
+                              sku,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ),
                         ],
                       ],
@@ -3530,8 +4891,8 @@ class _ProductTile extends StatelessWidget {
                     color: isSelected
                         ? AppColors.green
                         : (isDisabled
-                            ? AppColors.borderLight
-                            : const Color(0xFF9CA3AF)),
+                              ? AppColors.borderLight
+                              : const Color(0xFF9CA3AF)),
                     width: 2,
                   ),
                 ),
@@ -3547,7 +4908,21 @@ class _ProductTile extends StatelessWidget {
   }
 
   static String _fmt(dynamic n) {
-    final val = n is num ? n.toInt() : int.tryParse(n?.toString() ?? '') ?? 0;
+    if (n == null) return '0';
+
+    // Gérer les nombres décimaux (double) et entiers
+    int val;
+    if (n is num) {
+      val = n.toInt();
+    } else {
+      // Essayer de parser comme string
+      final str = n.toString();
+      // Si c'est un nombre décimal comme "32900.00", prendre la partie entière
+      final dotIndex = str.indexOf('.');
+      final numStr = dotIndex >= 0 ? str.substring(0, dotIndex) : str;
+      val = int.tryParse(numStr) ?? 0;
+    }
+
     final s = val.toString();
     final buf = StringBuffer();
     for (int i = 0; i < s.length; i++) {
@@ -3571,14 +4946,18 @@ class _DevisSheet extends StatefulWidget {
 
 class _DevisSheetState extends State<_DevisSheet> {
   Product? _selectedProduct;
-  final _qtyCtrl  = TextEditingController();
+  final _qtyCtrl = TextEditingController();
   final _prixCtrl = TextEditingController();
 
   @override
-  void dispose() { _qtyCtrl.dispose(); _prixCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _qtyCtrl.dispose();
+    _prixCtrl.dispose();
+    super.dispose();
+  }
 
-  int get _qty   => int.tryParse(_qtyCtrl.text) ?? 0;
-  int get _prix  => int.tryParse(_prixCtrl.text.replaceAll(' ', '')) ?? 0;
+  int get _qty => int.tryParse(_qtyCtrl.text) ?? 0;
+  int get _prix => int.tryParse(_prixCtrl.text.replaceAll(' ', '')) ?? 0;
   int get _total => _qty * _prix;
 
   void _selectProduct(Product p) {
@@ -3591,7 +4970,9 @@ class _DevisSheetState extends State<_DevisSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.white,
@@ -3601,11 +4982,27 @@ class _DevisSheetState extends State<_DevisSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderLight,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             const SizedBox(height: 18),
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('Devis rapide', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              child: Text(
+                'Devis rapide',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             // Product selector
@@ -3617,37 +5014,85 @@ class _DevisSheetState extends State<_DevisSheet> {
                   builder: (_) => Container(
                     decoration: const BoxDecoration(
                       color: AppColors.white,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
                     ),
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
-                        const SizedBox(height: 14),
-                        const Align(alignment: Alignment.centerLeft, child: Text('Choisir un produit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary))),
-                        const SizedBox(height: 12),
-                        ...mockProducts.map((p) => InkWell(
-                          onTap: () => Navigator.pop(context, p),
-                          borderRadius: BorderRadius.circular(10),
+                        Center(
                           child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            width: 36,
+                            height: 4,
                             decoration: BoxDecoration(
-                              color: AppColors.backgroundPage,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.borderLight, width: 0.5),
-                            ),
-                            child: Row(
-                              children: [
-                                Text(p.emoji, style: const TextStyle(fontSize: 22)),
-                                const SizedBox(width: 12),
-                                Expanded(child: Text(p.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
-                                Text('${p.price} FCFA', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.green)),
-                              ],
+                              color: AppColors.borderLight,
+                              borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                        )),
+                        ),
+                        const SizedBox(height: 14),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Choisir un produit',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ...mockProducts.map(
+                          (p) => InkWell(
+                            onTap: () => Navigator.pop(context, p),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.backgroundPage,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: AppColors.borderLight,
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    p.emoji,
+                                    style: const TextStyle(fontSize: 22),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      p.name,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '${p.price} FCFA',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -3655,45 +5100,124 @@ class _DevisSheetState extends State<_DevisSheet> {
                 if (p != null) _selectProduct(p);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.backgroundPage,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _selectedProduct != null ? AppColors.green : AppColors.borderLight),
+                  border: Border.all(
+                    color: _selectedProduct != null
+                        ? AppColors.green
+                        : AppColors.borderLight,
+                  ),
                 ),
                 child: Row(
                   children: [
                     if (_selectedProduct != null) ...[
-                      Text(_selectedProduct!.emoji, style: const TextStyle(fontSize: 20)),
+                      Text(
+                        _selectedProduct!.emoji,
+                        style: const TextStyle(fontSize: 20),
+                      ),
                       const SizedBox(width: 10),
-                      Expanded(child: Text(_selectedProduct!.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
-                      Text('${_selectedProduct!.price} FCFA', style: const TextStyle(fontSize: 12, color: AppColors.green, fontWeight: FontWeight.w700)),
+                      Expanded(
+                        child: Text(
+                          _selectedProduct!.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${_selectedProduct!.price} FCFA',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.green,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ] else ...[
-                      const Icon(Icons.shopping_bag_outlined, size: 18, color: AppColors.textHint),
+                      const Icon(
+                        Icons.shopping_bag_outlined,
+                        size: 18,
+                        color: AppColors.textHint,
+                      ),
                       const SizedBox(width: 10),
-                      const Expanded(child: Text('Sélectionner un produit', style: TextStyle(fontSize: 14, color: AppColors.textHint))),
+                      const Expanded(
+                        child: Text(
+                          'Sélectionner un produit',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textHint,
+                          ),
+                        ),
+                      ),
                     ],
-                    const Icon(Icons.chevron_right, size: 18, color: AppColors.textSecondary),
+                    const Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            Row(children: [
-              Expanded(child: _DevisField('Quantité', _qtyCtrl, TextInputType.number, onChanged: (_) => setState(() {}), useLabel: true)),
-              const SizedBox(width: 12),
-              Expanded(child: _DevisField('Prix unitaire (FCFA)', _prixCtrl, TextInputType.number, onChanged: (_) => setState(() {}))),
-            ]),
+            Row(
+              children: [
+                Expanded(
+                  child: _DevisField(
+                    'Quantité',
+                    _qtyCtrl,
+                    TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                    useLabel: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DevisField(
+                    'Prix unitaire (FCFA)',
+                    _prixCtrl,
+                    TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
             if (_total > 0) ...[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.greenLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.greenDark)),
-                    Text('${_fmtN(_total)} FCFA', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.greenDark)),
+                    const Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.greenDark,
+                      ),
+                    ),
+                    Text(
+                      '${_fmtN(_total)} FCFA',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.greenDark,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -3705,24 +5229,29 @@ class _DevisSheetState extends State<_DevisSheet> {
               child: ElevatedButton.icon(
                 onPressed: (_selectedProduct != null && _qty > 0)
                     ? () => widget.onSend(
-                          '📋 *Devis pour ${widget.contactName}*\n\n'
-                          '• Produit : ${_selectedProduct!.emoji} ${_selectedProduct!.name}\n'
-                          '• Quantité : $_qty\n'
-                          '• Prix unitaire : ${_fmtN(_prix)} FCFA\n'
-                          '━━━━━━━━━━━━━━\n'
-                          '💰 *Total : ${_fmtN(_total)} FCFA*\n\n'
-                          'Pour valider, envoyez-nous un message. 🙏',
-                        )
+                        '📋 *Devis pour ${widget.contactName}*\n\n'
+                        '• Produit : ${_selectedProduct!.emoji} ${_selectedProduct!.name}\n'
+                        '• Quantité : $_qty\n'
+                        '• Prix unitaire : ${_fmtN(_prix)} FCFA\n'
+                        '━━━━━━━━━━━━━━\n'
+                        '💰 *Total : ${_fmtN(_total)} FCFA*\n\n'
+                        'Pour valider, envoyez-nous un message. 🙏',
+                      )
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.green,
                   foregroundColor: AppColors.white,
                   shape: const StadiumBorder(),
                   elevation: 0,
-                  disabledBackgroundColor: AppColors.green.withValues(alpha: 0.4),
+                  disabledBackgroundColor: AppColors.green.withValues(
+                    alpha: 0.4,
+                  ),
                 ),
                 icon: const Icon(Icons.send_rounded, size: 16),
-                label: const Text('Envoyer le devis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                label: const Text(
+                  'Envoyer le devis',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -3748,7 +5277,13 @@ class _DevisField extends StatelessWidget {
   final TextEditingController ctrl;
   final TextInputType kbType;
   final ValueChanged<String>? onChanged;
-  const _DevisField(this.label, this.ctrl, this.kbType, {this.onChanged, this.useLabel = false});
+  const _DevisField(
+    this.label,
+    this.ctrl,
+    this.kbType, {
+    this.onChanged,
+    this.useLabel = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3766,16 +5301,31 @@ class _DevisField extends StatelessWidget {
         decoration: useLabel
             ? InputDecoration(
                 labelText: label,
-                labelStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
-                floatingLabelStyle: const TextStyle(color: AppColors.green, fontSize: 12),
+                labelStyle: const TextStyle(
+                  color: AppColors.textHint,
+                  fontSize: 13,
+                ),
+                floatingLabelStyle: const TextStyle(
+                  color: AppColors.green,
+                  fontSize: 12,
+                ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 11,
+                ),
               )
             : InputDecoration(
                 hintText: label,
-                hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
+                hintStyle: const TextStyle(
+                  color: AppColors.textHint,
+                  fontSize: 13,
+                ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 11,
+                ),
               ),
       ),
     );
@@ -3816,7 +5366,9 @@ class _InputBar extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(top: BorderSide(color: AppColors.borderLight, width: 0.5)),
+        border: Border(
+          top: BorderSide(color: AppColors.borderLight, width: 0.5),
+        ),
       ),
       padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + bottomPadding),
       child: Column(
@@ -3830,7 +5382,9 @@ class _InputBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.backgroundPage,
                 borderRadius: BorderRadius.circular(10),
-                border: const Border(left: BorderSide(color: AppColors.green, width: 3)),
+                border: const Border(
+                  left: BorderSide(color: AppColors.green, width: 3),
+                ),
               ),
               child: Row(
                 children: [
@@ -3840,20 +5394,31 @@ class _InputBar extends StatelessWidget {
                       children: [
                         Text(
                           replyTo!.isFromContact ? 'Contact' : 'Vous',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.green),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.green,
+                          ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           replyTo!.content,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
+                    icon: const Icon(
+                      Icons.close,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
                     onPressed: onCancelReply,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -3868,16 +5433,27 @@ class _InputBar extends StatelessWidget {
               GestureDetector(
                 onTap: onEmojiToggle,
                 child: Container(
-                  width: 36, height: 36,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: showEmojiPicker ? AppColors.greenLight : AppColors.backgroundPage,
+                    color: showEmojiPicker
+                        ? AppColors.greenLight
+                        : AppColors.backgroundPage,
                     shape: BoxShape.circle,
-                    border: Border.all(color: showEmojiPicker ? AppColors.green : AppColors.borderLight),
+                    border: Border.all(
+                      color: showEmojiPicker
+                          ? AppColors.green
+                          : AppColors.borderLight,
+                    ),
                   ),
                   child: Icon(
-                    showEmojiPicker ? Icons.keyboard : Icons.emoji_emotions_outlined,
+                    showEmojiPicker
+                        ? Icons.keyboard
+                        : Icons.emoji_emotions_outlined,
                     size: 18,
-                    color: showEmojiPicker ? AppColors.green : AppColors.textSecondary,
+                    color: showEmojiPicker
+                        ? AppColors.green
+                        : AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -3885,25 +5461,44 @@ class _InputBar extends StatelessWidget {
               // Champ de saisie avec trombone intégré à droite
               Expanded(
                 child: Container(
-                  decoration: BoxDecoration(color: AppColors.backgroundPage, borderRadius: BorderRadius.circular(24)),
+                  decoration: BoxDecoration(
+                    color: AppColors.backgroundPage,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
                   child: TextField(
                     controller: controller,
                     maxLines: 4,
                     minLines: 1,
-                    style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Écrire un message...',
-                      hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
+                      hintStyle: const TextStyle(
+                        color: AppColors.textHint,
+                        fontSize: 14,
+                      ),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                       suffixIcon: GestureDetector(
                         onTap: onAttachment,
                         child: const Padding(
                           padding: EdgeInsets.only(right: 8),
-                          child: Icon(Icons.attach_file, size: 20, color: AppColors.textSecondary),
+                          child: Icon(
+                            Icons.attach_file,
+                            size: 20,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ),
-                      suffixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      suffixIconConstraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
                     ),
                   ),
                 ),
@@ -3913,13 +5508,18 @@ class _InputBar extends StatelessWidget {
               GestureDetector(
                 onTap: onCamera,
                 child: Container(
-                  width: 36, height: 36,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     color: AppColors.backgroundPage,
                     shape: BoxShape.circle,
                     border: Border.all(color: AppColors.borderLight),
                   ),
-                  child: const Icon(Icons.camera_alt_outlined, size: 18, color: AppColors.textSecondary),
+                  child: const Icon(
+                    Icons.camera_alt_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -3931,20 +5531,42 @@ class _InputBar extends StatelessWidget {
                         key: const ValueKey('send'),
                         onTap: isSending ? null : onSend,
                         child: Container(
-                          width: 44, height: 44,
-                          decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: AppColors.green,
+                            shape: BoxShape.circle,
+                          ),
                           child: isSending
-                              ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
-                              : const Icon(Icons.send, color: AppColors.white, size: 20),
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.send,
+                                  color: AppColors.white,
+                                  size: 20,
+                                ),
                         ),
                       )
                     : GestureDetector(
                         key: const ValueKey('mic'),
                         onTap: () {},
                         child: Container(
-                          width: 44, height: 44,
-                          decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                          child: const Icon(Icons.mic, color: AppColors.white, size: 20),
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.mic,
+                            color: AppColors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
               ),
@@ -3998,69 +5620,131 @@ class _SelectionAppBar extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
           child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.close, size: 20, color: _iconColor),
-              onPressed: onClose,
-              padding: _btnPadding,
-              constraints: _btnConstraints,
-            ),
-            Text(
-              '$count',
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _iconColor),
-            ),
-            const Spacer(),
-            if (single)
+            children: [
               IconButton(
-                icon: const Icon(Icons.reply, size: 20, color: _iconColor),
-                onPressed: onReply,
+                icon: const Icon(Icons.close, size: 20, color: _iconColor),
+                onPressed: onClose,
                 padding: _btnPadding,
                 constraints: _btnConstraints,
-                tooltip: 'Répondre',
               ),
-            IconButton(
-              icon: const Icon(Icons.star_border_rounded, size: 20, color: _iconColor),
-              onPressed: onStar,
-              padding: _btnPadding,
-              constraints: _btnConstraints,
-              tooltip: 'Favori',
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.textSecondary),
-              onPressed: onDelete,
-              padding: _btnPadding,
-              constraints: _btnConstraints,
-              tooltip: 'Supprimer',
-            ),
-            IconButton(
-              icon: const Icon(Icons.forward, size: 20, color: _iconColor),
-              onPressed: onForward,
-              padding: _btnPadding,
-              constraints: _btnConstraints,
-              tooltip: 'Transférer',
-            ),
-            if (single)
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: _iconColor, size: 20),
+              Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: _iconColor,
+                ),
+              ),
+              const Spacer(),
+              if (single)
+                IconButton(
+                  icon: const Icon(Icons.reply, size: 20, color: _iconColor),
+                  onPressed: onReply,
+                  padding: _btnPadding,
+                  constraints: _btnConstraints,
+                  tooltip: 'Répondre',
+                ),
+              IconButton(
+                icon: const Icon(
+                  Icons.star_border_rounded,
+                  size: 20,
+                  color: _iconColor,
+                ),
+                onPressed: onStar,
                 padding: _btnPadding,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                onSelected: (value) {
-                  switch (value) {
-                    case 'info':   onInfo();   break;
-                    case 'copy':   onCopy();   break;
-                    case 'edit':   onEdit();   break;
-                    case 'pin':    onPin();    break;
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'info',  child: Text('Infos',    style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                  PopupMenuItem(value: 'copy',  child: Text('Copier',   style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                  PopupMenuItem(value: 'edit',  child: Text('Modifier', style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                  PopupMenuItem(value: 'pin',   child: Text('Épingler', style: TextStyle(fontSize: 14, color: Color(0xFF1A1A2E)))),
-                ],
+                constraints: _btnConstraints,
+                tooltip: 'Favori',
               ),
-          ],
+              IconButton(
+                icon: const Icon(
+                  Icons.delete_outline,
+                  size: 20,
+                  color: AppColors.textSecondary,
+                ),
+                onPressed: onDelete,
+                padding: _btnPadding,
+                constraints: _btnConstraints,
+                tooltip: 'Supprimer',
+              ),
+              IconButton(
+                icon: const Icon(Icons.forward, size: 20, color: _iconColor),
+                onPressed: onForward,
+                padding: _btnPadding,
+                constraints: _btnConstraints,
+                tooltip: 'Transférer',
+              ),
+              if (single)
+                PopupMenuButton<String>(
+                  icon: const Icon(
+                    Icons.more_vert,
+                    color: _iconColor,
+                    size: 20,
+                  ),
+                  padding: _btnPadding,
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'info':
+                        onInfo();
+                        break;
+                      case 'copy':
+                        onCopy();
+                        break;
+                      case 'edit':
+                        onEdit();
+                        break;
+                      case 'pin':
+                        onPin();
+                        break;
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'info',
+                      child: Text(
+                        'Infos',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'copy',
+                      child: Text(
+                        'Copier',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text(
+                        'Modifier',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'pin',
+                      child: Text(
+                        'Épingler',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
         ),
       ),
@@ -4077,13 +5761,29 @@ class _StatusTicks extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (status == null) {
-      return Icon(Icons.access_time, size: 11, color: Colors.white.withValues(alpha: 0.5));
+      return Icon(
+        Icons.access_time,
+        size: 11,
+        color: Colors.white.withValues(alpha: 0.5),
+      );
     }
     // coche simple = delivered, coche double bleue = read
     return switch (status!) {
-      MessageStatus.sent      => Icon(Icons.done, size: 12, color: Colors.white.withValues(alpha: 0.65)),
-      MessageStatus.delivered => Icon(Icons.done, size: 12, color: Colors.white.withValues(alpha: 0.65)),
-      MessageStatus.read      => const Icon(Icons.done_all, size: 12, color: Color(0xFF34B7F1)),
+      MessageStatus.sent => Icon(
+        Icons.done,
+        size: 12,
+        color: Colors.white.withValues(alpha: 0.65),
+      ),
+      MessageStatus.delivered => Icon(
+        Icons.done,
+        size: 12,
+        color: Colors.white.withValues(alpha: 0.65),
+      ),
+      MessageStatus.read => const Icon(
+        Icons.done_all,
+        size: 12,
+        color: Color(0xFF34B7F1),
+      ),
     };
   }
 }
@@ -4099,18 +5799,22 @@ class _ReactionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Wrap(
       spacing: 4,
-      children: reactions.map((emoji) => GestureDetector(
-        onTap: () => onTap?.call(emoji),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-          decoration: BoxDecoration(
-            color: AppColors.backgroundPage,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderLight),
-          ),
-          child: Text(emoji, style: const TextStyle(fontSize: 14)),
-        ),
-      )).toList(),
+      children: reactions
+          .map(
+            (emoji) => GestureDetector(
+              onTap: () => onTap?.call(emoji),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundPage,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderLight),
+                ),
+                child: Text(emoji, style: const TextStyle(fontSize: 14)),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }
@@ -4147,7 +5851,13 @@ class _ReactionPickerDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.white,
                 borderRadius: BorderRadius.circular(32),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 16, offset: const Offset(0, 4))],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -4158,7 +5868,9 @@ class _ReactionPickerDialog extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: selected ? AppColors.greenLight : Colors.transparent,
+                        color: selected
+                            ? AppColors.greenLight
+                            : Colors.transparent,
                         shape: BoxShape.circle,
                       ),
                       child: Text(e, style: const TextStyle(fontSize: 24)),
@@ -4188,7 +5900,7 @@ class _FullscreenImageViewer extends StatelessWidget {
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
-          '${message.sentAtDt.day.toString().padLeft(2,'0')}/${message.sentAtDt.month.toString().padLeft(2,'0')}/${message.sentAtDt.year}',
+          '${message.sentAtDt.day.toString().padLeft(2, '0')}/${message.sentAtDt.month.toString().padLeft(2, '0')}/${message.sentAtDt.year}',
           style: const TextStyle(color: Colors.white, fontSize: 14),
         ),
         actions: [
@@ -4204,7 +5916,11 @@ class _FullscreenImageViewer extends StatelessWidget {
               ? Image.file(
                   File(message.mediaUrl!),
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.broken_image,
+                    color: Colors.white54,
+                    size: 64,
+                  ),
                 )
               : const Icon(Icons.broken_image, color: Colors.white54, size: 64),
         ),
@@ -4224,13 +5940,19 @@ class _MessageInfoSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dt = message.sentAtDt;
-    final timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    final dateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    final timeStr =
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    final dateStr =
+        '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
     final (statusLabel, statusColor, statusIcon) = switch (status) {
-      null                  => ('En attente', AppColors.textHint,      Icons.access_time),
-      MessageStatus.sent    => ('Envoyé',     AppColors.textSecondary, Icons.done),
-      MessageStatus.delivered => ('Livré',    AppColors.textSecondary, Icons.done_all),
-      MessageStatus.read    => ('Lu',         AppColors.green,         Icons.done_all),
+      null => ('En attente', AppColors.textHint, Icons.access_time),
+      MessageStatus.sent => ('Envoyé', AppColors.textSecondary, Icons.done),
+      MessageStatus.delivered => (
+        'Livré',
+        AppColors.textSecondary,
+        Icons.done_all,
+      ),
+      MessageStatus.read => ('Lu', AppColors.green, Icons.done_all),
     };
 
     return Container(
@@ -4244,14 +5966,37 @@ class _MessageInfoSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
-            child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
-          const Text('Infos du message', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const Text(
+            'Infos du message',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 20),
-          _InfoRow(icon: Icons.schedule_outlined, label: 'Envoyé le', value: '$dateStr à $timeStr'),
+          _InfoRow(
+            icon: Icons.schedule_outlined,
+            label: 'Envoyé le',
+            value: '$dateStr à $timeStr',
+          ),
           const SizedBox(height: 14),
-          _InfoRow(icon: statusIcon, label: 'Statut', value: statusLabel, valueColor: statusColor),
+          _InfoRow(
+            icon: statusIcon,
+            label: 'Statut',
+            value: statusLabel,
+            valueColor: statusColor,
+          ),
         ],
       ),
     );
@@ -4266,7 +6011,12 @@ class _InfoRow extends StatelessWidget {
   final String value;
   final Color? valueColor;
 
-  const _InfoRow({required this.icon, required this.label, required this.value, this.valueColor});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -4277,9 +6027,22 @@ class _InfoRow extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: valueColor ?? AppColors.textPrimary)),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: valueColor ?? AppColors.textPrimary,
+              ),
+            ),
           ],
         ),
       ],
@@ -4294,7 +6057,11 @@ class _ForwardSheet extends StatelessWidget {
   final String currentThreadId;
   final void Function(Thread) onForward;
 
-  const _ForwardSheet({required this.threads, required this.currentThreadId, required this.onForward});
+  const _ForwardSheet({
+    required this.threads,
+    required this.currentThreadId,
+    required this.onForward,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -4310,29 +6077,74 @@ class _ForwardSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
-            child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2))),
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
-          const Text('Transférer à...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const Text(
+            'Transférer à...',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 12),
           if (others.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text('Aucune autre conversation.', style: TextStyle(color: AppColors.textSecondary)),
+              child: Text(
+                'Aucune autre conversation.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             )
           else
-            ...others.map((t) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.backgroundPage,
-                child: Text(t.contactInitials, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            ...others.map(
+              (t) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.backgroundPage,
+                  child: Text(
+                    t.contactInitials,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  t.contactName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  t.channel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.send_outlined,
+                  size: 18,
+                  color: AppColors.green,
+                ),
+                onTap: () => onForward(t),
               ),
-              title: Text(t.contactName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-              subtitle: Text(t.channel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-              trailing: const Icon(Icons.send_outlined, size: 18, color: AppColors.green),
-              onTap: () => onForward(t),
-            )),
+            ),
           const SizedBox(height: 16),
         ],
       ),

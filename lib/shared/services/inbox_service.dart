@@ -51,7 +51,8 @@ abstract class InboxService {
     required String threadId,
     required String provider,
     String? integrationAccountId,
-    required String type, // "text", "image", "audio", "video", "document", "location"
+    required String
+    type, // "text", "image", "audio", "video", "document", "location"
     String? content, // pour type text et location
     String? mediaUrl, // pour type image, audio, video, document
   });
@@ -61,14 +62,18 @@ abstract class InboxService {
     required String threadId,
     required String provider,
     required String integrationAccountId,
-    required List<String> catalogItemIds,
+    required List<Map<String, dynamic>> catalogItemIds,
   });
 
   /// POST /api/v1.2/inbox/threads/:id/read
   Future<void> markAsRead(String threadId);
 
   /// POST /api/threads/:id/payment-links
-  Future<Message> createPaymentLink(String threadId, String amount, String provider);
+  Future<Message> createPaymentLink(
+    String threadId,
+    String amount,
+    String provider,
+  );
 }
 
 // ── HTTP ───────────────────────────────────────────────────────────────────
@@ -81,7 +86,10 @@ class HttpInboxService implements InboxService {
       e.type == DioExceptionType.connectionTimeout;
 
   @override
-  Future<List<Thread>> getThreads({String? channelFilter, bool? unreadOnly}) async {
+  Future<List<Thread>> getThreads({
+    String? channelFilter,
+    bool? unreadOnly,
+  }) async {
     final orgId = SessionService.organizationId;
     // ignore: avoid_print
     print('=== GET THREADS appelé ===');
@@ -90,11 +98,18 @@ class HttpInboxService implements InboxService {
     if (orgId == null) return List.from(mockThreads);
 
     try {
-      final params = <String, dynamic>{'organization_id': orgId, 'limit': 50, 'offset': 0};
+      final params = <String, dynamic>{
+        'organization_id': orgId,
+        'limit': 50,
+        'offset': 0,
+      };
       if (channelFilter != null) params['channel'] = channelFilter;
       if (unreadOnly == true) params['status'] = 'unread';
 
-      final resp = await ApiClient.dio.get('/inbox/threads', queryParameters: params);
+      final resp = await ApiClient.dio.get(
+        '/inbox/threads',
+        queryParameters: params,
+      );
       // ignore: avoid_print
       print('=== RÉPONSE API : ${resp.data} ===');
 
@@ -112,11 +127,15 @@ class HttpInboxService implements InboxService {
         } else {
           return List.from(mockThreads);
         }
-        final threads = items.map((e) => Thread.fromJson(e as Map<String, dynamic>)).toList();
+        final threads = items
+            .map((e) => Thread.fromJson(e as Map<String, dynamic>))
+            .toList();
         // ignore: avoid_print
         print('=== THREADS PARSÉS : ${threads.length} ===');
         // ignore: avoid_print
-        print('=== PREMIER THREAD : ${threads.isNotEmpty ? threads.first.contactName : "vide"} ===');
+        print(
+          '=== PREMIER THREAD : ${threads.isNotEmpty ? threads.first.contactName : "vide"} ===',
+        );
         return threads;
       } else if (resp.statusCode == 401) {
         throw const InboxUnauthorizedException();
@@ -141,7 +160,10 @@ class HttpInboxService implements InboxService {
     }
 
     try {
-      final params = <String, dynamic>{'organization_id': orgId, 'limit': limit};
+      final params = <String, dynamic>{
+        'organization_id': orgId,
+        'limit': limit,
+      };
       if (beforeId != null) params['before_id'] = beforeId;
 
       final resp = await ApiClient.dio.get(
@@ -186,10 +208,7 @@ class HttpInboxService implements InboxService {
     // Fallback sur 'whatsapp' si le channel est vide pour éviter /inbox//messages
     final resolvedProvider = provider.isNotEmpty ? provider : 'whatsapp';
 
-    final Map<String, dynamic> data = {
-      'thread_id': threadId,
-      'type': type,
-    };
+    final Map<String, dynamic> data = {'thread_id': threadId, 'type': type};
     if (content != null && content.isNotEmpty) {
       data['body_text'] = content;
     }
@@ -207,8 +226,13 @@ class HttpInboxService implements InboxService {
     // on doit donc lever nous-mêmes une DioException sur un statut non-2xx
     // pour que l'appelant (_send() dans chat_screen.dart) puisse distinguer
     // les codes d'erreur (401/403/404/422/429/500/502...).
-    final resp = await ApiClient.dio.post('/inbox/$resolvedProvider/messages', data: data);
-    if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
+    final resp = await ApiClient.dio.post(
+      '/inbox/$resolvedProvider/messages',
+      data: data,
+    );
+    if (resp.statusCode == null ||
+        resp.statusCode! < 200 ||
+        resp.statusCode! >= 300) {
       throw DioException(
         requestOptions: resp.requestOptions,
         response: resp,
@@ -223,23 +247,37 @@ class HttpInboxService implements InboxService {
     required String threadId,
     required String provider,
     required String integrationAccountId,
-    required List<String> catalogItemIds,
+    required List<Map<String, dynamic>> catalogItemIds,
   }) async {
+    // Fallback sur 'whatsapp' si le channel est vide pour éviter /inbox//messages
+    final resolvedProvider = provider.isNotEmpty ? provider : 'whatsapp';
+
     final body = <String, dynamic>{
       'thread_id': threadId,
       'type': 'carousel',
+      'message_type': 'carousel',
       'integration_account_id': integrationAccountId,
-      'catalog_item_ids': catalogItemIds,
+      'carousel': {'items': catalogItemIds},
     };
-    debugPrint('=== CAROUSEL envoyé : $body ===');
+    debugPrint('=== CAROUSEL envoyé : /inbox/$resolvedProvider/messages ===');
+    debugPrint('=== CAROUSEL body : $body ===');
     try {
-      final resp = await ApiClient.dio.post('/inbox/$provider/messages', data: body);
+      final resp = await ApiClient.dio.post(
+        '/inbox/$resolvedProvider/messages',
+        data: body,
+      );
+      debugPrint('=== CAROUSEL response status: ${resp.statusCode} ===');
+      debugPrint('=== CAROUSEL response data: ${resp.data} ===');
       if (resp.statusCode == 401) {
         throw const InboxUnauthorizedException();
-      } else if (resp.statusCode! < 200 || resp.statusCode! >= 300) {
-        throw Exception('HTTP ${resp.statusCode}');
+      } else if (resp.statusCode == null ||
+          resp.statusCode! < 200 ||
+          resp.statusCode! >= 300) {
+        throw Exception('HTTP ${resp.statusCode} - ${resp.data}');
       }
     } on DioException catch (e) {
+      debugPrint('=== CAROUSEL DioException: ${e.type} - ${e.message} ===');
+      debugPrint('=== CAROUSEL DioException response: ${e.response?.data} ===');
       if (_isNetworkError(e)) throw const InboxNetworkException();
       rethrow;
     }
@@ -260,7 +298,11 @@ class HttpInboxService implements InboxService {
   }
 
   @override
-  Future<Message> createPaymentLink(String threadId, String amount, String provider) async {
+  Future<Message> createPaymentLink(
+    String threadId,
+    String amount,
+    String provider,
+  ) async {
     await Future.delayed(const Duration(milliseconds: 500));
     return Message(
       id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
@@ -286,11 +328,16 @@ class MockInboxService implements InboxService {
   }
 
   @override
-  Future<List<Thread>> getThreads({String? channelFilter, bool? unreadOnly}) async {
+  Future<List<Thread>> getThreads({
+    String? channelFilter,
+    bool? unreadOnly,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 400));
     var results = List<Thread>.from(mockThreads);
-    if (channelFilter != null) results = results.where((t) => t.channel == channelFilter).toList();
-    if (unreadOnly == true) results = results.where((t) => t.unreadCount > 0).toList();
+    if (channelFilter != null)
+      results = results.where((t) => t.channel == channelFilter).toList();
+    if (unreadOnly == true)
+      results = results.where((t) => t.unreadCount > 0).toList();
     return results;
   }
 
@@ -325,7 +372,7 @@ class MockInboxService implements InboxService {
     required String threadId,
     required String provider,
     required String integrationAccountId,
-    required List<String> catalogItemIds,
+    required List<Map<String, dynamic>> catalogItemIds,
   }) async {
     await Future.delayed(const Duration(milliseconds: 250));
   }
@@ -334,7 +381,11 @@ class MockInboxService implements InboxService {
   Future<void> markAsRead(String threadId) async {}
 
   @override
-  Future<Message> createPaymentLink(String threadId, String amount, String provider) async {
+  Future<Message> createPaymentLink(
+    String threadId,
+    String amount,
+    String provider,
+  ) async {
     await Future.delayed(const Duration(milliseconds: 500));
     return Message(
       id: 'msg_generated_${DateTime.now().millisecondsSinceEpoch}',

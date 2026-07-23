@@ -49,16 +49,16 @@ class WebSocketService {
   }
 
   void _openConnection() {
-    if (_manuallyDisconnected || _organizationId == null || _token == null) return;
+    if (_manuallyDisconnected || _organizationId == null || _token == null)
+      return;
     try {
-      // Uri.parse() sur une string complète — construire l'Uri avec des
-      // paramètres séparés (scheme/host/port) fait retomber le port sur 0
-      // par défaut pour le scheme wss, ce qui fait échouer la connexion.
-      final wsUrl = 'wss://ws.score360.africa'
-          '/api/v1.2/inbox/ws'
-          '?organization_id=$_organizationId'
-          '&token=$_token';
-      final uri = Uri.parse(wsUrl);
+      // Construire l'Uri directement avec les composants pour éviter le port 0
+      final uri = Uri(
+        scheme: 'wss',
+        host: 'ws.score360.africa',
+        path: '/api/v1.2/inbox/ws',
+        queryParameters: {'organization_id': _organizationId, 'token': _token},
+      );
       debugPrint('=== WebSocket URI : $uri ===');
       final channel = WebSocketChannel.connect(uri);
       _channel = channel;
@@ -66,18 +66,20 @@ class WebSocketService {
       // channel.ready se résout une fois la poignée de main WebSocket réussie.
       // Sans ce catchError, une erreur de connexion (timeout, refus TLS…) remonte
       // comme "Unhandled Exception" et peut faire planter l'application.
-      channel.ready.then((_) {
-        debugPrint('=== WebSocket connecté ✓ ===');
-        _isConnected = true;
-        _startPing();
-      }).catchError((e) {
-        debugPrint('=== WS échec type: ${e.runtimeType} ===');
-        debugPrint('=== WS échec message: $e ===');
-        debugPrint('=== WS closeCode: ${_channel?.closeCode} ===');
-        debugPrint('=== WS closeReason: ${_channel?.closeReason} ===');
-        _isConnected = false;
-        _handleDisconnect();
-      });
+      channel.ready
+          .then((_) {
+            debugPrint('=== WebSocket connecté ✓ ===');
+            _isConnected = true;
+            _startPing();
+          })
+          .catchError((e) {
+            debugPrint('=== WS échec type: ${e.runtimeType} ===');
+            debugPrint('=== WS échec message: $e ===');
+            debugPrint('=== WS closeCode: ${_channel?.closeCode} ===');
+            debugPrint('=== WS closeReason: ${_channel?.closeReason} ===');
+            _isConnected = false;
+            _handleDisconnect();
+          });
 
       _channelSubscription = channel.stream.listen(
         _onData,

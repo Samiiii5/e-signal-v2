@@ -11,7 +11,9 @@ class CatalogService {
     if (orgId == null) return [];
 
     try {
-      final response = await ApiClient.dio.get('/organizations/$orgId/products');
+      final response = await ApiClient.dio.get(
+        '/organizations/$orgId/products',
+      );
       if (response.statusCode != 200) return [];
       final items = response.data['items'] as List? ?? [];
       return items
@@ -31,21 +33,53 @@ class CatalogService {
     if (orgId == null) return null;
 
     try {
-      final response = await ApiClient.dio.get('/organizations/$orgId/accounts');
+      final response = await ApiClient.dio.get(
+        '/organizations/$orgId/accounts',
+      );
       if (response.statusCode != 200) return null;
       final items = response.data['items'] as List? ?? [];
-      final accounts = items.whereType<Map>().map((e) => Map<String, dynamic>.from(e));
-      
+      final accounts = items.whereType<Map>().map(
+        (e) => Map<String, dynamic>.from(e),
+      );
+
       // ignore: avoid_print
       print('=== ACCOUNTS : $items ===');
       // ignore: avoid_print
       print('=== CHANNEL CHERCHÉ : $channel ===');
 
-      final account = accounts.firstWhere(
-        (a) => a['channel'].toString().toLowerCase() == channel.toLowerCase(),
-        orElse: () => <String, dynamic>{},
-      );
-      return account['id']?.toString();
+      // Chercher un compte qui correspond au channel
+      // Pour messenger/whatsapp, on cherche un compte Facebook/Meta
+      String? accountId;
+      for (final account in accounts) {
+        final displayName =
+            account['display_name']?.toString().toLowerCase() ?? '';
+        final accountType =
+            account['account_type']?.toString().toLowerCase() ?? '';
+
+        // Messenger correspond aux comptes Facebook
+        if (channel.toLowerCase() == 'messenger' &&
+            (displayName.contains('facebook') ||
+                displayName.contains('meta'))) {
+          accountId = account['account_id']?.toString();
+          break;
+        }
+        // WhatsApp correspond aux comptes WhatsApp
+        if (channel.toLowerCase() == 'whatsapp' &&
+            (displayName.contains('whatsapp') ||
+                displayName.contains('meta'))) {
+          accountId = account['account_id']?.toString();
+          break;
+        }
+        // Fallback: si le channel correspond au display_name
+        if (displayName.contains(channel.toLowerCase())) {
+          accountId = account['account_id']?.toString();
+          break;
+        }
+      }
+
+      // ignore: avoid_print
+      print('=== ACCOUNT ID TROUVÉ : $accountId ===');
+      return accountId;
     } on DioException {
       return null;
     }
