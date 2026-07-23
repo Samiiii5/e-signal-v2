@@ -1905,18 +1905,13 @@ class _ChatAppBar extends StatelessWidget {
     _ => ch ?? '...',
   };
 
-  // Calculé à chaque affichage à partir de lastSeenAt — jamais mis en cache
-  // dans un booléen, pour ne pas rester bloqué sur "En ligne" au-delà de 5 min.
-  bool get _isOnline =>
-      lastSeenAt != null &&
-      DateTime.now().difference(lastSeenAt!) < const Duration(minutes: 5);
-
   // Le point vert sur l'avatar porte déjà l'état "en ligne" — ici on
   // n'affiche que "vu il y a X min" quand le contact n'est pas en ligne.
   String _subtitle() {
     if (isTyping) return 'en train d\'écrire...';
-    if (lastSeenAt != null && thread?.isOnline != true)
+    if (lastSeenAt != null && thread?.isOnline != true) {
       return _fmtLastSeen(lastSeenAt!);
+    }
     return _channelLabel(thread?.channel);
   }
 

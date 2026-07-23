@@ -253,11 +253,12 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadThreads() async {
-    if (!_isLoading)
+    if (!_isLoading) {
       setState(() {
         _isLoading = true;
         _error = null;
       });
+    }
     try {
       final threads = await inboxService.getThreads();
       if (!mounted) return;

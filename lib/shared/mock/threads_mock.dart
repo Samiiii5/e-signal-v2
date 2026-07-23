@@ -113,9 +113,10 @@ class Thread {
       id: (json['id'] ?? json['_id'] ?? '').toString(),
       contactName: () {
         final contact = json['contact'];
-        if (contact is Map)
+        if (contact is Map) {
           return (contact['full_name'] ?? contact['name'] ?? 'Inconnu')
               .toString();
+        }
         return (json['contactName'] ??
                 json['contact_name'] ??
                 contact ??
