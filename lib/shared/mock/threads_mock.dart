@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class Thread {
   final String id;
   final String contactName;
@@ -72,7 +74,14 @@ class Thread {
 
   factory Thread.fromJson(Map<String, dynamic> json) {
     final metadata = json['metadata'];
-    final metaProvider = (metadata is Map ? metadata['provider']?.toString() : null);
+    final channel = (json['channel'] ?? '').toString().toLowerCase();
+    final metaProvider = metadata is Map ? metadata['provider']?.toString() : null;
+    final metadataProvider = (metaProvider ?? channel).toLowerCase();
+    final metaAccountId = metadata is Map ? metadata['integration_account_id']?.toString() : null;
+    final integrationAccountId = metaAccountId ?? json['integration_account_id']?.toString() ?? json['integrationAccountId']?.toString();
+
+    debugPrint('=== Thread channel=$channel provider=$metadataProvider accountId=$integrationAccountId ===');
+
     return Thread(
       id: (json['id'] ?? json['_id'] ?? '').toString(),
       contactName: () {
@@ -81,9 +90,9 @@ class Thread {
         return (json['contactName'] ?? json['contact_name'] ?? contact ?? 'Inconnu').toString();
       }(),
       contactPictureUrl: json['contactPictureUrl']?.toString() ?? json['contact_picture_url']?.toString(),
-      channel: (json['channel'] ?? '').toString().toLowerCase(),
-      metadataProvider: metaProvider?.toLowerCase(),
-      integrationAccountId: json['integrationAccountId']?.toString() ?? json['integration_account_id']?.toString(),
+      channel: channel,
+      metadataProvider: metadataProvider,
+      integrationAccountId: integrationAccountId,
       lastMessageAt: json['lastMessageAt']?.toString() ?? json['last_message_at']?.toString(),
       unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
       status: (json['status'] ?? 'open').toString().toLowerCase(),

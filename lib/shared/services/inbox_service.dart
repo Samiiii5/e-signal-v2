@@ -51,7 +51,9 @@ abstract class InboxService {
     required String threadId,
     required String provider,
     String? integrationAccountId,
-    required String content,
+    required String type, // "text", "image", "audio", "video", "document", "location"
+    String? content, // pour type text et location
+    String? mediaUrl, // pour type image, audio, video, document
   });
 
   /// POST /api/v1.2/inbox/{provider}/messages (type: "carousel")
@@ -177,41 +179,41 @@ class HttpInboxService implements InboxService {
     required String threadId,
     required String provider,
     String? integrationAccountId,
-    required String content,
+    required String type,
+    String? content,
+    String? mediaUrl,
   }) async {
-    final orgId = SessionService.organizationId;
     // Fallback sur 'whatsapp' si le channel est vide pour éviter /inbox//messages
     final resolvedProvider = provider.isNotEmpty ? provider : 'whatsapp';
-    final body = <String, dynamic>{
+
+    final Map<String, dynamic> data = {
       'thread_id': threadId,
-      'body_text': content,
-      'type': 'text',
-      if (orgId != null) 'organization_id': orgId,
-      if (integrationAccountId != null) 'integration_account_id': integrationAccountId,
+      'type': type,
     };
-    // ignore: avoid_print
-    print('=== SEND MESSAGE → POST /inbox/$resolvedProvider/messages ===');
-    // ignore: avoid_print
-    print('=== BODY : $body ===');
-    try {
-      final resp = await ApiClient.dio.post(
-        '/inbox/$resolvedProvider/messages',
-        data: body,
+    if (content != null && content.isNotEmpty) {
+      data['content'] = content;
+    }
+    if (mediaUrl != null && mediaUrl.isNotEmpty) {
+      data['media_url'] = mediaUrl;
+    }
+    if (integrationAccountId != null && integrationAccountId.isNotEmpty) {
+      data['integration_account_id'] = integrationAccountId;
+    }
+
+    debugPrint('=== sendMessage url: /inbox/$resolvedProvider/messages ===');
+    debugPrint('=== sendMessage body: $data ===');
+
+    // ApiClient accepte tous les codes HTTP sans exception (validateStatus) —
+    // on doit donc lever nous-mêmes une DioException sur un statut non-2xx
+    // pour que l'appelant (_send() dans chat_screen.dart) puisse distinguer
+    // les codes d'erreur (401/403/404/422/429/500/502...).
+    final resp = await ApiClient.dio.post('/inbox/$resolvedProvider/messages', data: data);
+    if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
+      throw DioException(
+        requestOptions: resp.requestOptions,
+        response: resp,
+        type: DioExceptionType.badResponse,
       );
-      // ignore: avoid_print
-      print('=== SEND MESSAGE status : ${resp.statusCode} ===');
-      // ignore: avoid_print
-      print('=== SEND MESSAGE response : ${resp.data} ===');
-      if (resp.statusCode == 401) {
-        throw const InboxUnauthorizedException();
-      } else if (resp.statusCode! < 200 || resp.statusCode! >= 300) {
-        throw Exception('HTTP ${resp.statusCode}');
-      }
-    } on DioException catch (e) {
-      // ignore: avoid_print
-      print('=== SEND MESSAGE DioException : ${e.type} — ${e.message} ===');
-      if (_isNetworkError(e)) throw const InboxNetworkException();
-      rethrow;
     }
   }
 
@@ -311,7 +313,9 @@ class MockInboxService implements InboxService {
     required String threadId,
     required String provider,
     String? integrationAccountId,
-    required String content,
+    required String type,
+    String? content,
+    String? mediaUrl,
   }) async {
     await Future.delayed(const Duration(milliseconds: 250));
   }

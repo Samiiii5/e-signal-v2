@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -651,7 +652,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final content = '📍 Ma localisation :\nhttps://maps.google.com/?q=${position.latitude},${position.longitude}';
     debugPrint('=== LOCALISATION envoyée : $content ===');
-    final provider = _thread?.channel ?? '';
+    final provider = _thread?.metadataProvider ?? _thread?.channel ?? '';
+    final integrationAccountId = _thread?.integrationAccountId;
     final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
 
     setState(() {
@@ -666,7 +668,13 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
     try {
-      await inboxService.sendMessage(threadId: widget.threadId, provider: provider, content: content);
+      await inboxService.sendMessage(
+        threadId: widget.threadId,
+        provider: provider,
+        integrationAccountId: integrationAccountId,
+        type: 'text',
+        content: content,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _messages.removeWhere((m) => m.id == msgId));
@@ -1024,31 +1032,54 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     try {
-      // ignore: avoid_print
-      print('=== _send() → threadId=${widget.threadId} provider=$provider integrationAccountId=$integrationAccountId ===');
+      debugPrint('=== SEND DEBUG ===');
+      debugPrint('threadId: ${widget.threadId}');
+      debugPrint('thread.channel: ${_thread?.channel}');
+      debugPrint('thread.metadataProvider: ${_thread?.metadataProvider}');
+      debugPrint('thread.integrationAccountId: ${_thread?.integrationAccountId}');
+      debugPrint('provider utilisé: $provider');
+      debugPrint('integrationAccountId utilisé: $integrationAccountId');
+      debugPrint('content: $text');
+      debugPrint('==================');
       await inboxService.sendMessage(
         threadId: widget.threadId,
         provider: provider,
         integrationAccountId: integrationAccountId,
+        type: 'text',
         content: text,
       );
     } catch (e) {
-      // ignore: avoid_print
-      print('=== _send() ERREUR : $e ===');
+      debugPrint('=== SEND ERROR ===');
+      debugPrint('e.runtimeType: ${e.runtimeType}');
+      debugPrint('e: $e');
+      if (e is DioException) {
+        debugPrint('statusCode: ${e.response?.statusCode}');
+        debugPrint('responseData: ${e.response?.data}');
+        debugPrint('requestData: ${e.requestOptions.data}');
+        debugPrint('requestUrl: ${e.requestOptions.uri}');
+      }
+      debugPrint('==================');
       if (!mounted) return;
       setState(() {
         _messages.removeWhere((m) => m.id == msgId);
         _msgStatus.remove(msgId);
       });
-      String errorMsg = 'Échec de l\'envoi du message';
-      if (e is InboxNetworkException) {
-        errorMsg = 'Pas de connexion internet';
-      } else if (e is InboxUnauthorizedException) {
-        errorMsg = 'Session expirée, veuillez vous reconnecter';
-      } else if (e.toString().contains('422')) {
-        errorMsg = 'Message rejeté par le serveur (contenu invalide)';
-      } else if (e.toString().contains('500')) {
-        errorMsg = 'Erreur serveur, réessayez plus tard';
+      var errorMsg = 'Échec de l\'envoi du message';
+      if (e is DioException) {
+        final status = e.response?.statusCode;
+        final serverMsg = e.response?.data?['detail'] ?? e.response?.data?['message'] ?? '';
+        errorMsg = switch (status) {
+          400 => 'Message invalide : $serverMsg',
+          401 => 'Session expirée, reconnectez-vous',
+          403 => 'Fenêtre de messagerie expirée (24h)',
+          404 => 'Conversation introuvable',
+          422 => 'Contenu rejeté par le serveur : $serverMsg',
+          429 => 'Trop de messages envoyés, attendez',
+          500 => 'Erreur serveur, réessayez plus tard',
+          502 => 'Service temporairement indisponible',
+          null => 'Pas de connexion internet',
+          _ => 'Erreur $status : $serverMsg',
+        };
       }
       ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error(errorMsg));
     } finally {

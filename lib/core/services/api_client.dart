@@ -23,16 +23,16 @@ class ApiClient {
     // Instance dédiée au refresh — pas d'intercepteurs pour éviter la récursion.
     _refreshDio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
       headers: {'Content-Type': 'application/json'},
       validateStatus: (status) => status != null, // accepte tout
     ));
 
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
       headers: {'Content-Type': 'application/json'},
       validateStatus: (status) => status != null, // accepte tout — pas d'exception HTTP
     ));
