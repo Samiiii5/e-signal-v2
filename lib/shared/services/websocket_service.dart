@@ -64,7 +64,7 @@ class WebSocketService {
           'token': _token!,
         },
       );
-      debugPrint('=== WebSocket connect → $uri ===');
+      debugPrint('=== WebSocket URI : $uri ===');
       final channel = WebSocketChannel.connect(uri);
       _channel = channel;
 

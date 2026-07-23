@@ -191,7 +191,7 @@ class HttpInboxService implements InboxService {
       'type': type,
     };
     if (content != null && content.isNotEmpty) {
-      data['content'] = content;
+      data['body_text'] = content;
     }
     if (mediaUrl != null && mediaUrl.isNotEmpty) {
       data['media_url'] = mediaUrl;
