@@ -36,6 +36,14 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
   List<Map<String, dynamic>> _catalogProducts = [];
   bool _isLoadingProducts = true;
   String? _catalogError;
+  String _catalogFilter = 'all'; // 'all' | 'product' | 'service'
+
+  List<Map<String, dynamic>> get _filteredCatalogProducts {
+    if (_catalogFilter == 'all') return _catalogProducts;
+    return _catalogProducts
+        .where((p) => p['item_type']?.toString() == _catalogFilter)
+        .toList();
+  }
 
   // Step 3 — Livraison
   bool _hasDelivery = false;
@@ -163,6 +171,28 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
       buf.write(s[i]);
     }
     return buf.toString();
+  }
+
+  Widget _catalogFilterChip(String label, String value) {
+    final selected = _catalogFilter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _catalogFilter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.green : AppColors.backgroundStatus,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -331,6 +361,20 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 16),
 
+        if (!_isLoadingProducts && _catalogError == null && _catalogProducts.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              children: [
+                _catalogFilterChip('Tous', 'all'),
+                const SizedBox(width: 8),
+                _catalogFilterChip('Produits', 'product'),
+                const SizedBox(width: 8),
+                _catalogFilterChip('Services', 'service'),
+              ],
+            ),
+          ),
+
         if (_isLoadingProducts)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 40),
@@ -360,8 +404,13 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
             padding: EdgeInsets.symmetric(vertical: 40),
             child: Center(child: Text('Aucun produit dans le catalogue', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
           )
+        else if (_filteredCatalogProducts.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(child: Text('Aucun produit dans cette catégorie', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+          )
         else
-          ..._catalogProducts.map((p) {
+          ..._filteredCatalogProducts.map((p) {
             final isSelected = _selectedProduct != null &&
                 _selectedProduct!['product_id']?.toString() == p['product_id']?.toString();
             return _PaymentProductTile(
