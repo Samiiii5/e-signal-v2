@@ -744,15 +744,17 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendLocation() async {
+    // 1. Vérifier que le GPS est activé
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
-          AppSnackbar.error('Activez la localisation pour continuer'),
+          AppSnackbar.error('Activez la localisation de votre téléphone'),
         );
       return;
     }
 
+    // 2. Vérifier/demander la permission
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -766,28 +768,37 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
+    // 3. Afficher un indicateur de chargement pendant la géolocalisation
+    setState(() => _isSending = true);
+
     Position position;
     try {
       position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
         ),
       );
     } catch (_) {
-      if (mounted)
+      if (mounted) {
+        setState(() => _isSending = false);
         ScaffoldMessenger.of(context).showSnackBar(
           AppSnackbar.error('Impossible d\'obtenir votre position'),
         );
+      }
       return;
     }
 
+    debugPrint(
+      '=== GPS position réelle : ${position.latitude}, ${position.longitude} ===',
+    );
+
+    // 4. Formater le contenu
     final content =
         '📍 Ma localisation :\nhttps://maps.google.com/?q=${position.latitude},${position.longitude}';
-    debugPrint('=== LOCALISATION envoyée : $content ===');
-    final provider = _thread?.metadataProvider ?? _thread?.channel ?? '';
-    final integrationAccountId = _thread?.integrationAccountId;
-    final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
 
+    // 5. Optimistic update — afficher la bulle avant confirmation serveur
+    final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
     setState(() {
       _messages.add(
         Message(
@@ -798,8 +809,13 @@ class _ChatScreenState extends State<ChatScreen> {
           sentAt: DateTime.now().toIso8601String(),
         ),
       );
+      _isSending = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+    // 6. Envoyer au backend
+    final provider = _thread?.metadataProvider ?? _thread?.channel ?? '';
+    final integrationAccountId = _thread?.integrationAccountId;
 
     try {
       await inboxService.sendMessage(
