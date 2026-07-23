@@ -731,6 +731,7 @@ class _ChatScreenState extends State<ChatScreen> {
           .map((p) => (p['id'] ?? p['product_id'] ?? p['_id'] ?? p['uuid'] ?? '').toString())
           .where((id) => id.isNotEmpty)
           .toList();
+      debugPrint('=== CAROUSEL body : thread=${widget.threadId} provider=$channel accountId=$accountId ids=$ids ===');
       await inboxService.sendCarousel(
         threadId: widget.threadId,
         provider: channel,
@@ -3207,6 +3208,15 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
     }
   }
 
+  String _idFor(Map<String, dynamic> product, int index) {
+    return (product['id'] ??
+            product['product_id'] ??
+            product['_id'] ??
+            product['uuid'] ??
+            index.toString())
+        .toString();
+  }
+
   void _toggle(String id) {
     setState(() {
       if (_selectedIds.contains(id)) {
@@ -3219,7 +3229,12 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
   }
 
   void _confirmSend() {
-    final selected = _products.where((p) => _selectedIds.contains(p['id'].toString())).toList();
+    final selected = <Map<String, dynamic>>[];
+    for (var i = 0; i < _products.length; i++) {
+      if (_selectedIds.contains(_idFor(_products[i], i))) {
+        selected.add(_products[i]);
+      }
+    }
     if (selected.isEmpty) return;
     widget.onSend(selected);
   }
@@ -3247,7 +3262,7 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
                 const SizedBox(height: 4),
                 Text(
                   count == 0
-                      ? 'Sélectionnez jusqu\'à $_maxSelection produits à envoyer'
+                      ? 'Sélectionnez jusqu\'à $_maxSelection produits'
                       : '$count produit${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}',
                   style: TextStyle(
                     fontSize: 13,
@@ -3278,14 +3293,7 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
                             itemCount: _products.length,
                             itemBuilder: (_, i) {
                               final product = _products[i];
-                              final id = (product['id'] ??
-                                      product['product_id'] ??
-                                      product['_id'] ??
-                                      product['uuid'] ??
-                                      '')
-                                  .toString();
-
-                              if (id.isEmpty) return const SizedBox.shrink();
+                              final id = _idFor(product, i);
 
                               final isSelected = _selectedIds.contains(id);
                               final isDisabled = !isSelected && count >= _maxSelection;
@@ -3361,103 +3369,97 @@ class _ProductTile extends StatelessWidget {
     final currency = (product['currency'] ?? 'FCFA').toString();
     final imageUrl = product['image_url']?.toString();
 
-    return GestureDetector(
-      onTap: isDisabled ? null : onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.green : AppColors.borderLight,
-            width: isSelected ? 1.5 : 0.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            // Image produit
-            Container(
-              width: 52, height: 52,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.borderLight),
-              ),
-              child: (imageUrl != null && imageUrl.isNotEmpty)
-                  ? Image.network(imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.inventory_2_outlined,
-                              color: AppColors.textHint))
-                  : const Icon(Icons.inventory_2_outlined,
-                      color: AppColors.textHint),
+    return Opacity(
+      opacity: isDisabled ? 0.4 : 1,
+      child: GestureDetector(
+        onTap: isDisabled ? null : onTap,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppColors.green : AppColors.borderLight,
+              width: isSelected ? 1.5 : 0.5,
             ),
-            const SizedBox(width: 12),
-            // Nom + description
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  if (description != null && description.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(description,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image produit
+              Container(
+                width: 72, height: 72,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.borderLight),
+                ),
+                child: (imageUrl != null && imageUrl.isNotEmpty)
+                    ? Image.network(imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            const Icon(Icons.inventory_2_outlined,
+                                color: AppColors.textHint))
+                    : const Icon(Icons.inventory_2_outlined,
+                        color: AppColors.textHint),
+              ),
+              const SizedBox(width: 12),
+              // Nom + description + prix
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name,
                         style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
+                    if (description != null && description.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(description,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                    const SizedBox(height: 4),
+                    Text('${_fmt(product['price'])} $currency',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.green)),
                   ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Prix
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(_fmt(product['price']),
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.green)),
-                Text(currency,
-                    style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary)),
-              ],
-            ),
-            const SizedBox(width: 8),
-            // Indicateur de sélection custom (PAS un Checkbox natif)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected ? AppColors.green : Colors.transparent,
-                border: Border.all(
-                  color: isSelected
-                      ? AppColors.green
-                      : (isDisabled
-                          ? AppColors.borderLight
-                          : AppColors.textSecondary),
-                  width: 2,
                 ),
               ),
-              child: isSelected
-                  ? const Icon(Icons.check, size: 14, color: Colors.white)
-                  : null,
-            ),
-          ],
+              const SizedBox(width: 8),
+              // Indicateur de sélection custom (PAS un Checkbox natif)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? AppColors.green : Colors.transparent,
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.green
+                        : (isDisabled
+                            ? AppColors.borderLight
+                            : const Color(0xFF9CA3AF)),
+                    width: 2,
+                  ),
+                ),
+                child: isSelected
+                    ? const Icon(Icons.check, size: 16, color: Colors.white)
+                    : null,
+              ),
+            ],
+          ),
         ),
       ),
     );
