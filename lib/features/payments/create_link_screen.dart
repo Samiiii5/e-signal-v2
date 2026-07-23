@@ -2,10 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../shared/mock/messages_mock.dart';
-import '../../shared/mock/products_mock.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/models/lien_paiement_model.dart';
+import '../../shared/services/catalog_service.dart';
 import '../../shared/services/inbox_service.dart';
+
+int _asIntPrice(dynamic n) {
+  if (n is num) return n.toInt();
+  return int.tryParse(n?.toString() ?? '') ?? 0;
+}
+
+String _fmtNum(dynamic n) {
+  final s = _asIntPrice(n).toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+    buf.write(s[i]);
+  }
+  return buf.toString();
+}
 
 // Return value when a link is generated
 class CreateLinkResult {
@@ -42,7 +57,10 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
       _selectedThread?.contactName ?? widget.contactName ?? '';
 
   // Step 2 — Product
-  Product? _selectedProduct;
+  Map<String, dynamic>? _selectedProduct;
+  List<Map<String, dynamic>> _catalogProducts = [];
+  bool _isLoadingProducts = true;
+  String? _catalogError;
 
   // Step 3 — Delivery
   bool _hasDelivery = false;
@@ -60,6 +78,12 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
   bool _isGenerating = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  @override
   void dispose() {
     _destinataireCtrl.dispose();
     _telephoneCtrl.dispose();
@@ -67,6 +91,27 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
     _quartierCtrl.dispose();
     _secteurCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoadingProducts = true;
+      _catalogError = null;
+    });
+    try {
+      final items = await catalogService.getProducts();
+      if (!mounted) return;
+      setState(() {
+        _catalogProducts = items;
+        _isLoadingProducts = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingProducts = false;
+        _catalogError = 'Impossible de charger le catalogue.';
+      });
+    }
   }
 
   void _goBack() {
@@ -96,14 +141,16 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
 
-    final total = _selectedProduct!.price + (_hasDelivery ? 2000 : 0);
+    final priceValue = _asIntPrice(_selectedProduct!['base_price']);
+    final currency = (_selectedProduct!['currency'] ?? 'FCFA').toString();
+    final total = priceValue + (_hasDelivery ? 2000 : 0);
 
     final lien = LienPaiement(
       id: 'lien_${DateTime.now().millisecondsSinceEpoch}',
       contactNom: _contactName,
       description:
-          '${_selectedProduct!.emoji} ${_selectedProduct!.name} — Commande de $_contactName',
-      montantCommande: _selectedProduct!.price,
+          '📦 ${_selectedProduct!['name']} — Commande de $_contactName',
+      montantCommande: priceValue,
       fraisLivraison: _hasDelivery ? 2000 : 0,
       montantTotal: total,
       statut: 'created',
@@ -132,7 +179,7 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
             messageType: 'PAYMENT_LINK',
             sentAt: now,
             paymentAmount: total.toString(),
-            paymentCurrency: 'FCFA',
+            paymentCurrency: currency,
             paymentStatus: PaymentStatus.created,
             paymentProvider: _selectedPayment,
           ),
@@ -217,6 +264,10 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
           onNext: () => setState(() => _step = 2),
         ),
         2 => _Step2(
+          products: _catalogProducts,
+          isLoading: _isLoadingProducts,
+          error: _catalogError,
+          onRetry: _loadProducts,
           selectedProduct: _selectedProduct,
           onSelectProduct: (p) => setState(() => _selectedProduct = p),
           onNext: () => setState(() => _step = 3),
@@ -680,19 +731,64 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
 
 // ── Step 2 — Product ──────────────────────────────────────────────────────────
 
-class _Step2 extends StatelessWidget {
-  final Product? selectedProduct;
-  final ValueChanged<Product> onSelectProduct;
+class _Step2 extends StatefulWidget {
+  final List<Map<String, dynamic>> products;
+  final bool isLoading;
+  final String? error;
+  final VoidCallback onRetry;
+  final Map<String, dynamic>? selectedProduct;
+  final ValueChanged<Map<String, dynamic>> onSelectProduct;
   final VoidCallback onNext;
 
   const _Step2({
+    required this.products,
+    required this.isLoading,
+    required this.error,
+    required this.onRetry,
     required this.selectedProduct,
     required this.onSelectProduct,
     required this.onNext,
   });
 
   @override
+  State<_Step2> createState() => _Step2State();
+}
+
+class _Step2State extends State<_Step2> {
+  String _filter = 'all'; // 'all' | 'product' | 'service'
+
+  List<Map<String, dynamic>> get _filteredProducts {
+    if (_filter == 'all') return widget.products;
+    return widget.products
+        .where((p) => p['item_type']?.toString() == _filter)
+        .toList();
+  }
+
+  Widget _filterChip(String label, String value) {
+    final selected = _filter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _filter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.green : AppColors.backgroundStatus,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final selectedProduct = widget.selectedProduct;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -718,134 +814,102 @@ class _Step2 extends StatelessWidget {
                   height: 1.5,
                 ),
               ),
+              const SizedBox(height: 16),
+              if (!widget.isLoading &&
+                  widget.error == null &&
+                  widget.products.isNotEmpty)
+                Row(
+                  children: [
+                    _filterChip('Tous', 'all'),
+                    const SizedBox(width: 8),
+                    _filterChip('Produits', 'product'),
+                    const SizedBox(width: 8),
+                    _filterChip('Services', 'service'),
+                  ],
+                ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: mockProducts.length,
-            itemBuilder: (_, i) {
-              final p = mockProducts[i];
-              final isSelected = selectedProduct?.id == p.id;
-              return GestureDetector(
-                onTap: () => onSelectProduct(p),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.greenLight
-                        : AppColors.backgroundPage,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.green
-                          : AppColors.borderLight,
-                      width: isSelected ? 1.5 : 0.5,
-                    ),
+          child: widget.isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.green,
+                    strokeWidth: 2,
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Image produit
-                      Container(
-                        width: 72,
-                        height: 72,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.borderLight),
-                        ),
-                        child: Center(
-                          child: Text(
-                            p.emoji,
-                            style: const TextStyle(fontSize: 32),
+                )
+              : widget.error != null
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.wifi_off_outlined,
+                            size: 40,
+                            color: AppColors.borderLight,
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Nom + description + prix
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    p.name,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
+                          const SizedBox(height: 12),
+                          Text(
+                            widget.error!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              p.category,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: widget.onRetry,
+                            child: const Text(
+                              'Réessayer',
+                              style: TextStyle(
+                                color: AppColors.green,
+                                fontWeight: FontWeight.w600,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Text(
-                                  '${_fmt(p.price)} FCFA',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.green,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Indicateur de sélection custom (PAS un Checkbox natif)
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected
-                              ? AppColors.green
-                              : Colors.transparent,
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.green
-                                : const Color(0xFF9CA3AF),
-                            width: 2,
                           ),
-                        ),
-                        child: isSelected
-                            ? const Icon(
-                                Icons.check,
-                                size: 16,
-                                color: Colors.white,
-                              )
-                            : null,
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+                    )
+                  : widget.products.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Aucun produit dans le catalogue',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        )
+                      : _filteredProducts.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'Aucun produit dans cette catégorie',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              itemCount: _filteredProducts.length,
+                              itemBuilder: (_, i) {
+                                final p = _filteredProducts[i];
+                                final isSelected =
+                                    selectedProduct != null &&
+                                    selectedProduct['product_id']
+                                            ?.toString() ==
+                                        p['product_id']?.toString();
+                                return _CatalogProductTile(
+                                  product: p,
+                                  isSelected: isSelected,
+                                  onTap: () => widget.onSelectProduct(p),
+                                );
+                              },
+                            ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
@@ -853,7 +917,7 @@ class _Step2 extends StatelessWidget {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: selectedProduct != null ? onNext : null,
+              onPressed: selectedProduct != null ? widget.onNext : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.green,
                 foregroundColor: AppColors.white,
@@ -866,7 +930,7 @@ class _Step2 extends StatelessWidget {
                 children: [
                   if (selectedProduct != null)
                     Text(
-                      'Suivant — ${_fmt(selectedProduct!.price)} FCFA',
+                      'Suivant — ${_fmtNum(selectedProduct['base_price'])} ${(selectedProduct['currency'] ?? 'FCFA')}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -890,22 +954,192 @@ class _Step2 extends StatelessWidget {
       ],
     );
   }
+}
 
-  static String _fmt(int n) {
-    final s = n.toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
-      buf.write(s[i]);
-    }
-    return buf.toString();
+// ── Tuile produit du catalogue (sélection unique) ──────────────────────────────
+
+class _CatalogProductTile extends StatelessWidget {
+  final Map<String, dynamic> product;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _CatalogProductTile({
+    required this.product,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (product['name'] ?? '').toString();
+    final description = product['description']?.toString();
+    final currency = (product['currency'] ?? '').toString();
+    final imageUrl = product['thumbnail_url']?.toString();
+    final price = product['base_price'];
+    final sku = product['sku']?.toString();
+    final isService = product['item_type']?.toString() == 'service';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.green : AppColors.borderLight,
+            width: isSelected ? 1.5 : 0.5,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image produit
+            Container(
+              width: 72,
+              height: 72,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              child: (imageUrl != null && imageUrl.isNotEmpty)
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.inventory_2_outlined,
+                        color: AppColors.textHint,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.inventory_2_outlined,
+                      color: AppColors.textHint,
+                    ),
+            ),
+            const SizedBox(width: 12),
+            // Nom + description + prix
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isService) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.statusCreatedBg,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Service',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.statusCreatedText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (description != null && description.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        '${_fmtNum(price)} $currency',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.green,
+                        ),
+                      ),
+                      if (sku != null && sku.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.backgroundStatus,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            sku,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Indicateur de sélection custom (PAS un Checkbox natif)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected ? AppColors.green : Colors.transparent,
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.green
+                      : const Color(0xFF9CA3AF),
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, size: 16, color: Colors.white)
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
 // ── Step 3 — Delivery ─────────────────────────────────────────────────────────
 
 class _Step3 extends StatelessWidget {
-  final Product? product;
+  final Map<String, dynamic>? product;
   final String contactName;
   final bool hasDelivery;
   final ValueChanged<bool> onDeliveryChanged;
@@ -943,7 +1177,9 @@ class _Step3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final montant = product?.price ?? 0;
+    final montant = _asIntPrice(product?['base_price']);
+    final currency = (product?['currency'] ?? 'FCFA').toString();
+    final thumbnailUrl = product?['thumbnail_url']?.toString();
     final frais = hasDelivery ? 2000 : 0;
     final total = montant + frais;
 
@@ -983,14 +1219,36 @@ class _Step3 extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Text(product!.emoji, style: const TextStyle(fontSize: 28)),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.borderLight),
+                    ),
+                    child: (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+                        ? Image.network(
+                            thumbnailUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.inventory_2_outlined,
+                              color: AppColors.textHint,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.inventory_2_outlined,
+                            color: AppColors.textHint,
+                          ),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          product!.name,
+                          (product!['name'] ?? '').toString(),
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -1008,7 +1266,7 @@ class _Step3 extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${_fmt(montant)} FCFA',
+                    '${_fmtNum(montant)} $currency',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -1309,7 +1567,7 @@ class _Step3 extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${_fmt(montant)} FCFA',
+                      '${_fmtNum(montant)} $currency',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1320,10 +1578,10 @@ class _Step3 extends StatelessWidget {
                 ),
                 if (hasDelivery) ...[
                   const SizedBox(height: 6),
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      const Text(
                         'Livraison',
                         style: TextStyle(
                           fontSize: 13,
@@ -1331,8 +1589,8 @@ class _Step3 extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '2 000 FCFA',
-                        style: TextStyle(
+                        '2 000 $currency',
+                        style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary,
@@ -1357,7 +1615,7 @@ class _Step3 extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${_fmt(total)} FCFA',
+                      '${_fmtNum(total)} $currency',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -1407,16 +1665,6 @@ class _Step3 extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static String _fmt(int n) {
-    final s = n.toString();
-    final buf = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
-      buf.write(s[i]);
-    }
-    return buf.toString();
   }
 }
 
