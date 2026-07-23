@@ -14,7 +14,11 @@ class CatalogService {
       final response = await ApiClient.dio.get('/organizations/$orgId/products');
       if (response.statusCode != 200) return [];
       final items = response.data['items'] as List? ?? [];
-      return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      return items
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((p) => p['is_active'] == true)
+          .toList();
     } on DioException {
       return [];
     }

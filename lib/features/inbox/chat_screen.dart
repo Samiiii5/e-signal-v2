@@ -728,7 +728,7 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
       final ids = selectedProducts
-          .map((p) => (p['product_id'] ?? p['id'] ?? p['_id'] ?? '').toString())
+          .map((p) => p['product_id'].toString())
           .where((id) => id.isNotEmpty)
           .toList();
       debugPrint('=== CAROUSEL body : thread=${widget.threadId} provider=$channel accountId=$accountId ids=$ids ===');
@@ -3188,6 +3188,12 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
   final Set<String> _selectedIds = {};
   bool _isLoading = true;
   String? _error;
+  String _filter = 'all'; // 'all' | 'product' | 'service'
+
+  List<Map<String, dynamic>> get _filteredProducts {
+    if (_filter == 'all') return _products;
+    return _products.where((p) => p['item_type']?.toString() == _filter).toList();
+  }
 
   @override
   void initState() {
@@ -3209,11 +3215,7 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
   }
 
   String _idFor(Map<String, dynamic> product, int index) {
-    return (product['product_id'] ??
-            product['id'] ??
-            product['_id'] ??
-            index.toString())
-        .toString();
+    return (product['product_id'] ?? index.toString()).toString();
   }
 
   void _toggle(String id) {
@@ -3270,6 +3272,17 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                if (!_isLoading && _error == null && _products.isNotEmpty)
+                  Row(
+                    children: [
+                      _filterChip('Tous', 'all'),
+                      const SizedBox(width: 8),
+                      _filterChip('Produits', 'product'),
+                      const SizedBox(width: 8),
+                      _filterChip('Services', 'service'),
+                    ],
+                  ),
+                const SizedBox(height: 12),
               ],
             ),
           ),
@@ -3286,24 +3299,29 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
                             padding: EdgeInsets.symmetric(vertical: 40),
                             child: Center(child: Text('Aucun produit dans le catalogue', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                            shrinkWrap: true,
-                            itemCount: _products.length,
-                            itemBuilder: (_, i) {
-                              final product = _products[i];
-                              final id = _idFor(product, i);
+                        : _filteredProducts.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 40),
+                                child: Center(child: Text('Aucun produit dans cette catégorie', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                                shrinkWrap: true,
+                                itemCount: _filteredProducts.length,
+                                itemBuilder: (_, i) {
+                                  final product = _filteredProducts[i];
+                                  final id = _idFor(product, i);
 
-                              final isSelected = _selectedIds.contains(id);
-                              final isDisabled = !isSelected && count >= _maxSelection;
-                              return _ProductTile(
-                                product: product,
-                                isSelected: isSelected,
-                                isDisabled: isDisabled,
-                                onTap: isDisabled ? null : () => _toggle(id),
-                              );
-                            },
-                          ),
+                                  final isSelected = _selectedIds.contains(id);
+                                  final isDisabled = !isSelected && count >= _maxSelection;
+                                  return _ProductTile(
+                                    product: product,
+                                    isSelected: isSelected,
+                                    isDisabled: isDisabled,
+                                    onTap: isDisabled ? null : () => _toggle(id),
+                                  );
+                                },
+                              ),
           ),
           if (!_isLoading && _error == null && _products.isNotEmpty)
             Padding(
@@ -3328,6 +3346,28 @@ class _CatalogueSheetState extends State<_CatalogueSheet> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, String value) {
+    final selected = _filter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _filter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.green : AppColors.backgroundStatus,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.white : AppColors.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -3365,9 +3405,11 @@ class _ProductTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = (product['name'] ?? '').toString();
     final description = product['description']?.toString();
-    final currency = (product['currency'] ?? 'FCFA').toString();
-    final imageUrl = product['thumbnail_url']?.toString() ?? product['image_url']?.toString();
-    final price = product['base_price'] ?? product['price'];
+    final currency = (product['currency'] ?? '').toString();
+    final imageUrl = product['thumbnail_url']?.toString();
+    final price = product['base_price'];
+    final sku = product['sku']?.toString();
+    final isService = product['item_type']?.toString() == 'service';
 
     return Opacity(
       opacity: isDisabled ? 0.4 : 1,
@@ -3411,13 +3453,34 @@ class _ProductTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(name,
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        if (isService) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.statusCreatedBg,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text('Service',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.statusCreatedText)),
+                          ),
+                        ],
+                      ],
+                    ),
                     if (description != null && description.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(description,
@@ -3428,11 +3491,29 @@ class _ProductTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis),
                     ],
                     const SizedBox(height: 4),
-                    Text('${_fmt(price)} $currency',
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.green)),
+                    Row(
+                      children: [
+                        Text('${_fmt(price)} $currency',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.green)),
+                        if (sku != null && sku.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.backgroundStatus,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(sku,
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textSecondary)),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
