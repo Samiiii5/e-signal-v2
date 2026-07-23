@@ -71,7 +71,10 @@ class WebSocketService {
         _isConnected = true;
         _startPing();
       }).catchError((e) {
-        debugPrint('=== WebSocket échec de connexion : $e ===');
+        debugPrint('=== WS échec type: ${e.runtimeType} ===');
+        debugPrint('=== WS échec message: $e ===');
+        debugPrint('=== WS closeCode: ${_channel?.closeCode} ===');
+        debugPrint('=== WS closeReason: ${_channel?.closeReason} ===');
         _isConnected = false;
         _handleDisconnect();
       });
@@ -115,6 +118,8 @@ class WebSocketService {
   }
 
   void _handleDisconnect() {
+    debugPrint('=== WS disconnect code: ${_channel?.closeCode} ===');
+    debugPrint('=== WS disconnect reason: ${_channel?.closeReason} ===');
     _isConnected = false;
     _pingTimer?.cancel();
     _channelSubscription?.cancel();
