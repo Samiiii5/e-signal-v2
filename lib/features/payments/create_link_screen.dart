@@ -49,10 +49,10 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
   bool _searchingLivreur = false;
   bool _livreurFound = false;
   final _destinataireCtrl = TextEditingController();
-  final _telephoneCtrl    = TextEditingController();
-  final _communeCtrl      = TextEditingController();
-  final _quartierCtrl     = TextEditingController();
-  final _secteurCtrl      = TextEditingController();
+  final _telephoneCtrl = TextEditingController();
+  final _communeCtrl = TextEditingController();
+  final _quartierCtrl = TextEditingController();
+  final _secteurCtrl = TextEditingController();
 
   // Step 3 — Payment method
   String _selectedPayment = 'Wave';
@@ -140,7 +140,8 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
 
         // Inject delivery messages if applicable
         if (_hasDelivery) {
-          final addr = '${_communeCtrl.text.trim()}, ${_quartierCtrl.text.trim()}, ${_secteurCtrl.text.trim()}';
+          final addr =
+              '${_communeCtrl.text.trim()}, ${_quartierCtrl.text.trim()}, ${_secteurCtrl.text.trim()}';
           (inboxService as MockInboxService).addMessage(
             effectiveThreadId,
             Message(
@@ -155,7 +156,8 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
             Message(
               id: 'msg_${DateTime.now().millisecondsSinceEpoch + 2}',
               direction: 'OUT',
-              bodyText: '✅ Livreur assigné : Koné Ibrahima\n📅 Livraison prévue : Demain 14h-16h\n📞 +225 07 58 32 14 96',
+              bodyText:
+                  '✅ Livreur assigné : Koné Ibrahima\n📅 Livraison prévue : Demain 14h-16h\n📞 +225 07 58 32 14 96',
               sentAt: now,
             ),
           );
@@ -187,12 +189,20 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary, size: 22),
+          icon: const Icon(
+            Icons.arrow_back,
+            color: AppColors.textPrimary,
+            size: 22,
+          ),
           onPressed: _goBack,
         ),
         title: const Text(
           'Nouveau lien de paiement',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(44),
@@ -201,43 +211,43 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
       ),
       body: switch (_step) {
         1 => _Step1(
-            contactName: widget.contactName,
-            selectedThread: _selectedThread,
-            onSelectThread: (t) => setState(() => _selectedThread = t),
-            onNext: () => setState(() => _step = 2),
-          ),
+          contactName: widget.contactName,
+          selectedThread: _selectedThread,
+          onSelectThread: (t) => setState(() => _selectedThread = t),
+          onNext: () => setState(() => _step = 2),
+        ),
         2 => _Step2(
-            selectedProduct: _selectedProduct,
-            onSelectProduct: (p) => setState(() => _selectedProduct = p),
-            onNext: () => setState(() => _step = 3),
-          ),
+          selectedProduct: _selectedProduct,
+          onSelectProduct: (p) => setState(() => _selectedProduct = p),
+          onNext: () => setState(() => _step = 3),
+        ),
         _ => _Step3(
-            product: _selectedProduct,
-            contactName: _contactName,
-            hasDelivery: _hasDelivery,
-            onDeliveryChanged: (v) {
-              setState(() {
-                _hasDelivery = v;
-                if (!v) {
-                  _searchingLivreur = false;
-                  _livreurFound = false;
-                }
-              });
-              if (v) _searchLivreur();
-            },
-            searchingLivreur: _searchingLivreur,
-            livreurFound: _livreurFound,
-            onRelancerRecherche: _searchLivreur,
-            destinataireCtrl: _destinataireCtrl,
-            telephoneCtrl: _telephoneCtrl,
-            communeCtrl: _communeCtrl,
-            quartierCtrl: _quartierCtrl,
-            secteurCtrl: _secteurCtrl,
-            selectedPayment: _selectedPayment,
-            onPaymentChanged: (v) => setState(() => _selectedPayment = v),
-            isGenerating: _isGenerating,
-            onGenerate: _generate,
-          ),
+          product: _selectedProduct,
+          contactName: _contactName,
+          hasDelivery: _hasDelivery,
+          onDeliveryChanged: (v) {
+            setState(() {
+              _hasDelivery = v;
+              if (!v) {
+                _searchingLivreur = false;
+                _livreurFound = false;
+              }
+            });
+            if (v) _searchLivreur();
+          },
+          searchingLivreur: _searchingLivreur,
+          livreurFound: _livreurFound,
+          onRelancerRecherche: _searchLivreur,
+          destinataireCtrl: _destinataireCtrl,
+          telephoneCtrl: _telephoneCtrl,
+          communeCtrl: _communeCtrl,
+          quartierCtrl: _quartierCtrl,
+          secteurCtrl: _secteurCtrl,
+          selectedPayment: _selectedPayment,
+          onPaymentChanged: (v) => setState(() => _selectedPayment = v),
+          isGenerating: _isGenerating,
+          onGenerate: _generate,
+        ),
       },
     );
   }
@@ -256,7 +266,9 @@ class _StepProgress extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
       decoration: const BoxDecoration(
         color: AppColors.white,
-        border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 0.5)),
+        border: Border(
+          bottom: BorderSide(color: AppColors.borderLight, width: 0.5),
+        ),
       ),
       child: Row(
         children: List.generate(3, (i) {
@@ -273,7 +285,9 @@ class _StepProgress extends StatelessWidget {
                     duration: const Duration(milliseconds: 250),
                     height: 4,
                     decoration: BoxDecoration(
-                      color: done || active ? AppColors.green : AppColors.borderLight,
+                      color: done || active
+                          ? AppColors.green
+                          : AppColors.borderLight,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -322,11 +336,23 @@ class _Step1 extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Pour quel client ?',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          const Text(
+            'Pour quel client ?',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 6),
-          const Text('Sélectionnez le client qui va recevoir le lien de paiement.',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5)),
+          const Text(
+            'Sélectionnez le client qui va recevoir le lien de paiement.',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
           const SizedBox(height: 28),
           if (isPreFilled) ...[
             Container(
@@ -334,23 +360,46 @@ class _Step1 extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.greenLight,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.green.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.green.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
                   Container(
-                    width: 40, height: 40,
-                    decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: AppColors.green,
+                      shape: BoxShape.circle,
+                    ),
                     child: Center(
                       child: Text(
                         contactName![0].toUpperCase(),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.white),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.white,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(contactName!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary))),
-                  const Icon(Icons.check_circle_rounded, color: AppColors.green, size: 20),
+                  Expanded(
+                    child: Text(
+                      contactName!,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: AppColors.green,
+                    size: 20,
+                  ),
                 ],
               ),
             ),
@@ -361,33 +410,83 @@ class _Step1 extends StatelessWidget {
                   context: context,
                   backgroundColor: Colors.transparent,
                   isScrollControlled: true,
-                  builder: (_) => _ContactPickerSheet(selected: selectedThread, onPick: (t) => Navigator.pop(context, t)),
+                  builder: (_) => _ContactPickerSheet(
+                    selected: selectedThread,
+                    onPick: (t) => Navigator.pop(context, t),
+                  ),
                 );
                 if (picked != null) onSelectThread(picked);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.backgroundPage,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: hasContact ? AppColors.green : AppColors.borderLight),
+                  border: Border.all(
+                    color: hasContact ? AppColors.green : AppColors.borderLight,
+                  ),
                 ),
                 child: Row(
                   children: [
                     if (hasContact) ...[
                       Container(
-                        width: 36, height: 36,
-                        decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
-                        child: Center(child: Text(displayName[0].toUpperCase(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.white))),
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: AppColors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            displayName[0].toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.white,
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 10),
-                      Expanded(child: Text(displayName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
-                      const Icon(Icons.check_circle_rounded, color: AppColors.green, size: 18),
+                      Expanded(
+                        child: Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: AppColors.green,
+                        size: 18,
+                      ),
                     ] else ...[
-                      const Icon(Icons.person_outline, size: 20, color: AppColors.textHint),
+                      const Icon(
+                        Icons.person_outline,
+                        size: 20,
+                        color: AppColors.textHint,
+                      ),
                       const SizedBox(width: 10),
-                      const Expanded(child: Text('Choisir un contact', style: TextStyle(fontSize: 14, color: AppColors.textHint))),
-                      const Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary),
+                      const Expanded(
+                        child: Text(
+                          'Choisir un contact',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textHint,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 20,
+                        color: AppColors.textSecondary,
+                      ),
                     ],
                   ],
                 ),
@@ -410,7 +509,10 @@ class _Step1 extends StatelessWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Suivant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  Text(
+                    'Suivant',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                   SizedBox(width: 8),
                   Icon(Icons.arrow_forward_rounded, size: 18),
                 ],
@@ -446,18 +548,26 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
     try {
       final threads = await inboxService.getThreads();
       if (!mounted) return;
-      setState(() { _threads = threads; _isLoading = false; });
+      setState(() {
+        _threads = threads;
+        _isLoading = false;
+      });
     } catch (_) {
       if (!mounted) return;
       // Fallback sur le mock uniquement en cas d'erreur API
-      setState(() { _threads = List.from(mockThreads); _isLoading = false; });
+      setState(() {
+        _threads = List.from(mockThreads);
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -466,44 +576,101 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           const Align(
             alignment: Alignment.centerLeft,
-            child: Text('Choisir un contact', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            child: Text(
+              'Choisir un contact',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           Flexible(
             child: _isLoading
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
                 : _threads.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 32),
-                        child: Center(child: Text('Aucun contact', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: _threads.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.borderLight),
-                        itemBuilder: (_, i) {
-                          final t = _threads[i];
-                          final isSelected = widget.selected?.id == t.id;
-                          return ListTile(
-                            dense: true,
-                            leading: Container(
-                              width: 38, height: 38,
-                              decoration: BoxDecoration(color: isSelected ? AppColors.green : AppColors.backgroundPage, shape: BoxShape.circle),
-                              child: Center(child: Text(t.contactInitials, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isSelected ? AppColors.white : AppColors.textPrimary))),
-                            ),
-                            title: Text(t.contactName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                            trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: AppColors.green, size: 18) : null,
-                            onTap: () => widget.onPick(t),
-                          );
-                        },
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(
+                      child: Text(
+                        'Aucun contact',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
+                    ),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _threads.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, color: AppColors.borderLight),
+                    itemBuilder: (_, i) {
+                      final t = _threads[i];
+                      final isSelected = widget.selected?.id == t.id;
+                      return ListTile(
+                        dense: true,
+                        leading: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.green
+                                : AppColors.backgroundPage,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              t.contactInitials,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected
+                                    ? AppColors.white
+                                    : AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          t.contactName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.green,
+                                size: 18,
+                              )
+                            : null,
+                        onTap: () => widget.onPick(t),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -534,63 +701,144 @@ class _Step2 extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Quel produit ?',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+              const Text(
+                'Quel produit ?',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
               const SizedBox(height: 6),
-              const Text('Choisissez le produit commandé. Le montant sera rempli automatiquement.',
-                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5)),
+              const Text(
+                'Choisissez le produit commandé. Le montant sera rempli automatiquement.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                  height: 1.5,
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         Expanded(
-          child: ListView.separated(
+          child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: mockProducts.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
               final p = mockProducts[i];
               final isSelected = selectedProduct?.id == p.id;
               return GestureDetector(
                 onTap: () => onSelectProduct(p),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: isSelected ? AppColors.green : AppColors.borderLight, width: isSelected ? 1.5 : 0.5),
+                    color: isSelected
+                        ? AppColors.greenLight
+                        : AppColors.backgroundPage,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.green
+                          : AppColors.borderLight,
+                      width: isSelected ? 1.5 : 0.5,
+                    ),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Image produit
                       Container(
-                        width: 48, height: 48,
-                        decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.borderLight)),
-                        child: Center(child: Text(p.emoji, style: const TextStyle(fontSize: 24))),
+                        width: 72,
+                        height: 72,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.borderLight),
+                        ),
+                        child: Center(
+                          child: Text(
+                            p.emoji,
+                            style: const TextStyle(fontSize: 32),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
+                      // Nom + description + prix
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(p.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    p.name,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 2),
-                            Text(p.category, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            Text(
+                              p.category,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text(
+                                  '${_fmt(p.price)} FCFA',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(_fmt(p.price), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: isSelected ? AppColors.greenDark : AppColors.green)),
-                          const Text('FCFA', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                        ],
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                        color: isSelected ? AppColors.green : AppColors.borderLight,
-                        size: 20,
+                      const SizedBox(width: 8),
+                      // Indicateur de sélection custom (PAS un Checkbox natif)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected
+                              ? AppColors.green
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.green
+                                : const Color(0xFF9CA3AF),
+                            width: 2,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                size: 16,
+                                color: Colors.white,
+                              )
+                            : null,
                       ),
                     ],
                   ),
@@ -617,9 +865,21 @@ class _Step2 extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (selectedProduct != null)
-                    Text('Suivant — ${_fmt(selectedProduct!.price)} FCFA', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))
+                    Text(
+                      'Suivant — ${_fmt(selectedProduct!.price)} FCFA',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
                   else
-                    const Text('Sélectionnez un produit', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Sélectionnez un produit',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   const SizedBox(width: 8),
                   const Icon(Icons.arrow_forward_rounded, size: 18),
                 ],
@@ -692,11 +952,23 @@ class _Step3 extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Livraison à domicile ?',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          const Text(
+            'Livraison à domicile ?',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 6),
-          const Text('Ajoutez une option de livraison. Des frais de 2 000 FCFA seront ajoutés.',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5)),
+          const Text(
+            'Ajoutez une option de livraison. Des frais de 2 000 FCFA seront ajoutés.',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
           const SizedBox(height: 20),
 
           // Récap produit
@@ -717,12 +989,32 @@ class _Step3 extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(product!.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                        Text(contactName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        Text(
+                          product!.name,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          contactName,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  Text('${_fmt(montant)} FCFA', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.green)),
+                  Text(
+                    '${_fmt(montant)} FCFA',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.green,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -734,20 +1026,44 @@ class _Step3 extends StatelessWidget {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: hasDelivery ? AppColors.greenLight : AppColors.backgroundPage,
+                color: hasDelivery
+                    ? AppColors.greenLight
+                    : AppColors.backgroundPage,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: hasDelivery ? AppColors.green : AppColors.borderLight, width: hasDelivery ? 1.5 : 0.5),
+                border: Border.all(
+                  color: hasDelivery ? AppColors.green : AppColors.borderLight,
+                  width: hasDelivery ? 1.5 : 0.5,
+                ),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.local_shipping_outlined, size: 20, color: hasDelivery ? AppColors.greenDark : AppColors.textSecondary),
+                  Icon(
+                    Icons.local_shipping_outlined,
+                    size: 20,
+                    color: hasDelivery
+                        ? AppColors.greenDark
+                        : AppColors.textSecondary,
+                  ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Livraison à domicile', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                        Text('+2 000 FCFA • Livraison rapide', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        Text(
+                          'Livraison à domicile',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          '+2 000 FCFA • Livraison rapide',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -764,20 +1080,36 @@ class _Step3 extends StatelessWidget {
           // Address fields
           if (hasDelivery) ...[
             const SizedBox(height: 16),
-            _LinkField('Nom du destinataire', destinataireCtrl, Icons.person_outline),
+            _LinkField(
+              'Nom du destinataire',
+              destinataireCtrl,
+              Icons.person_outline,
+            ),
             const SizedBox(height: 10),
-            _LinkField('Téléphone', telephoneCtrl, Icons.phone_outlined, kbType: TextInputType.phone),
+            _LinkField(
+              'Téléphone',
+              telephoneCtrl,
+              Icons.phone_outlined,
+              kbType: TextInputType.phone,
+            ),
             const SizedBox(height: 10),
             _LinkField('Commune', communeCtrl, Icons.location_city_outlined),
             const SizedBox(height: 10),
-            _LinkField('Quartier', quartierCtrl, Icons.holiday_village_outlined),
+            _LinkField(
+              'Quartier',
+              quartierCtrl,
+              Icons.holiday_village_outlined,
+            ),
             const SizedBox(height: 10),
             _LinkField('Secteur / Rue', secteurCtrl, Icons.signpost_outlined),
             const SizedBox(height: 16),
             // Livreur automatique
             if (searchingLivreur)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.backgroundPage,
                   borderRadius: BorderRadius.circular(14),
@@ -786,11 +1118,21 @@ class _Step3 extends StatelessWidget {
                 child: const Row(
                   children: [
                     SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: AppColors.green,
+                        strokeWidth: 2,
+                      ),
                     ),
                     SizedBox(width: 12),
-                    Text('🔍 Recherche d\'un livreur en cours...', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                    Text(
+                      '🔍 Recherche d\'un livreur en cours...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ],
                 ),
               )
@@ -800,7 +1142,9 @@ class _Step3 extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.greenLight,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.green.withValues(alpha: 0.4)),
+                  border: Border.all(
+                    color: AppColors.green.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -809,18 +1153,39 @@ class _Step3 extends StatelessWidget {
                       children: [
                         Text('✅', style: TextStyle(fontSize: 16)),
                         SizedBox(width: 8),
-                        Text('Livreur assigné : Koné Ibrahima',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
+                        Text(
+                          'Livreur assigné : Koné Ibrahima',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.greenDark,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     const Row(
                       children: [
-                        Text('⭐ Note : 4.8', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                        Text(
+                          '⭐ Note : 4.8',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                         SizedBox(width: 12),
-                        Text('|', style: TextStyle(color: AppColors.borderLight)),
+                        Text(
+                          '|',
+                          style: TextStyle(color: AppColors.borderLight),
+                        ),
                         SizedBox(width: 12),
-                        Text('🕐 Arrivée estimée : 20 min', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                        Text(
+                          '🕐 Arrivée estimée : 20 min',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -832,9 +1197,18 @@ class _Step3 extends StatelessWidget {
                   onPressed: onRelancerRecherche,
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.textSecondary,
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 4,
+                    ),
                   ),
-                  child: const Text('Relancer la recherche', style: TextStyle(fontSize: 12, decoration: TextDecoration.underline)),
+                  child: const Text(
+                    'Relancer la recherche',
+                    style: TextStyle(
+                      fontSize: 12,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -842,8 +1216,14 @@ class _Step3 extends StatelessWidget {
 
           // Payment methods
           const SizedBox(height: 20),
-          const Text('Mode de paiement',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const Text(
+            'Mode de paiement',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 10),
           ...[
             ('💛', 'Wave'),
@@ -860,9 +1240,14 @@ class _Step3 extends StatelessWidget {
               onTap: () => onPaymentChanged(name),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 11,
+                ),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
+                  color: isSelected
+                      ? AppColors.greenLight
+                      : AppColors.backgroundPage,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isSelected ? AppColors.green : AppColors.borderLight,
@@ -874,17 +1259,27 @@ class _Step3 extends StatelessWidget {
                     Text(emoji, style: const TextStyle(fontSize: 18)),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(name,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                            color: isSelected ? AppColors.greenDark : AppColors.textPrimary,
-                          )),
+                      child: Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isSelected
+                              ? AppColors.greenDark
+                              : AppColors.textPrimary,
+                        ),
+                      ),
                     ),
                     Icon(
-                      isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      isSelected
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
                       size: 18,
-                      color: isSelected ? AppColors.green : AppColors.borderLight,
+                      color: isSelected
+                          ? AppColors.green
+                          : AppColors.borderLight,
                     ),
                   ],
                 ),
@@ -906,8 +1301,21 @@ class _Step3 extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Produit', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                    Text('${_fmt(montant)} FCFA', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    const Text(
+                      'Produit',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      '${_fmt(montant)} FCFA',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                   ],
                 ),
                 if (hasDelivery) ...[
@@ -915,8 +1323,21 @@ class _Step3 extends StatelessWidget {
                   const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Livraison', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                      Text('2 000 FCFA', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                      Text(
+                        'Livraison',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        '2 000 FCFA',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -927,8 +1348,22 @@ class _Step3 extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
-                    Text('${_fmt(total)} FCFA', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.greenDark)),
+                    const Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.greenDark,
+                      ),
+                    ),
+                    Text(
+                      '${_fmt(total)} FCFA',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.greenDark,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -940,7 +1375,9 @@ class _Step3 extends StatelessWidget {
             width: double.infinity,
             height: 52,
             child: ElevatedButton.icon(
-              onPressed: (isGenerating || (hasDelivery && searchingLivreur)) ? null : onGenerate,
+              onPressed: (isGenerating || (hasDelivery && searchingLivreur))
+                  ? null
+                  : onGenerate,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.green,
                 foregroundColor: AppColors.white,
@@ -949,11 +1386,21 @@ class _Step3 extends StatelessWidget {
                 disabledBackgroundColor: AppColors.green.withValues(alpha: 0.5),
               ),
               icon: isGenerating
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: AppColors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
                   : const Icon(Icons.send_rounded, size: 18),
               label: Text(
                 isGenerating ? 'Génération...' : 'Générer et envoyer le lien',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -978,7 +1425,12 @@ class _LinkField extends StatelessWidget {
   final TextEditingController ctrl;
   final IconData icon;
   final TextInputType kbType;
-  const _LinkField(this.label, this.ctrl, this.icon, {this.kbType = TextInputType.text});
+  const _LinkField(
+    this.label,
+    this.ctrl,
+    this.icon, {
+    this.kbType = TextInputType.text,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -997,7 +1449,10 @@ class _LinkField extends StatelessWidget {
           hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
           prefixIcon: Icon(icon, size: 18, color: AppColors.textHint),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
         ),
       ),
     );

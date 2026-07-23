@@ -76,9 +76,19 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.addListener(() => setState(() {}));
     _scrollController.addListener(_onScroll);
     _loadMessages();
-    // Ne réagit qu'aux événements de la conversation ouverte — InboxScreen
-    // gère les événements globaux (thread_assigned/unassigned/resolved,
-    // new_comment) et possède/déconnecte la connexion elle-même.
+    // Établir la connexion WebSocket pour cet écran
+    _connectWebSocket();
+  }
+
+  void _connectWebSocket() {
+    final orgId = SessionService.organizationId;
+    final token = SessionService.accessToken;
+    if (orgId == null || token == null) {
+      debugPrint('=== WS non connecté: orgId ou token null ===');
+      return;
+    }
+    webSocketService.connect(organizationId: orgId, token: token);
+    // Ne réagit qu'aux événements de la conversation ouverte
     _wsSubscription = webSocketService.events
         .where((e) => e['thread_id']?.toString() == widget.threadId)
         .listen(_onWsEvent);
@@ -91,6 +101,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _searchController.dispose();
     _wsSubscription?.cancel();
     _typingTimer?.cancel();
+    webSocketService.disconnect();
     super.dispose();
   }
 
@@ -1627,7 +1638,13 @@ class _ChatAppBar extends StatelessWidget {
             size: 22,
             color: AppColors.textPrimary,
           ),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/inbox');
+            }
+          },
         ),
         Stack(
           clipBehavior: Clip.none,
@@ -1644,7 +1661,7 @@ class _ChatAppBar extends StatelessWidget {
                 ),
               ),
             ),
-            if (_isOnline)
+            if (thread?.isOnline == true)
               Positioned(
                 bottom: -1,
                 right: -1,
@@ -1898,7 +1915,8 @@ class _ChatAppBar extends StatelessWidget {
   // n'affiche que "vu il y a X min" quand le contact n'est pas en ligne.
   String _subtitle() {
     if (isTyping) return 'en train d\'écrire...';
-    if (lastSeenAt != null && !_isOnline) return _fmtLastSeen(lastSeenAt!);
+    if (lastSeenAt != null && thread?.isOnline != true)
+      return _fmtLastSeen(lastSeenAt!);
     return _channelLabel(thread?.channel);
   }
 

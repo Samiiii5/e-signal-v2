@@ -44,12 +44,15 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   bool get _hasActiveSheetFilter => _bsChannelFilter != null || _bsUnreadOnly;
 
   StreamSubscription<Map<String, dynamic>>? _wsSubscription;
+  final Set<String> _typingThreads = {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
+    _searchController.addListener(
+      () => setState(() => _searchQuery = _searchController.text.toLowerCase()),
+    );
     if (widget.initialChannel != null) {
       _activeFilter = _channelToFilter(widget.initialChannel!);
     }
@@ -77,14 +80,32 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
         debugPrint('WS threads actuels: ${_threads.map((t) => t.id).toList()}');
         _onNewMessageEvent(event);
       case 'thread_assigned':
-        _updateThread(event['thread_id']?.toString(),
-            (t) => t.copyWith(assignedToUserId: event['assigned_to_user_id']?.toString()));
+        _updateThread(
+          event['thread_id']?.toString(),
+          (t) => t.copyWith(
+            assignedToUserId: event['assigned_to_user_id']?.toString(),
+          ),
+        );
       case 'thread_unassigned':
-        _updateThread(event['thread_id']?.toString(), (t) => t.copyWithUnassigned());
+        _updateThread(
+          event['thread_id']?.toString(),
+          (t) => t.copyWithUnassigned(),
+        );
       case 'thread_resolved':
-        _updateThread(event['thread_id']?.toString(), (t) => t.copyWith(status: 'resolved'));
+        _updateThread(
+          event['thread_id']?.toString(),
+          (t) => t.copyWith(status: 'resolved'),
+        );
       case 'new_comment':
         _onNewCommentEvent(event);
+      case 'contact_typing':
+        _handleContactTyping(event);
+      case 'messages_read':
+        _handleMessagesRead(event);
+      case 'message_status_updated':
+        _handleMessageStatusUpdated(event);
+      case 'contact_presence_updated':
+        _handleContactPresenceUpdated(event);
     }
   }
 
@@ -110,17 +131,25 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
     final contactName = data['contact_name']?.toString();
     // contact_name n'est fourni que pour WhatsApp — Messenger/Instagram
     // gardent le nom déjà connu du thread.
-    final newContactName = (channel == 'whatsapp' && contactName != null && contactName.isNotEmpty)
+    final newContactName =
+        (channel == 'whatsapp' && contactName != null && contactName.isNotEmpty)
         ? contactName
         : null;
     final messageJson = data['message'];
-    final sentAt = messageJson is Map ? messageJson['sent_at']?.toString() : null;
+    final sentAt = messageJson is Map
+        ? messageJson['sent_at']?.toString()
+        : null;
+    // Extraire le contenu du message pour l'afficher dans inbox
+    final messageContent = messageJson is Map
+        ? (messageJson['text']?.toString() ?? messageJson['body']?.toString())
+        : null;
 
     setState(() {
       final updated = _threads[idx].copyWith(
         contactName: newContactName,
         unreadCount: _threads[idx].unreadCount + 1,
         lastMessageAt: sentAt,
+        lastMessage: messageContent,
       );
       _threads.removeAt(idx);
       _threads.insert(0, updated);
@@ -138,14 +167,56 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
     if (_activeFilter == _Filter.commentaires) _loadPosts();
   }
 
+  void _handleContactTyping(Map<String, dynamic> data) {
+    final threadId = data['thread_id']?.toString();
+    if (threadId == null) return;
+    final idx = _threads.indexWhere((t) => t.id == threadId);
+    if (idx == -1) return;
+    // Mettre à jour l'UI pour afficher "écrit" - nécessite un champ supplémentaire dans Thread
+    // Pour l'instant, on peut utiliser un Set<String> _typingThreads
+    setState(() {
+      _typingThreads.add(threadId);
+    });
+    // Retirer après 3 secondes d'inactivité
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _typingThreads.remove(threadId));
+      }
+    });
+  }
+
+  void _handleMessagesRead(Map<String, dynamic> data) {
+    final threadId = data['thread_id']?.toString();
+    if (threadId == null) return;
+    final idx = _threads.indexWhere((t) => t.id == threadId);
+    if (idx == -1) return;
+    // Réinitialiser le compteur de messages non lus
+    setState(() => _threads[idx] = _threads[idx].copyWith(unreadCount: 0));
+  }
+
+  void _handleMessageStatusUpdated(Map<String, dynamic> data) {
+    // Gérer le statut des messages si nécessaire dans InboxScreen
+    // Pour l'instant, cet événement est plus pertinent pour ChatScreen
+    debugPrint(
+      'WS message_status_updated: ${data['message_id']} -> ${data['status']}',
+    );
+  }
+
+  void _handleContactPresenceUpdated(Map<String, dynamic> data) {
+    // Gérer le statut de présence si nécessaire
+    debugPrint(
+      'WS contact_presence_updated: ${data['thread_id']} -> ${data['presence']}',
+    );
+  }
+
   _Filter _channelToFilter(String channel) => switch (channel) {
-    'whatsapp'  => _Filter.whatsapp,
-    'sms'       => _Filter.sms,
-    'email'     => _Filter.email,
+    'whatsapp' => _Filter.whatsapp,
+    'sms' => _Filter.sms,
+    'email' => _Filter.email,
     'messenger' => _Filter.facebook,
     'instagram' => _Filter.instagram,
-    'tiktok'    => _Filter.tiktok,
-    _           => _Filter.all,
+    'tiktok' => _Filter.tiktok,
+    _ => _Filter.all,
   };
 
   @override
@@ -154,10 +225,12 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
     // L'écran reste monté (IndexedStack de la shell route) quand on tape une
     // notification alors que l'onglet Inbox est déjà ouvert : initState ne
     // se redéclenche pas, donc on réagit ici au changement de query params.
-    if (widget.initialChannel != null && widget.initialChannel != oldWidget.initialChannel) {
+    if (widget.initialChannel != null &&
+        widget.initialChannel != oldWidget.initialChannel) {
       setState(() => _activeFilter = _channelToFilter(widget.initialChannel!));
     }
-    if (widget.initialThreadId != null && widget.initialThreadId != oldWidget.initialThreadId) {
+    if (widget.initialThreadId != null &&
+        widget.initialThreadId != oldWidget.initialThreadId) {
       _loadThreads();
     }
   }
@@ -180,7 +253,11 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadThreads() async {
-    if (!_isLoading) setState(() { _isLoading = true; _error = null; });
+    if (!_isLoading)
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
     try {
       final threads = await inboxService.getThreads();
       if (!mounted) return;
@@ -209,7 +286,10 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
 
   Future<void> _loadPosts() async {
     if (!mounted) return;
-    setState(() { _postsLoading = true; _postsError = null; });
+    setState(() {
+      _postsLoading = true;
+      _postsError = null;
+    });
     try {
       final posts = await commentsService.getPosts(
         channel: _networkFilter,
@@ -227,10 +307,16 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
       GoRouter.of(context).go('/login');
     } on CommentsUnavailableException {
       if (!mounted) return;
-      setState(() { _postsLoading = false; _postsError = 'Service temporairement indisponible.'; });
+      setState(() {
+        _postsLoading = false;
+        _postsError = 'Service temporairement indisponible.';
+      });
     } on CommentsNetworkException {
       if (!mounted) return;
-      setState(() { _postsLoading = false; _postsError = 'Vérifiez votre connexion internet.'; });
+      setState(() {
+        _postsLoading = false;
+        _postsError = 'Vérifiez votre connexion internet.';
+      });
     } catch (_) {
       if (!mounted) return;
       // Fallback sur le mock uniquement en cas d'erreur API inattendue (pas si la liste est vide)
@@ -248,8 +334,10 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
     final useMock = _postsFallback && !_postsLoading;
     final filtered = useMock
         ? (_networkFilter == null
-            ? List<Publication>.from(_publications)
-            : _publications.where((p) => p.network == _networkFilter).toList())
+              ? List<Publication>.from(_publications)
+              : _publications
+                    .where((p) => p.network == _networkFilter)
+                    .toList())
         : null; // used only in mock branch
 
     const networks = [
@@ -278,7 +366,10 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: isActive ? activeColor : const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(20),
@@ -288,7 +379,9 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: isActive ? AppColors.white : AppColors.textSecondary,
+                        color: isActive
+                            ? AppColors.white
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -303,13 +396,35 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Row(
                 children: [
-                  const Icon(Icons.wifi_off_rounded, size: 16, color: Color(0xFF92400E)),
+                  const Icon(
+                    Icons.wifi_off_rounded,
+                    size: 16,
+                    color: Color(0xFF92400E),
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_postsError!, style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)))),
-                  GestureDetector(onTap: _loadPosts, child: const Icon(Icons.refresh, size: 16, color: Color(0xFF92400E))),
+                  Expanded(
+                    child: Text(
+                      _postsError!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _loadPosts,
+                    child: const Icon(
+                      Icons.refresh,
+                      size: 16,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -318,25 +433,37 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
           child: _postsLoading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
               : useMock
-                  ? (filtered!.isEmpty
-                      ? const _EmptyState(query: '')
-                      : ListView.separated(
+              ? (filtered!.isEmpty
+                    ? const _EmptyState(query: '')
+                    : ListView.separated(
+                        padding: const EdgeInsets.only(top: 4, bottom: 16),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const Divider(
+                          indent: 66,
+                          height: 0,
+                          thickness: 0.5,
+                          color: AppColors.borderLight,
+                        ),
+                        itemBuilder: (_, i) =>
+                            _PublicationTile(publication: filtered[i]),
+                      ))
+              : (_apiPosts.isEmpty
+                    ? const _EmptyState(query: '')
+                    : RefreshIndicator(
+                        onRefresh: _loadPosts,
+                        child: ListView.separated(
                           padding: const EdgeInsets.only(top: 4, bottom: 16),
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) => const Divider(indent: 66, height: 0, thickness: 0.5, color: AppColors.borderLight),
-                          itemBuilder: (_, i) => _PublicationTile(publication: filtered[i]),
-                        ))
-                  : (_apiPosts.isEmpty
-                      ? const _EmptyState(query: '')
-                      : RefreshIndicator(
-                          onRefresh: _loadPosts,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.only(top: 4, bottom: 16),
-                            itemCount: _apiPosts.length,
-                            separatorBuilder: (_, __) => const Divider(indent: 66, height: 0, thickness: 0.5, color: AppColors.borderLight),
-                            itemBuilder: (_, i) => _ApiPostTile(post: _apiPosts[i]),
+                          itemCount: _apiPosts.length,
+                          separatorBuilder: (_, __) => const Divider(
+                            indent: 66,
+                            height: 0,
+                            thickness: 0.5,
+                            color: AppColors.borderLight,
                           ),
-                        )),
+                          itemBuilder: (_, i) =>
+                              _ApiPostTile(post: _apiPosts[i]),
+                        ),
+                      )),
         ),
       ],
     );
@@ -345,15 +472,24 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   List<Thread> get _filtered {
     var list = List<Thread>.from(_threads);
     switch (_activeFilter) {
-      case _Filter.whatsapp: list = list.where((t) => t.channel == 'whatsapp').toList();
-      case _Filter.sms: list = list.where((t) => t.channel == 'sms').toList();
-      case _Filter.email: list = list.where((t) => t.channel == 'email').toList();
-      case _Filter.facebook: list = list.where((t) => t.channel == 'messenger').toList();
-      case _Filter.instagram: list = list.where((t) => t.channel == 'instagram').toList();
-      case _Filter.tiktok: list = list.where((t) => t.channel == 'tiktok').toList();
-      case _Filter.unread: list = list.where((t) => t.unreadCount > 0).toList();
-      case _Filter.all: break;
-      case _Filter.commentaires: return _threads; // handled separately in build
+      case _Filter.whatsapp:
+        list = list.where((t) => t.channel == 'whatsapp').toList();
+      case _Filter.sms:
+        list = list.where((t) => t.channel == 'sms').toList();
+      case _Filter.email:
+        list = list.where((t) => t.channel == 'email').toList();
+      case _Filter.facebook:
+        list = list.where((t) => t.channel == 'messenger').toList();
+      case _Filter.instagram:
+        list = list.where((t) => t.channel == 'instagram').toList();
+      case _Filter.tiktok:
+        list = list.where((t) => t.channel == 'tiktok').toList();
+      case _Filter.unread:
+        list = list.where((t) => t.unreadCount > 0).toList();
+      case _Filter.all:
+        break;
+      case _Filter.commentaires:
+        return _threads; // handled separately in build
     }
     if (_bsChannelFilter != null) {
       list = list.where((t) => t.channel == _bsChannelFilter).toList();
@@ -362,7 +498,9 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
       list = list.where((t) => t.unreadCount > 0).toList();
     }
     if (_searchQuery.isNotEmpty) {
-      list = list.where((t) => t.contactName.toLowerCase().contains(_searchQuery)).toList();
+      list = list
+          .where((t) => t.contactName.toLowerCase().contains(_searchQuery))
+          .toList();
     }
     return list;
   }
@@ -398,9 +536,20 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_outlined, size: 48, color: AppColors.borderLight),
+            const Icon(
+              Icons.wifi_off_outlined,
+              size: 48,
+              color: AppColors.borderLight,
+            ),
             const SizedBox(height: 12),
-            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _loadThreads,
@@ -437,16 +586,25 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Row(
                 children: [
-                  Image.asset('design/logo_onboarding.png', height: Responsive.h(context, 0.07).clamp(44.0, 68.0), fit: BoxFit.contain),
+                  Image.asset(
+                    'design/logo_onboarding.png',
+                    height: Responsive.h(context, 0.07).clamp(44.0, 68.0),
+                    fit: BoxFit.contain,
+                  ),
                   const Spacer(),
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.notifications_outlined, color: AppColors.textSecondary),
+                        icon: const Icon(
+                          Icons.notifications_outlined,
+                          color: AppColors.textSecondary,
+                        ),
                         onPressed: () => Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationsScreen(),
+                          ),
                         ),
                       ),
                       ValueListenableBuilder<int>(
@@ -457,13 +615,23 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
                             top: 6,
                             right: 6,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
                               constraints: const BoxConstraints(minWidth: 16),
-                              decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(9)),
+                              decoration: BoxDecoration(
+                                color: AppColors.error,
+                                borderRadius: BorderRadius.circular(9),
+                              ),
                               child: Text(
                                 count > 99 ? '99+' : '$count',
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: AppColors.white, fontSize: 10, fontWeight: FontWeight.w700),
+                                style: const TextStyle(
+                                  color: AppColors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           );
@@ -474,7 +642,12 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
                   Stack(
                     children: [
                       IconButton(
-                        icon: Icon(Icons.tune, color: _hasActiveSheetFilter ? AppColors.green : AppColors.textSecondary),
+                        icon: Icon(
+                          Icons.tune,
+                          color: _hasActiveSheetFilter
+                              ? AppColors.green
+                              : AppColors.textSecondary,
+                        ),
                         onPressed: _openFilterSheet,
                       ),
                       if (_hasActiveSheetFilter)
@@ -484,7 +657,10 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
                           child: Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(color: AppColors.green, shape: BoxShape.circle),
+                            decoration: const BoxDecoration(
+                              color: AppColors.green,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
                     ],
@@ -497,14 +673,27 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Container(
                 clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(color: const Color(0xFFF7F8FA), borderRadius: BorderRadius.circular(30)),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FA),
+                  borderRadius: BorderRadius.circular(30),
+                ),
                 child: TextField(
                   controller: _searchController,
-                  style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textPrimary,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Rechercher un contact ou un message...',
-                    hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
-                    prefixIcon: Icon(Icons.search, color: AppColors.textHint, size: 18),
+                    hintStyle: TextStyle(
+                      color: AppColors.textHint,
+                      fontSize: 13,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: AppColors.textHint,
+                      size: 18,
+                    ),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -520,18 +709,22 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: _Filter.values.map((f) => Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _FilterChip(
-                    filter: f,
-                    isActive: _activeFilter == f,
-                    unreadCount: f == _Filter.all ? _totalUnread : 0,
-                    onTap: () {
-                      setState(() => _activeFilter = f);
-                      if (f == _Filter.commentaires) _loadPosts();
-                    },
-                  ),
-                )).toList(),
+                children: _Filter.values
+                    .map(
+                      (f) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _FilterChip(
+                          filter: f,
+                          isActive: _activeFilter == f,
+                          unreadCount: f == _Filter.all ? _totalUnread : 0,
+                          onTap: () {
+                            setState(() => _activeFilter = f);
+                            if (f == _Filter.commentaires) _loadPosts();
+                          },
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
             ),
             const SizedBox(height: 8),
@@ -540,25 +733,31 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
               child: _isLoading
                   ? const _InboxSkeleton()
                   : _error != null && _threads.isEmpty
-                      ? _buildErrorBanner()
-                      : _activeFilter == _Filter.commentaires
-                          ? _buildPublicationsView()
-                          : threads.isEmpty
-                              ? _EmptyState(query: _searchQuery)
-                              : RefreshIndicator(
-                                  onRefresh: _loadThreads,
-                                  color: AppColors.green,
-                                  child: ListView.separated(
-                                    physics: const AlwaysScrollableScrollPhysics(),
-                                    padding: const EdgeInsets.only(top: 4, bottom: 16),
-                                    itemCount: threads.length,
-                                    separatorBuilder: (_, __) => const Divider(indent: 76, height: 0, thickness: 0.5, color: AppColors.borderLight),
-                                    itemBuilder: (_, i) => _ThreadTile(
-                                      thread: threads[i],
-                                      onReturn: _loadThreads,
-                                    ),
-                                  ),
-                                ),
+                  ? _buildErrorBanner()
+                  : _activeFilter == _Filter.commentaires
+                  ? _buildPublicationsView()
+                  : threads.isEmpty
+                  ? _EmptyState(query: _searchQuery)
+                  : RefreshIndicator(
+                      onRefresh: _loadThreads,
+                      color: AppColors.green,
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(top: 4, bottom: 16),
+                        itemCount: threads.length,
+                        separatorBuilder: (_, __) => const Divider(
+                          indent: 76,
+                          height: 0,
+                          thickness: 0.5,
+                          color: AppColors.borderLight,
+                        ),
+                        itemBuilder: (_, i) => _ThreadTile(
+                          thread: threads[i],
+                          onReturn: _loadThreads,
+                          isTyping: _typingThreads.contains(threads[i].id),
+                        ),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -577,22 +776,52 @@ class _InboxSkeleton extends StatelessWidget {
       padding: const EdgeInsets.only(top: 4),
       physics: const NeverScrollableScrollPhysics(),
       itemCount: 7,
-      separatorBuilder: (_, __) => const Divider(indent: 76, height: 0, thickness: 0.5, color: AppColors.borderLight),
+      separatorBuilder: (_, __) => const Divider(
+        indent: 76,
+        height: 0,
+        thickness: 0.5,
+        color: AppColors.borderLight,
+      ),
       itemBuilder: (_, __) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-        child: Row(children: [
-          ShimmerBox(width: 48, height: 48, borderRadius: BorderRadius.circular(24)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              ShimmerBox(width: 130, height: 13, borderRadius: BorderRadius.circular(6)),
-              const Spacer(),
-              ShimmerBox(width: 32, height: 11, borderRadius: BorderRadius.circular(5)),
-            ]),
-            const SizedBox(height: 8),
-            ShimmerBox(width: double.infinity, height: 11, borderRadius: BorderRadius.circular(5)),
-          ])),
-        ]),
+        child: Row(
+          children: [
+            ShimmerBox(
+              width: 48,
+              height: 48,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      ShimmerBox(
+                        width: 130,
+                        height: 13,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      const Spacer(),
+                      ShimmerBox(
+                        width: 32,
+                        height: 11,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ShimmerBox(
+                    width: double.infinity,
+                    height: 11,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -600,18 +829,28 @@ class _InboxSkeleton extends StatelessWidget {
 
 // ── Filtres ───────────────────────────────────────────────────────────────────
 
-enum _Filter { all, whatsapp, sms, email, facebook, instagram, tiktok, unread, commentaires }
+enum _Filter {
+  all,
+  whatsapp,
+  sms,
+  email,
+  facebook,
+  instagram,
+  tiktok,
+  unread,
+  commentaires,
+}
 
 extension _FilterLabel on _Filter {
   String get label => switch (this) {
-    _Filter.all          => 'Tous',
-    _Filter.whatsapp     => 'WhatsApp',
-    _Filter.sms          => 'SMS',
-    _Filter.email        => 'Email',
-    _Filter.facebook     => 'Facebook',
-    _Filter.instagram    => 'Instagram',
-    _Filter.tiktok       => 'TikTok',
-    _Filter.unread       => 'Non lus',
+    _Filter.all => 'Tous',
+    _Filter.whatsapp => 'WhatsApp',
+    _Filter.sms => 'SMS',
+    _Filter.email => 'Email',
+    _Filter.facebook => 'Facebook',
+    _Filter.instagram => 'Instagram',
+    _Filter.tiktok => 'TikTok',
+    _Filter.unread => 'Non lus',
     _Filter.commentaires => 'Commentaires',
   };
 }
@@ -621,7 +860,12 @@ class _FilterChip extends StatelessWidget {
   final bool isActive;
   final int unreadCount;
   final VoidCallback onTap;
-  const _FilterChip({required this.filter, required this.isActive, required this.unreadCount, required this.onTap});
+  const _FilterChip({
+    required this.filter,
+    required this.isActive,
+    required this.unreadCount,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -637,13 +881,30 @@ class _FilterChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(filter.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isActive ? AppColors.white : AppColors.textSecondary)),
+            Text(
+              filter.label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isActive ? AppColors.white : AppColors.textSecondary,
+              ),
+            ),
             if (isActive && unreadCount > 0) ...[
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(color: AppColors.white.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(8)),
-                child: Text('$unreadCount', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.white)),
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$unreadCount',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.white,
+                  ),
+                ),
               ),
             ],
           ],
@@ -658,7 +919,12 @@ class _FilterChip extends StatelessWidget {
 class _ThreadTile extends StatelessWidget {
   final Thread thread;
   final VoidCallback? onReturn;
-  const _ThreadTile({required this.thread, this.onReturn});
+  final bool isTyping;
+  const _ThreadTile({
+    required this.thread,
+    this.onReturn,
+    this.isTyping = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -672,30 +938,113 @@ class _ThreadTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
-            _ContactAvatar(initials: thread.contactInitials, channel: thread.channel),
+            Stack(
+              children: [
+                _ContactAvatar(
+                  initials: thread.contactInitials,
+                  channel: thread.channel,
+                ),
+                if (thread.isOnline)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: AppColors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [
-                    Expanded(child: Text(thread.contactName, style: TextStyle(fontSize: 14, fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    const SizedBox(width: 8),
-                    Text(_formatTime(thread.lastMessageAt), style: TextStyle(fontSize: 11, color: hasUnread ? AppColors.green : AppColors.textHint, fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400)),
-
-                  ]),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    Expanded(child: Text(_channelDisplayName(thread.channel), style: TextStyle(fontSize: 13, color: hasUnread ? AppColors.textPrimary : AppColors.textSecondary, fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    if (hasUnread) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          thread.contactName,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: hasUnread
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(10)),
-                        child: Text('${thread.unreadCount > 99 ? "99+" : thread.unreadCount}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.white)),
+                      Text(
+                        _formatTime(thread.lastMessageAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: hasUnread
+                              ? AppColors.green
+                              : AppColors.textHint,
+                          fontWeight: hasUnread
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
                       ),
                     ],
-                  ]),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          isTyping
+                              ? 'écrit...'
+                              : (thread.lastMessage ??
+                                    _channelDisplayName(thread.channel)),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isTyping
+                                ? AppColors.green
+                                : hasUnread
+                                ? AppColors.textPrimary
+                                : AppColors.textSecondary,
+                            fontWeight: isTyping
+                                ? FontWeight.w600
+                                : hasUnread
+                                ? FontWeight.w500
+                                : FontWeight.w400,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (hasUnread) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${thread.unreadCount > 99 ? "99+" : thread.unreadCount}',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -743,8 +1092,20 @@ class _ContactAvatar extends StatelessWidget {
           Container(
             width: 52,
             height: 52,
-            decoration: const BoxDecoration(color: AppColors.backgroundPage, shape: BoxShape.circle),
-            child: Center(child: Text(initials, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary))),
+            decoration: const BoxDecoration(
+              color: AppColors.backgroundPage,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
           ),
           Positioned(
             bottom: -2,
@@ -752,8 +1113,21 @@ class _ContactAvatar extends StatelessWidget {
             child: Container(
               width: 20,
               height: 20,
-              decoration: BoxDecoration(color: _channelColor(channel), shape: BoxShape.circle, border: Border.all(color: AppColors.white, width: 1.5)),
-              child: Center(child: Text(_channelLabel(channel), style: const TextStyle(fontSize: 9, color: AppColors.white, fontWeight: FontWeight.w700))),
+              decoration: BoxDecoration(
+                color: _channelColor(channel),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.white, width: 1.5),
+              ),
+              child: Center(
+                child: Text(
+                  _channelLabel(channel),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -790,9 +1164,21 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.inbox_outlined, size: 48, color: AppColors.borderLight),
+          const Icon(
+            Icons.inbox_outlined,
+            size: 48,
+            color: AppColors.borderLight,
+          ),
           const SizedBox(height: 12),
-          Text(query.isNotEmpty ? 'Aucun résultat pour "$query"' : 'Aucune conversation', style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+          Text(
+            query.isNotEmpty
+                ? 'Aucun résultat pour "$query"'
+                : 'Aucune conversation',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
@@ -836,7 +1222,12 @@ class _FilterSheetState extends State<_FilterSheet> {
         color: AppColors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        0,
+        24,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -847,30 +1238,95 @@ class _FilterSheetState extends State<_FilterSheet> {
               margin: const EdgeInsets.symmetric(vertical: 12),
               width: 36,
               height: 4,
-              decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: AppColors.borderLight,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
           // Titre
-          const Text('Filtrer les conversations', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const Text(
+            'Filtrer les conversations',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 20),
 
           // Section Canal
-          const Text('Canal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          const Text(
+            'Canal',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 8),
-          _ChannelOption(label: 'Tous', value: null, groupValue: _channel, onChanged: (v) => setState(() => _channel = v)),
-          _ChannelOption(label: 'WhatsApp', value: 'whatsapp', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF25D366)),
-          _ChannelOption(label: 'SMS', value: 'sms', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF5C6BC0)),
-          _ChannelOption(label: 'Email', value: 'email', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFFEA4335)),
-          _ChannelOption(label: 'Facebook', value: 'messenger', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF1877F2)),
-          _ChannelOption(label: 'Instagram', value: 'instagram', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFFE1306C)),
-          _ChannelOption(label: 'TikTok', value: 'tiktok', groupValue: _channel, onChanged: (v) => setState(() => _channel = v), color: const Color(0xFF010101)),
+          _ChannelOption(
+            label: 'Tous',
+            value: null,
+            groupValue: _channel,
+            onChanged: (v) => setState(() => _channel = v),
+          ),
+          _ChannelOption(
+            label: 'WhatsApp',
+            value: 'whatsapp',
+            groupValue: _channel,
+            onChanged: (v) => setState(() => _channel = v),
+            color: const Color(0xFF25D366),
+          ),
+          _ChannelOption(
+            label: 'SMS',
+            value: 'sms',
+            groupValue: _channel,
+            onChanged: (v) => setState(() => _channel = v),
+            color: const Color(0xFF5C6BC0),
+          ),
+          _ChannelOption(
+            label: 'Email',
+            value: 'email',
+            groupValue: _channel,
+            onChanged: (v) => setState(() => _channel = v),
+            color: const Color(0xFFEA4335),
+          ),
+          _ChannelOption(
+            label: 'Facebook',
+            value: 'messenger',
+            groupValue: _channel,
+            onChanged: (v) => setState(() => _channel = v),
+            color: const Color(0xFF1877F2),
+          ),
+          _ChannelOption(
+            label: 'Instagram',
+            value: 'instagram',
+            groupValue: _channel,
+            onChanged: (v) => setState(() => _channel = v),
+            color: const Color(0xFFE1306C),
+          ),
+          _ChannelOption(
+            label: 'TikTok',
+            value: 'tiktok',
+            groupValue: _channel,
+            onChanged: (v) => setState(() => _channel = v),
+            color: const Color(0xFF010101),
+          ),
 
           const SizedBox(height: 16),
           const Divider(height: 1, color: AppColors.borderLight),
           const SizedBox(height: 16),
 
           // Section Statut
-          const Text('Statut', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+          const Text(
+            'Statut',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 8),
           _CheckOption(
             label: 'Tous les messages',
@@ -895,9 +1351,15 @@ class _FilterSheetState extends State<_FilterSheet> {
                 },
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.textSecondary,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                 ),
-                child: const Text('Réinitialiser', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                child: const Text(
+                  'Réinitialiser',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -913,7 +1375,10 @@ class _FilterSheetState extends State<_FilterSheet> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     elevation: 0,
                   ),
-                  child: const Text('Appliquer les filtres', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Appliquer les filtres',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -950,20 +1415,39 @@ class _ChannelOption extends StatelessWidget {
         child: Row(
           children: [
             if (color != null) ...[
-              Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
               const SizedBox(width: 10),
             ],
-            Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary))),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
             AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               width: 20,
               height: 20,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: selected ? const Color(0xFF1E9E5E) : AppColors.borderLight, width: 2),
+                border: Border.all(
+                  color: selected
+                      ? const Color(0xFF1E9E5E)
+                      : AppColors.borderLight,
+                  width: 2,
+                ),
                 color: selected ? const Color(0xFF1E9E5E) : AppColors.white,
               ),
-              child: selected ? const Icon(Icons.check, size: 12, color: AppColors.white) : null,
+              child: selected
+                  ? const Icon(Icons.check, size: 12, color: AppColors.white)
+                  : null,
             ),
           ],
         ),
@@ -982,7 +1466,12 @@ class _PublicationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final pub = publication;
     return InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicationDetailScreen(publication: pub))),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PublicationDetailScreen(publication: pub),
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
@@ -993,23 +1482,67 @@ class _PublicationTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [
-                    Expanded(child: Text(pub.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    const SizedBox(width: 8),
-                    Text(_fmtDate(pub.publishedAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-                  ]),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          pub.title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _fmtDate(pub.publishedAt),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textHint,
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 4),
-                  Row(children: [
-                    const Icon(Icons.chat_bubble_outline, size: 13, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text('${pub.commentCount} commentaires', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
-                      child: Text('${pub.commentCount}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
-                    ),
-                  ]),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        size: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${pub.commentCount} commentaires',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.greenLight,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${pub.commentCount}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.greenDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1038,11 +1571,15 @@ class _ApiPostTile extends StatelessWidget {
     final rawCaption = (post['caption'] ?? '').toString().trim();
     final title = rawCaption.isEmpty
         ? 'Publication sans titre'
-        : (rawCaption.length > 50 ? '${rawCaption.substring(0, 50)}…' : rawCaption);
+        : (rawCaption.length > 50
+              ? '${rawCaption.substring(0, 50)}…'
+              : rawCaption);
     final totalComments = (post['total_comments'] as num?)?.toInt() ?? 0;
     final newComments = (post['new_comments_count'] as num?)?.toInt() ?? 0;
     final rawDate = post['posted_at'];
-    final postedAt = rawDate != null ? DateTime.tryParse(rawDate.toString()) : null;
+    final postedAt = rawDate != null
+        ? DateTime.tryParse(rawDate.toString())
+        : null;
 
     return InkWell(
       onTap: () => Navigator.push(
@@ -1071,25 +1608,69 @@ class _ApiPostTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [
-                    Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    const SizedBox(width: 8),
-                    if (postedAt != null)
-                      Text(_fmtDate(postedAt), style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    const Icon(Icons.chat_bubble_outline, size: 13, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text('$totalComments commentaires', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                    const Spacer(),
-                    if (newComments > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(10)),
-                        child: Text('$newComments', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                  ]),
+                      const SizedBox(width: 8),
+                      if (postedAt != null)
+                        Text(
+                          _fmtDate(postedAt),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textHint,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        size: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$totalComments commentaires',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (newComments > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.greenLight,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$newComments',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.greenDark,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1105,7 +1686,20 @@ class _ApiPostTile extends StatelessWidget {
     if (diff.inHours < 24) return 'il y a ${diff.inHours}h';
     if (diff.inDays == 1) return 'hier';
     if (diff.inDays < 7) return 'il y a ${diff.inDays}j';
-    const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    const mois = [
+      'janv.',
+      'févr.',
+      'mars',
+      'avr.',
+      'mai',
+      'juin',
+      'juil.',
+      'août',
+      'sept.',
+      'oct.',
+      'nov.',
+      'déc.',
+    ];
     return '${dt.day} ${mois[dt.month - 1]} ${dt.year}';
   }
 }
@@ -1117,15 +1711,25 @@ class _NetworkCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, label) = switch (network) {
-      'facebook'  => (const Color(0xFF1877F2), 'f'),
+      'facebook' => (const Color(0xFF1877F2), 'f'),
       'instagram' => (const Color(0xFFE1306C), '📷'),
-      'tiktok'    => (const Color(0xFF010101), '♪'),
-      _           => (AppColors.textSecondary,  '?'),
+      'tiktok' => (const Color(0xFF010101), '♪'),
+      _ => (AppColors.textSecondary, '?'),
     };
     return Container(
-      width: 52, height: 52,
+      width: 52,
+      height: 52,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Center(child: Text(label, style: const TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w800))),
+      child: Center(
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 20,
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1135,7 +1739,11 @@ class _CheckOption extends StatelessWidget {
   final bool checked;
   final VoidCallback onTap;
 
-  const _CheckOption({required this.label, required this.checked, required this.onTap});
+  const _CheckOption({
+    required this.label,
+    required this.checked,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1146,17 +1754,32 @@ class _CheckOption extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary))),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
             AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               width: 20,
               height: 20,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: checked ? const Color(0xFF1E9E5E) : AppColors.borderLight, width: 2),
+                border: Border.all(
+                  color: checked
+                      ? const Color(0xFF1E9E5E)
+                      : AppColors.borderLight,
+                  width: 2,
+                ),
                 color: checked ? const Color(0xFF1E9E5E) : AppColors.white,
               ),
-              child: checked ? const Icon(Icons.check, size: 13, color: AppColors.white) : null,
+              child: checked
+                  ? const Icon(Icons.check, size: 13, color: AppColors.white)
+                  : null,
             ),
           ],
         ),

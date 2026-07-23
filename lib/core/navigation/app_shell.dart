@@ -33,7 +33,8 @@ class AppShell extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppColors.borderLight,
                 borderRadius: BorderRadius.circular(2),
@@ -42,28 +43,41 @@ class AppShell extends StatelessWidget {
             const SizedBox(height: 20),
             const Text(
               'Action rapide',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 20),
             _ActionTile(
               icon: Icons.chat_bubble_outline,
               label: 'Nouvelle conversation',
               color: AppColors.green,
-              onTap: () { Navigator.pop(context); GoRouter.of(context).go('/inbox'); },
+              onTap: () {
+                Navigator.pop(context);
+                GoRouter.of(context).go('/inbox');
+              },
             ),
             const SizedBox(height: 12),
             _ActionTile(
               icon: Icons.credit_card_outlined,
               label: 'Nouveau lien de paiement',
               color: AppColors.primary,
-              onTap: () { Navigator.pop(context); GoRouter.of(context).go('/payments'); },
+              onTap: () {
+                Navigator.pop(context);
+                GoRouter.of(context).go('/create-link');
+              },
             ),
             const SizedBox(height: 12),
             _ActionTile(
               icon: Icons.bar_chart,
               label: 'Voir les stats',
               color: const Color(0xFF0EA5E9),
-              onTap: () { Navigator.pop(context); GoRouter.of(context).go('/stats'); },
+              onTap: () {
+                Navigator.pop(context);
+                GoRouter.of(context).go('/stats');
+              },
             ),
           ],
         ),
@@ -103,11 +117,27 @@ class _WhatsAppNavBar extends StatelessWidget {
   const _WhatsAppNavBar({required this.currentIndex, required this.onTap});
 
   static const _items = [
-    _NavItem(label: 'Inbox',      iconOff: Icons.chat_bubble_outline,   iconOn: Icons.chat_bubble),
-    _NavItem(label: 'Stats',      iconOff: Icons.bar_chart_outlined,    iconOn: Icons.bar_chart),
-    _NavItem(label: '',           iconOff: Icons.add,                   iconOn: Icons.add),   // + button
-    _NavItem(label: 'Paiements',  iconOff: Icons.credit_card_outlined,  iconOn: Icons.credit_card),
-    _NavItem(label: 'Profil',     iconOff: Icons.person_outline,        iconOn: Icons.person),
+    _NavItem(
+      label: 'Inbox',
+      iconOff: Icons.chat_bubble_outline,
+      iconOn: Icons.chat_bubble,
+    ),
+    _NavItem(
+      label: 'Stats',
+      iconOff: Icons.bar_chart_outlined,
+      iconOn: Icons.bar_chart,
+    ),
+    _NavItem(label: '', iconOff: Icons.add, iconOn: Icons.add), // + button
+    _NavItem(
+      label: 'Paiements',
+      iconOff: Icons.credit_card_outlined,
+      iconOn: Icons.credit_card,
+    ),
+    _NavItem(
+      label: 'Profil',
+      iconOff: Icons.person_outline,
+      iconOn: Icons.person,
+    ),
   ];
 
   @override
@@ -117,7 +147,9 @@ class _WhatsAppNavBar extends StatelessWidget {
       height: 65 + bottom,
       decoration: BoxDecoration(
         color: AppColors.white,
-        border: const Border(top: BorderSide(color: Color(0xFFE8E9EC), width: 0.5)),
+        border: const Border(
+          top: BorderSide(color: Color(0xFFE8E9EC), width: 0.5),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -139,7 +171,8 @@ class _WhatsAppNavBar extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   child: Center(
                     child: Container(
-                      width: 56, height: 56,
+                      width: 56,
+                      height: 56,
                       decoration: BoxDecoration(
                         color: AppColors.green,
                         shape: BoxShape.circle,
@@ -151,7 +184,11 @@ class _WhatsAppNavBar extends StatelessWidget {
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.add, color: AppColors.white, size: 28),
+                      child: const Icon(
+                        Icons.add,
+                        color: AppColors.white,
+                        size: 28,
+                      ),
                     ),
                   ),
                 ),
@@ -193,7 +230,11 @@ class _NavItem {
   final String label;
   final IconData iconOff;
   final IconData iconOn;
-  const _NavItem({required this.label, required this.iconOff, required this.iconOn});
+  const _NavItem({
+    required this.label,
+    required this.iconOff,
+    required this.iconOn,
+  });
 }
 
 // ── Quick action tile ─────────────────────────────────────────────────────────
@@ -203,7 +244,12 @@ class _ActionTile extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _ActionTile({required this.icon, required this.label, required this.color, required this.onTap});
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -218,7 +264,8 @@ class _ActionTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 40, height: 40,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
@@ -226,9 +273,20 @@ class _ActionTile extends StatelessWidget {
               child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(width: 14),
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
             const Spacer(),
-            const Icon(Icons.chevron_right, color: AppColors.textHint, size: 18),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textHint,
+              size: 18,
+            ),
           ],
         ),
       ),

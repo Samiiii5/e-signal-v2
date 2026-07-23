@@ -53,12 +53,9 @@ class WebSocketService {
       return;
     }
     try {
-      // Construire l'Uri directement avec les composants pour éviter le port 0
-      final uri = Uri(
-        scheme: 'wss',
-        host: 'ws.score360.africa',
-        path: '/api/v1.2/inbox/ws',
-        queryParameters: {'organization_id': _organizationId, 'token': _token},
+      // Construire l'Uri manuellement pour éviter le port 0
+      final uri = Uri.parse(
+        'wss://ws.score360.africa/api/v1.2/inbox/ws?organization_id=$_organizationId&token=$_token',
       );
       debugPrint('=== WebSocket URI : $uri ===');
       final channel = WebSocketChannel.connect(uri);
