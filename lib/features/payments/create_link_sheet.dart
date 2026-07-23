@@ -5,8 +5,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
-import '../../shared/mock/products_mock.dart';
 import '../../shared/mock/threads_mock.dart';
+import '../../shared/services/catalog_service.dart';
 import '../../shared/services/inbox_service.dart';
 import '../../shared/services/payment_service.dart';
 
@@ -32,7 +32,10 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
   Thread? _selectedThread;
 
   // Step 2 — Produit
-  Product? _selectedProduct;
+  Map<String, dynamic>? _selectedProduct;
+  List<Map<String, dynamic>> _catalogProducts = [];
+  bool _isLoadingProducts = true;
+  String? _catalogError;
 
   // Step 3 — Livraison
   bool _hasDelivery = false;
@@ -52,6 +55,12 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
   PaymentLink? _generatedLink;
 
   @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  @override
   void dispose() {
     _destinataireCtrl.dispose();
     _telephoneCtrl.dispose();
@@ -59,6 +68,18 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
     _quartierCtrl.dispose();
     _secteurCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() { _isLoadingProducts = true; _catalogError = null; });
+    try {
+      final items = await catalogService.getProducts();
+      if (!mounted) return;
+      setState(() { _catalogProducts = items; _isLoadingProducts = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _isLoadingProducts = false; _catalogError = 'Impossible de charger le catalogue.'; });
+    }
   }
 
   Future<void> _searchLivreur() async {
@@ -72,12 +93,14 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
     setState(() => _isGenerating = true);
 
     final p = _selectedProduct!;
+    final priceValue = _asInt(p['base_price']);
+    final currency = (p['currency'] ?? 'FCFA').toString();
     final frais = _hasDelivery ? 2000 : 0;
-    final total = p.price + frais;
+    final total = priceValue + frais;
 
     try {
       final link = await paymentService.createPaymentLink(
-        catalogItemId: p.id,
+        catalogItemId: (p['product_id'] ?? '').toString(),
         provider: _providerFor(_selectedPayment),
         customerName: _selectedThread?.contactName,
         customerPhone: _telephoneCtrl.text.isNotEmpty ? _telephoneCtrl.text : null,
@@ -93,11 +116,11 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
           Message(
             id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
             direction: 'OUT',
-            bodyText: '${p.emoji} ${p.name}\n💰 $total FCFA',
+            bodyText: '📦 ${p['name']}\n💰 $total $currency',
             messageType: 'PAYMENT_LINK',
             sentAt: DateTime.now().toIso8601String(),
             paymentAmount: total.toString(),
-            paymentCurrency: 'FCFA',
+            paymentCurrency: currency,
             paymentStatus: PaymentStatus.created,
             paymentProvider: _selectedPayment,
           ),
@@ -127,14 +150,19 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
     _              => 'wave',
   };
 
-  static String _fmt(int n) {
-    final s = n.toString();
+  static int _asInt(dynamic n) {
+    if (n is num) return n.toInt();
+    return int.tryParse(n?.toString() ?? '') ?? 0;
+  }
+
+  static String _fmtPrice(dynamic n) {
+    final s = _asInt(n).toString();
     final buf = StringBuffer();
     for (int i = 0; i < s.length; i++) {
       if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
       buf.write(s[i]);
     }
-    return '$buf FCFA';
+    return buf.toString();
   }
 
   @override
@@ -303,49 +331,45 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 16),
 
-        ...mockProducts.map((p) {
-          final isSelected = _selectedProduct?.id == p.id;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedProduct = p),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                    color: isSelected ? AppColors.green : AppColors.borderLight,
-                    width: isSelected ? 1.5 : 0.5),
-              ),
-              child: Row(
+        if (_isLoadingProducts)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2)),
+          )
+        else if (_catalogError != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.borderLight)),
-                    child: Center(child: Text(p.emoji, style: const TextStyle(fontSize: 22))),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(p.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                      Text(p.category, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                    ],
-                  )),
-                  Text(_fmt(p.price), style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w800,
-                      color: isSelected ? AppColors.greenDark : AppColors.green)),
-                  const SizedBox(width: 6),
-                  Icon(
-                    isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                    color: isSelected ? AppColors.green : AppColors.borderLight, size: 18,
+                  const Icon(Icons.wifi_off_outlined, size: 40, color: AppColors.borderLight),
+                  const SizedBox(height: 12),
+                  Text(_catalogError!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _loadProducts,
+                    child: const Text('Réessayer', style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
             ),
-          );
-        }),
+          )
+        else if (_catalogProducts.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(child: Text('Aucun produit dans le catalogue', style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+          )
+        else
+          ..._catalogProducts.map((p) {
+            final isSelected = _selectedProduct != null &&
+                _selectedProduct!['product_id']?.toString() == p['product_id']?.toString();
+            return _PaymentProductTile(
+              product: p,
+              isSelected: isSelected,
+              onTap: () => setState(() => _selectedProduct = p),
+            );
+          }),
 
         const SizedBox(height: 16),
         SizedBox(
@@ -362,7 +386,7 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
               children: [
                 Text(
                   _selectedProduct != null
-                      ? 'Suivant — ${_fmt(_selectedProduct!.price)}'
+                      ? 'Suivant — ${_fmtPrice(_selectedProduct!['base_price'])} ${(_selectedProduct!['currency'] ?? 'FCFA')}'
                       : 'Sélectionnez un produit',
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                 ),
@@ -379,7 +403,9 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
   // ── Étape 3 — Livraison + Paiement ──────────────────────────────────────────
 
   Widget _buildStep3() {
-    final montant = _selectedProduct?.price ?? 0;
+    final montant = _asInt(_selectedProduct?['base_price']);
+    final currency = (_selectedProduct?['currency'] ?? 'FCFA').toString();
+    final thumbnailUrl = _selectedProduct?['thumbnail_url']?.toString();
     final frais = _hasDelivery ? 2000 : 0;
     final total = montant + frais;
 
@@ -398,16 +424,30 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
             ),
             child: Row(
               children: [
-                Text(_selectedProduct!.emoji, style: const TextStyle(fontSize: 26)),
+                Container(
+                  width: 40, height: 40,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+                      ? Image.network(thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.inventory_2_outlined, color: AppColors.textHint))
+                      : const Icon(Icons.inventory_2_outlined, color: AppColors.textHint),
+                ),
                 const SizedBox(width: 10),
                 Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_selectedProduct!.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    Text((_selectedProduct!['name'] ?? '').toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     Text(_selectedThread?.contactName ?? '', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                   ],
                 )),
-                Text(_fmt(montant), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.green)),
+                Text('${_fmtPrice(montant)} $currency', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.green)),
               ],
             ),
           ),
@@ -584,19 +624,19 @@ class _CreateLinkSheetState extends State<CreateLinkSheet> {
             children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 const Text('Produit', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                Text(_fmt(montant), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                Text('${_fmtPrice(montant)} $currency', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
               ]),
               if (_hasDelivery) ...[
                 const SizedBox(height: 6),
-                const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('Livraison', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                  Text('2 000 FCFA', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  const Text('Livraison', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  Text('2 000 $currency', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                 ]),
               ],
               const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(color: AppColors.green, height: 1)),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 const Text('Total', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
-                Text(_fmt(total), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.greenDark)),
+                Text('${_fmtPrice(total)} $currency', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.greenDark)),
               ]),
             ],
           ),
@@ -858,6 +898,142 @@ class _SheetField extends StatelessWidget {
           prefixIcon: Icon(icon, size: 18, color: AppColors.textHint),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Tuile produit du catalogue (sélection unique) ──────────────────────────────
+
+class _PaymentProductTile extends StatelessWidget {
+  final Map<String, dynamic> product;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _PaymentProductTile({required this.product, required this.isSelected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (product['name'] ?? '').toString();
+    final description = product['description']?.toString();
+    final currency = (product['currency'] ?? '').toString();
+    final imageUrl = product['thumbnail_url']?.toString();
+    final price = product['base_price'];
+    final sku = product['sku']?.toString();
+    final isService = product['item_type']?.toString() == 'service';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.greenLight : AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.green : AppColors.borderLight,
+            width: isSelected ? 1.5 : 0.5,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image produit
+            Container(
+              width: 72, height: 72,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              child: (imageUrl != null && imageUrl.isNotEmpty)
+                  ? Image.network(imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.inventory_2_outlined,
+                              color: AppColors.textHint))
+                  : const Icon(Icons.inventory_2_outlined,
+                      color: AppColors.textHint),
+            ),
+            const SizedBox(width: 12),
+            // Nom + description + prix
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(name,
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      if (isService) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.statusCreatedBg,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text('Service',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.statusCreatedText)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (description != null && description.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(description,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text('${_CreateLinkSheetState._fmtPrice(price)} $currency',
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.green)),
+                      if (sku != null && sku.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.backgroundStatus,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(sku,
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textSecondary)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Sélection unique : pas de cercle custom, un simple radio/check
+            Icon(
+              isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              color: isSelected ? AppColors.green : AppColors.borderLight,
+              size: 22,
+            ),
+          ],
         ),
       ),
     );
