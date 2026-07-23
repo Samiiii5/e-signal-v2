@@ -5,7 +5,19 @@ enum MessageStatus { sent, delivered, read }
 enum PaymentStatus { created, pending, paid, expired }
 
 // Type de message (UI uniquement — backward compat)
-enum MessageType { text, paymentLink, location, orderTracking, image }
+enum MessageType {
+  text,
+  paymentLink,
+  location,
+  orderTracking,
+  image,
+  audio,
+  video,
+  document,
+  carousel,
+  contact,
+  linkPreview,
+}
 
 class Message {
   final String id;
@@ -55,6 +67,12 @@ class Message {
     'IMAGE'          => MessageType.image,
     'LOCATION'       => MessageType.location,
     'ORDER_TRACKING' => MessageType.orderTracking,
+    'AUDIO'          => MessageType.audio,
+    'VIDEO'          => MessageType.video,
+    'DOCUMENT'       => MessageType.document,
+    'CAROUSEL'       => MessageType.carousel,
+    'CONTACT'        => MessageType.contact,
+    'LINK_PREVIEW'   => MessageType.linkPreview,
     _                => MessageType.text,
   };
 

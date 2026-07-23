@@ -1143,6 +1143,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       message: msg,
                       onTap: () => _showFullscreenImage(msg),
                     ),
+                  MessageType.audio         => _AudioBubble(message: msg),
+                  MessageType.video         => _VideoBubble(message: msg),
+                  MessageType.document      => _DocumentBubble(message: msg),
+                  MessageType.carousel      => _CarouselBubble(message: msg),
+                  MessageType.contact       => _ContactBubble(message: msg),
                   _                         => _MessageBubble(
                       message: msg,
                       isStarred: _starredIds.contains(msg.id),
@@ -2712,6 +2717,313 @@ class _ImageBubble extends StatelessWidget {
           ),
         ),
       ),
+      ),
+    );
+  }
+}
+
+// ── Bulle audio ───────────────────────────────────────────────────────────────
+
+class _AudioBubble extends StatefulWidget {
+  final Message message;
+  const _AudioBubble({required this.message});
+
+  @override
+  State<_AudioBubble> createState() => _AudioBubbleState();
+}
+
+class _AudioBubbleState extends State<_AudioBubble> {
+  bool _isPlaying = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final fromContact = widget.message.isFromContact;
+    final fg = fromContact ? AppColors.textPrimary : AppColors.white;
+    final track = fromContact ? AppColors.borderLight : Colors.white.withValues(alpha: 0.3);
+    final progress = fromContact ? AppColors.green : AppColors.white;
+
+    return Align(
+      alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: fromContact ? AppColors.white : AppColors.primary,
+          borderRadius: BorderRadius.circular(16),
+          border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () => setState(() => _isPlaying = !_isPlaying),
+              child: Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  color: fromContact ? AppColors.greenLight : Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  size: 18,
+                  color: fromContact ? AppColors.greenDark : AppColors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(Icons.mic_none_rounded, size: 16, color: fg.withValues(alpha: 0.7)),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 100,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(value: 0.35, minHeight: 3, backgroundColor: track, color: progress),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text('0:32', style: TextStyle(fontSize: 11, color: fg.withValues(alpha: 0.7))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bulle vidéo ───────────────────────────────────────────────────────────────
+
+class _VideoBubble extends StatelessWidget {
+  final Message message;
+  const _VideoBubble({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final fromContact = message.isFromContact;
+    return Align(
+      alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
+      child: GestureDetector(
+        onTap: () => ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Lecture vidéo non disponible')),
+        child: Container(
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(height: 180, width: double.infinity, color: const Color(0xFF3A3A45)),
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), shape: BoxShape.circle),
+                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+                ),
+                Positioned(
+                  bottom: 8, right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8)),
+                    child: const Text('1:24', style: TextStyle(fontSize: 10, color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bulle document ────────────────────────────────────────────────────────────
+
+class _DocumentBubble extends StatelessWidget {
+  final Message message;
+  const _DocumentBubble({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final fromContact = message.isFromContact;
+    final fileName = message.content.trim().isNotEmpty ? message.content.trim() : 'Document';
+    final fg = fromContact ? AppColors.textPrimary : AppColors.white;
+    final sub = fromContact ? AppColors.textSecondary : Colors.white.withValues(alpha: 0.7);
+
+    return Align(
+      alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: fromContact ? AppColors.white : AppColors.primary,
+          borderRadius: BorderRadius.circular(16),
+          border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: fromContact ? AppColors.backgroundPage : Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.insert_drive_file_outlined, color: fromContact ? AppColors.textSecondary : AppColors.white, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(fileName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text('245 KB', style: TextStyle(fontSize: 11, color: sub)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error('Ouverture non disponible')),
+              style: TextButton.styleFrom(
+                backgroundColor: fromContact ? AppColors.greenLight : Colors.white.withValues(alpha: 0.2),
+                foregroundColor: fromContact ? AppColors.greenDark : AppColors.white,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              child: const Text('Ouvrir', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bulle carousel produits ────────────────────────────────────────────────────
+
+class _CarouselBubble extends StatelessWidget {
+  final Message message;
+  const _CarouselBubble({required this.message});
+
+  int get _productCount {
+    final match = RegExp(r'(\d+)').firstMatch(message.content);
+    return match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fromContact = message.isFromContact;
+    return Align(
+      alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.greenLight,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('📦', style: TextStyle(fontSize: 22)),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Catalogue envoyé', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.greenDark)),
+                const SizedBox(height: 2),
+                Text(
+                  _productCount > 0 ? '$_productCount produit${_productCount > 1 ? 's' : ''}' : 'Produits envoyés',
+                  style: const TextStyle(fontSize: 12, color: AppColors.greenDark),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bulle contact ─────────────────────────────────────────────────────────────
+
+class _ContactBubble extends StatelessWidget {
+  final Message message;
+  const _ContactBubble({required this.message});
+
+  static final RegExp _phonePattern = RegExp(r'[+\d][\d\s]{6,}');
+
+  String get _name {
+    final firstLine = message.content.split('\n').first.trim();
+    return firstLine.isNotEmpty ? firstLine : 'Contact';
+  }
+
+  String? get _phone => _phonePattern.firstMatch(message.content)?.group(0)?.trim();
+
+  String get _initials {
+    final parts = _name.split(RegExp(r'\s+'));
+    if (parts.isEmpty) return '?';
+    final f = parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '';
+    final l = parts.length > 1 && parts.last.isNotEmpty ? parts.last[0].toUpperCase() : '';
+    final result = f + l;
+    return result.isNotEmpty ? result : '?';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fromContact = message.isFromContact;
+    final fg = fromContact ? AppColors.textPrimary : AppColors.white;
+    final sub = fromContact ? AppColors.textSecondary : Colors.white.withValues(alpha: 0.7);
+
+    return Align(
+      alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: fromContact ? AppColors.white : AppColors.primary,
+          borderRadius: BorderRadius.circular(16),
+          border: fromContact ? Border.all(color: AppColors.borderLight, width: 0.5) : null,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: fromContact ? AppColors.backgroundPage : Colors.white.withValues(alpha: 0.2),
+              child: Text(_initials, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if (_phone != null) ...[
+                    const SizedBox(height: 2),
+                    Text(_phone!, style: TextStyle(fontSize: 12, color: sub)),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.success('Appel en cours...')),
+              icon: Icon(Icons.call, color: fromContact ? AppColors.green : AppColors.white, size: 20),
+              tooltip: 'Appeler',
+            ),
+          ],
+        ),
       ),
     );
   }
