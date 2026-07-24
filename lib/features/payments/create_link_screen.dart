@@ -9,7 +9,15 @@ import '../../shared/services/inbox_service.dart';
 
 int _asIntPrice(dynamic n) {
   if (n is num) return n.toInt();
-  return int.tryParse(n?.toString() ?? '') ?? 0;
+  if (n == null) return 0;
+  final str = n.toString();
+  // Essayer de parser comme int d'abord
+  final intVal = int.tryParse(str);
+  if (intVal != null) return intVal;
+  // Si échec, essayer comme double puis convertir en int
+  final doubleVal = double.tryParse(str);
+  if (doubleVal != null) return doubleVal.toInt();
+  return 0;
 }
 
 String _fmtNum(dynamic n) {
@@ -840,76 +848,73 @@ class _Step2State extends State<_Step2> {
                   ),
                 )
               : widget.error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.wifi_off_outlined,
-                            size: 40,
-                            color: AppColors.borderLight,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            widget.error!,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: widget.onRetry,
-                            child: const Text(
-                              'Réessayer',
-                              style: TextStyle(
-                                color: AppColors.green,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.wifi_off_outlined,
+                        size: 40,
+                        color: AppColors.borderLight,
                       ),
-                    )
-                  : widget.products.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'Aucun produit dans le catalogue',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textSecondary,
-                            ),
+                      const SizedBox(height: 12),
+                      Text(
+                        widget.error!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: widget.onRetry,
+                        child: const Text(
+                          'Réessayer',
+                          style: TextStyle(
+                            color: AppColors.green,
+                            fontWeight: FontWeight.w600,
                           ),
-                        )
-                      : _filteredProducts.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'Aucun produit dans cette catégorie',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              itemCount: _filteredProducts.length,
-                              itemBuilder: (_, i) {
-                                final p = _filteredProducts[i];
-                                final isSelected =
-                                    selectedProduct != null &&
-                                    selectedProduct['product_id']
-                                            ?.toString() ==
-                                        p['product_id']?.toString();
-                                return _CatalogProductTile(
-                                  product: p,
-                                  isSelected: isSelected,
-                                  onTap: () => widget.onSelectProduct(p),
-                                );
-                              },
-                            ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : widget.products.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Aucun produit dans le catalogue',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                )
+              : _filteredProducts.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Aucun produit dans cette catégorie',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: _filteredProducts.length,
+                  itemBuilder: (_, i) {
+                    final p = _filteredProducts[i];
+                    final isSelected =
+                        selectedProduct != null &&
+                        selectedProduct['product_id']?.toString() ==
+                            p['product_id']?.toString();
+                    return _CatalogProductTile(
+                      product: p,
+                      isSelected: isSelected,
+                      onTap: () => widget.onSelectProduct(p),
+                    );
+                  },
+                ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
@@ -974,7 +979,7 @@ class _CatalogProductTile extends StatelessWidget {
     final description = product['description']?.toString();
     final currency = (product['currency'] ?? '').toString();
     final imageUrl = product['thumbnail_url']?.toString();
-    final price = product['base_price'];
+    final price = product['base_price'] ?? product['price'];
     final sku = product['sku']?.toString();
     final isService = product['item_type']?.toString() == 'service';
 
@@ -1076,12 +1081,14 @@ class _CatalogProductTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text(
-                        '${_fmtNum(price)} $currency',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.green,
+                      Flexible(
+                        child: Text(
+                          '${_fmtNum(price)} $currency',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.green,
+                          ),
                         ),
                       ),
                       if (sku != null && sku.isNotEmpty) ...[
@@ -1119,9 +1126,7 @@ class _CatalogProductTile extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: isSelected ? AppColors.green : Colors.transparent,
                 border: Border.all(
-                  color: isSelected
-                      ? AppColors.green
-                      : const Color(0xFF9CA3AF),
+                  color: isSelected ? AppColors.green : const Color(0xFF9CA3AF),
                   width: 2,
                 ),
               ),

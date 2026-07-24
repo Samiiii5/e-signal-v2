@@ -16,11 +16,20 @@ class CatalogService {
       );
       if (response.statusCode != 200) return [];
       final items = response.data['items'] as List? ?? [];
-      return items
+      final products = items
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .where((p) => p['is_active'] == true)
           .toList();
+
+      // Debug: afficher les produits pour vérifier les prix
+      for (var p in products) {
+        print(
+          '=== Produit: ${p['name']}, base_price: ${p['base_price']}, price: ${p['price']} ===',
+        );
+      }
+
+      return products;
     } on DioException {
       return [];
     }
