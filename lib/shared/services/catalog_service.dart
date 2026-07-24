@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/session_service.dart';
 
@@ -24,7 +25,7 @@ class CatalogService {
 
       // Debug: afficher les produits pour vérifier les prix
       for (var p in products) {
-        print(
+        debugPrint(
           '=== Produit: ${p['name']}, base_price: ${p['base_price']}, price: ${p['price']} ===',
         );
       }
