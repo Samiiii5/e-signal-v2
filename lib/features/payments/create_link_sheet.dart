@@ -1410,7 +1410,10 @@ class _PaymentProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = (product['name'] ?? '').toString();
-    final description = product['description']?.toString();
+    final rawDescription = product['description']?.toString();
+    final description = (rawDescription != null && rawDescription.isNotEmpty)
+        ? _stripHtml(rawDescription)
+        : null;
     final currency = (product['currency'] ?? '').toString();
     final imageUrl = product['thumbnail_url']?.toString();
     final price = product['base_price'] ?? product['price'];
@@ -1514,33 +1517,36 @@ class _PaymentProductTile extends StatelessWidget {
                   ],
                   const SizedBox(height: 4),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Flexible(
-                        child: Text(
-                          '${_CreateLinkSheetState._fmtPrice(price)} $currency',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.green,
-                          ),
+                      Text(
+                        '${_CreateLinkSheetState._fmtPrice(price)} $currency',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.green,
                         ),
                       ),
                       if (sku != null && sku.isNotEmpty) ...[
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.backgroundStatus,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            sku,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: AppColors.textSecondary,
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.backgroundStatus,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              sku,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textSecondary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                           ),
                         ),
@@ -1572,5 +1578,30 @@ class _PaymentProductTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _stripHtml(String html) {
+    // Supprimer toutes les balises HTML
+    String text = html.replaceAll(RegExp(r'<[^>]*>'), ' ');
+    // Décoder les entités HTML courantes
+    text = text
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&eacute;', 'é')
+        .replaceAll('&egrave;', 'è')
+        .replaceAll('&ecirc;', 'ê')
+        .replaceAll('&agrave;', 'à')
+        .replaceAll('&acirc;', 'â')
+        .replaceAll('&ocirc;', 'ô')
+        .replaceAll('&ucirc;', 'û')
+        .replaceAll('&ugrave;', 'ù')
+        .replaceAll('&ccedil;', 'ç');
+    // Supprimer les espaces multiples et trim
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text;
   }
 }
