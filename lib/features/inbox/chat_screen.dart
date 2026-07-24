@@ -899,6 +899,7 @@ class _ChatScreenState extends State<ChatScreen> {
         type: 'text',
         content: content,
       );
+      inboxService.invalidateMessagesCache(widget.threadId);
     } catch (_) {
       if (!mounted) return;
       setState(() => _messages.removeWhere((m) => m.id == msgId));
@@ -989,6 +990,7 @@ class _ChatScreenState extends State<ChatScreen> {
         integrationAccountId: accountId,
         catalogItemIds: items,
       );
+      inboxService.invalidateMessagesCache(widget.threadId);
       if (!mounted) return;
       _addMessage(
         Message(
@@ -1365,6 +1367,9 @@ class _ChatScreenState extends State<ChatScreen> {
         type: 'text',
         content: text,
       );
+      // Le message envoyé n'est pas dans le cache — l'invalider pour que
+      // le prochain chargement de la conversation le récupère depuis l'API.
+      inboxService.invalidateMessagesCache(widget.threadId);
     } catch (e) {
       debugPrint('=== SEND ERROR ===');
       debugPrint('e.runtimeType: ${e.runtimeType}');
@@ -1384,8 +1389,10 @@ class _ChatScreenState extends State<ChatScreen> {
       var errorMsg = 'Échec de l\'envoi du message';
       if (e is DioException) {
         final status = e.response?.statusCode;
-        final serverMsg =
-            e.response?.data?['detail'] ?? e.response?.data?['message'] ?? '';
+        final responseData = e.response?.data;
+        final serverMsg = responseData is Map
+            ? (responseData['detail'] ?? responseData['message'] ?? '')
+            : '';
         errorMsg = switch (status) {
           400 => 'Message invalide : $serverMsg',
           401 => 'Session expirée, reconnectez-vous',

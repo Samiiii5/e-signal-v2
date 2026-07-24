@@ -790,7 +790,7 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
                   : threads.isEmpty
                   ? _EmptyState(query: _searchQuery)
                   : RefreshIndicator(
-                      onRefresh: _loadThreads,
+                      onRefresh: _revalidateThreadsInBackground,
                       color: AppColors.green,
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
