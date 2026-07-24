@@ -6,8 +6,25 @@ import '../../core/services/session_service.dart';
 /// Catalogue produits et comptes intégrés — utilisés pour l'envoi de
 /// carousels produits dans le chat (voir InboxService.sendCarousel).
 class CatalogService {
+  // Cache produits
+  List<Map<String, dynamic>>? _cachedProducts;
+  DateTime? _productsCachedAt;
+  static const _productsCacheDuration = Duration(minutes: 30);
+
+  // Cache comptes intégrés par channel — sans expiration (changent très rarement)
+  final Map<String, String> _accountIdCache = {};
+
   /// GET /api/v1.2/organizations/{organization_id}/products
   Future<List<Map<String, dynamic>>> getProducts() async {
+    // Cache valide → retourner immédiatement
+    if (_cachedProducts != null &&
+        _productsCachedAt != null &&
+        DateTime.now().difference(_productsCachedAt!) <
+            _productsCacheDuration) {
+      debugPrint('=== PRODUITS depuis cache ===');
+      return _cachedProducts!;
+    }
+
     final orgId = SessionService.organizationId;
     if (orgId == null) return [];
 
@@ -30,6 +47,13 @@ class CatalogService {
         );
       }
 
+      // Mettre en cache
+      _cachedProducts = products;
+      _productsCachedAt = DateTime.now();
+      debugPrint(
+        '=== PRODUITS depuis API → mis en cache (${products.length} produits) ===',
+      );
+
       return products;
     } on DioException {
       return [];
@@ -39,6 +63,12 @@ class CatalogService {
   /// GET /api/v1.2/organizations/{organization_id}/accounts
   /// Retourne l'id du compte intégré dont le channel correspond, ou null.
   Future<String?> getIntegrationAccountId(String channel) async {
+    // Cache → retourner immédiatement
+    if (_accountIdCache.containsKey(channel)) {
+      debugPrint('=== ACCOUNT ID $channel depuis cache ===');
+      return _accountIdCache[channel];
+    }
+
     final orgId = SessionService.organizationId;
     if (orgId == null) return null;
 
@@ -87,6 +117,13 @@ class CatalogService {
 
       // ignore: avoid_print
       print('=== ACCOUNT ID TROUVÉ : $accountId ===');
+
+      if (accountId != null) {
+        // Mettre en cache sans expiration (les comptes changent très rarement)
+        _accountIdCache[channel] = accountId;
+        debugPrint('=== ACCOUNT ID $channel → mis en cache ===');
+      }
+
       return accountId;
     } on DioException {
       return null;

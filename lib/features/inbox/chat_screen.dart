@@ -252,8 +252,12 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     try {
       // Charger les messages et (si nécessaire) le thread en parallèle.
+      // Si le thread n'est pas encore connu, utiliser le cache des threads
+      // plutôt que de rappeler getThreads() (déjà chargé par InboxScreen).
       final Future<List<Thread>?> threadsFuture = _thread == null
-          ? inboxService.getThreads()
+          ? (inboxService.cachedThreads != null
+                ? Future.value(inboxService.cachedThreads)
+                : inboxService.getThreads())
           : Future.value(null);
       final result = await inboxService.getMessages(widget.threadId);
       final threads = await threadsFuture;
