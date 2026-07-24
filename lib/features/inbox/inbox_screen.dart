@@ -252,7 +252,27 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  Future<void> _loadThreads() async {
+  Future<void> _loadThreads({bool forceRefresh = false}) async {
+    // Si forceRefresh → invalider le cache
+    if (forceRefresh) {
+      inboxService.invalidateThreadsCache();
+    }
+
+    // ÉTAPE 1 : Afficher le cache immédiatement si disponible (pas de spinner)
+    final cached = inboxService.cachedThreads;
+    if (cached != null && !forceRefresh) {
+      setState(() {
+        _threads = cached;
+        _isLoading = false; // pas de spinner
+      });
+      debugPrint('=== Inbox : cache affiché immédiatement ===');
+
+      // ÉTAPE 2 : Revalidation en arrière-plan
+      _revalidateThreadsInBackground();
+      return;
+    }
+
+    // Première ouverture → spinner + appel API
     if (!_isLoading) {
       setState(() {
         _isLoading = true;
@@ -283,6 +303,36 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
         // keep previous threads on error
       });
     }
+  }
+
+  // Revalidation silencieuse en arrière-plan
+  Future<void> _revalidateThreadsInBackground() async {
+    try {
+      debugPrint('=== Revalidation threads en arrière-plan ===');
+      // Invalider puis recharger depuis l'API
+      inboxService.invalidateThreadsCache();
+      final freshThreads = await inboxService.getThreads();
+      if (!mounted) return;
+      // Mettre à jour seulement si différent
+      if (_threadsChanged(freshThreads)) {
+        setState(() => _threads = freshThreads);
+        debugPrint('=== Threads mis à jour silencieusement ===');
+      }
+    } catch (_) {
+      // Silencieux — on garde le cache affiché
+      debugPrint('=== Revalidation échouée — cache conservé ===');
+    }
+  }
+
+  // Comparer si les threads ont changé
+  bool _threadsChanged(List<Thread> fresh) {
+    if (fresh.length != _threads.length) return true;
+    for (int i = 0; i < fresh.length; i++) {
+      if (fresh[i].id != _threads[i].id) return true;
+      if (fresh[i].lastMessage != _threads[i].lastMessage) return true;
+      if (fresh[i].unreadCount != _threads[i].unreadCount) return true;
+    }
+    return false;
   }
 
   Future<void> _loadPosts() async {

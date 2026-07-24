@@ -138,6 +138,13 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       _isContactTyping = false;
     });
+
+    // Ajouter aussi au cache
+    inboxService.addMessageToCache(widget.threadId, newMsg);
+
+    // Invalider le cache threads pour mettre à jour le dernier message
+    inboxService.invalidateThreadsCache();
+
     _typingTimer?.cancel();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     if (newMsg.isFromContact) _markAsRead();
@@ -210,7 +217,33 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _loadMessages() async {
+  Future<void> _loadMessages({bool forceRefresh = false}) async {
+    if (forceRefresh) {
+      inboxService.invalidateMessagesCache(widget.threadId);
+    }
+
+    // ÉTAPE 1 : Afficher le cache immédiatement
+    final cached = inboxService.cachedMessages(widget.threadId);
+    if (cached != null && !forceRefresh) {
+      setState(() {
+        _messages = cached;
+        _isLoadingMessages = false; // pas de spinner
+        _loadError = null;
+        for (final m in cached) {
+          if (m.initialStatus != null && !_msgStatus.containsKey(m.id)) {
+            _msgStatus[m.id] = m.initialStatus!;
+          }
+        }
+      });
+      debugPrint('=== Messages : cache affiché immédiatement ===');
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+      // ÉTAPE 2 : Revalidation en arrière-plan
+      _revalidateMessagesInBackground();
+      return;
+    }
+
+    // Première ouverture → spinner + appel API
     if (!_isLoadingMessages) {
       setState(() {
         _isLoadingMessages = true;
@@ -271,6 +304,28 @@ class _ChatScreenState extends State<ChatScreen> {
         _loadError = null;
       });
       _fallbackToMock();
+    }
+  }
+
+  // Revalidation silencieuse en arrière-plan
+  Future<void> _revalidateMessagesInBackground() async {
+    try {
+      debugPrint('=== Revalidation messages en arrière-plan ===');
+      inboxService.invalidateMessagesCache(widget.threadId);
+      final result = await inboxService.getMessages(widget.threadId);
+      if (!mounted) return;
+      // Mettre à jour seulement si nouveaux messages
+      if (result.messages.length > _messages.length) {
+        setState(() {
+          _messages = result.messages;
+          _hasMore = result.hasMore;
+          _nextBeforeId = result.nextBeforeId;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        debugPrint('=== Messages mis à jour silencieusement ===');
+      }
+    } catch (_) {
+      debugPrint('=== Revalidation messages échouée — cache conservé ===');
     }
   }
 

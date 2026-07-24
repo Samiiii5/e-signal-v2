@@ -46,6 +46,23 @@ abstract class InboxService {
     String? beforeId,
   });
 
+  // ── Cache (Stale-While-Revalidate) ────────────────────────────────────────
+
+  /// Threads actuellement en cache, ou null si aucun cache valide.
+  List<Thread>? get cachedThreads;
+
+  /// Invalide le cache des threads.
+  void invalidateThreadsCache();
+
+  /// Messages en cache pour un thread, ou null si absent/expiré.
+  List<Message>? cachedMessages(String threadId);
+
+  /// Invalide le cache des messages d'un thread.
+  void invalidateMessagesCache(String threadId);
+
+  /// Ajoute un message au cache existant d'un thread (ex: reçu via WebSocket).
+  void addMessageToCache(String threadId, Message message);
+
   /// POST /api/v1.2/inbox/{provider}/messages
   Future<void> sendMessage({
     required String threadId,
@@ -79,6 +96,76 @@ abstract class InboxService {
 // ── HTTP ───────────────────────────────────────────────────────────────────
 
 class HttpInboxService implements InboxService {
+  // ── Cache (Stale-While-Revalidate) ────────────────────────────────────────
+
+  // Cache threads
+  List<Thread>? _cachedThreads;
+  DateTime? _threadsCachedAt;
+  static const _threadsCacheDuration = Duration(minutes: 3);
+
+  // Cache messages par thread
+  final Map<String, List<Message>> _messagesCache = {};
+  final Map<String, DateTime> _messagesCachedAt = {};
+  static const _messagesCacheDuration = Duration(minutes: 2);
+
+  // Cache produits
+  List<Map<String, dynamic>>? _cachedProducts;
+  DateTime? _productsCachedAt;
+  static const _productsCacheDuration = Duration(minutes: 5);
+
+  @override
+  List<Thread>? get cachedThreads => _cachedThreads;
+
+  @override
+  void invalidateThreadsCache() {
+    _cachedThreads = null;
+    _threadsCachedAt = null;
+    debugPrint('=== Cache threads invalidé ===');
+  }
+
+  @override
+  List<Message>? cachedMessages(String threadId) {
+    final cachedAt = _messagesCachedAt[threadId];
+    final cached = _messagesCache[threadId];
+    if (cached == null || cachedAt == null) return null;
+    if (DateTime.now().difference(cachedAt) > _messagesCacheDuration) {
+      return null;
+    }
+    return cached;
+  }
+
+  @override
+  void invalidateMessagesCache(String threadId) {
+    _messagesCache.remove(threadId);
+    _messagesCachedAt.remove(threadId);
+    debugPrint('=== Cache messages $threadId invalidé ===');
+  }
+
+  @override
+  void addMessageToCache(String threadId, Message message) {
+    if (_messagesCache.containsKey(threadId)) {
+      _messagesCache[threadId]!.add(message);
+      debugPrint('=== Message ajouté au cache $threadId ===');
+    }
+  }
+
+  /// Produits en cache, ou null si absent/expiré.
+  List<Map<String, dynamic>>? get cachedProducts {
+    if (_cachedProducts == null || _productsCachedAt == null) return null;
+    if (DateTime.now().difference(_productsCachedAt!) >
+        _productsCacheDuration) {
+      return null;
+    }
+    return _cachedProducts;
+  }
+
+  /// Invalide le cache des produits.
+  void invalidateProductsCache() {
+    _cachedProducts = null;
+    _productsCachedAt = null;
+    debugPrint('=== Cache produits invalidé ===');
+  }
+
   bool _isNetworkError(DioException e) =>
       e.type == DioExceptionType.connectionError ||
       e.type == DioExceptionType.sendTimeout ||
@@ -87,6 +174,32 @@ class HttpInboxService implements InboxService {
 
   @override
   Future<List<Thread>> getThreads({
+    String? channelFilter,
+    bool? unreadOnly,
+  }) async {
+    // Le cache ne s'applique qu'à la liste complète (sans filtre).
+    final useCache = channelFilter == null && unreadOnly != true;
+    if (useCache &&
+        _cachedThreads != null &&
+        _threadsCachedAt != null &&
+        DateTime.now().difference(_threadsCachedAt!) < _threadsCacheDuration) {
+      debugPrint('=== THREADS depuis cache ===');
+      return _cachedThreads!;
+    }
+    final threads = await _fetchThreads(
+      channelFilter: channelFilter,
+      unreadOnly: unreadOnly,
+    );
+    if (useCache) {
+      _cachedThreads = threads;
+      _threadsCachedAt = DateTime.now();
+      debugPrint('=== THREADS depuis API → mis en cache ===');
+    }
+    return threads;
+  }
+
+  /// Méthode privée qui fait le vrai appel API.
+  Future<List<Thread>> _fetchThreads({
     String? channelFilter,
     bool? unreadOnly,
   }) async {
@@ -150,6 +263,37 @@ class HttpInboxService implements InboxService {
 
   @override
   Future<MessagesResult> getMessages(
+    String threadId, {
+    int limit = 50,
+    String? beforeId,
+  }) async {
+    // Cache seulement pour le premier chargement (pas pour la pagination beforeId).
+    if (beforeId == null) {
+      final cached = cachedMessages(threadId);
+      if (cached != null) {
+        debugPrint('=== MESSAGES $threadId depuis cache ===');
+        return MessagesResult(
+          messages: cached,
+          hasMore: false,
+          nextBeforeId: null,
+        );
+      }
+    }
+    final result = await _fetchMessages(
+      threadId,
+      limit: limit,
+      beforeId: beforeId,
+    );
+    if (beforeId == null) {
+      _messagesCache[threadId] = result.messages;
+      _messagesCachedAt[threadId] = DateTime.now();
+      debugPrint('=== MESSAGES $threadId depuis API → mis en cache ===');
+    }
+    return result;
+  }
+
+  /// Méthode privée qui fait le vrai appel API.
+  Future<MessagesResult> _fetchMessages(
     String threadId, {
     int limit = 50,
     String? beforeId,
@@ -326,6 +470,22 @@ class MockInboxService implements InboxService {
   void addMessage(String threadId, Message msg) {
     _extraMessages.putIfAbsent(threadId, () => []).add(msg);
   }
+
+  // Pas de cache pour le mock — toujours les données en mémoire directement.
+  @override
+  List<Thread>? get cachedThreads => null;
+
+  @override
+  void invalidateThreadsCache() {}
+
+  @override
+  List<Message>? cachedMessages(String threadId) => null;
+
+  @override
+  void invalidateMessagesCache(String threadId) {}
+
+  @override
+  void addMessageToCache(String threadId, Message message) {}
 
   @override
   Future<List<Thread>> getThreads({
