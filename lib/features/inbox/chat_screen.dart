@@ -101,7 +101,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _searchController.dispose();
     _wsSubscription?.cancel();
     _typingTimer?.cancel();
-    webSocketService.disconnect();
+    // NE PAS appeler webSocketService.disconnect() ici
+    // car c'est un singleton partagé avec InboxScreen
     super.dispose();
   }
 
