@@ -62,6 +62,7 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   }
 
   void _connectWebSocket() {
+    _wsSubscription?.cancel();
     final orgId = SessionService.organizationId;
     final token = SessionService.accessToken;
     if (orgId == null || token == null) return;

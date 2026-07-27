@@ -130,7 +130,34 @@ class _ChatScreenState extends State<ChatScreen> {
     final msgJson = data['message'];
     if (msgJson is! Map) return;
     final newMsg = Message.fromJson(Map<String, dynamic>.from(msgJson));
-    if (_messages.any((m) => m.id == newMsg.id)) return; // anti-doublon
+
+    // Anti-doublon par ID exact
+    if (_messages.any((m) => m.id == newMsg.id)) return;
+
+    // Anti-doublon pour messages OUT : si le WebSocket arrive avant que
+    // _send()/_sendLocation() n'ait reçu la réponse HTTP et remplacé l'ID
+    // local ('msg_timestamp') par le vrai ID serveur, on retrouve la bulle
+    // optimiste par contenu + direction + horodatage proche et on la
+    // remplace au lieu d'ajouter un doublon.
+    if (newMsg.direction == 'OUT') {
+      final sentAt = newMsg.sentAtDt;
+      final idx = _messages.indexWhere(
+        (m) =>
+            m.direction == 'OUT' &&
+            m.content == newMsg.content &&
+            m.sentAtDt.difference(sentAt).abs() < const Duration(seconds: 10),
+      );
+      if (idx != -1) {
+        final localId = _messages[idx].id;
+        setState(() {
+          _messages[idx] = newMsg;
+          // Transférer le statut de l'ancien ID local vers le vrai ID serveur.
+          final oldStatus = _msgStatus.remove(localId);
+          _msgStatus[newMsg.id] = oldStatus ?? MessageStatus.sent;
+        });
+        return;
+      }
+    }
 
     setState(() {
       _messages.add(newMsg);
