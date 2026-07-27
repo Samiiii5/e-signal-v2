@@ -1344,7 +1344,9 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+    // Créer ID local temporaire (optimistic) — remplacé par le vrai
+    // message_id serveur une fois la réponse reçue.
+    final localMsgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
     final provider = _thread?.metadataProvider ?? _thread?.channel ?? '';
     final integrationAccountId = _thread?.integrationAccountId;
     _controller.clear();
@@ -1354,10 +1356,10 @@ class _ChatScreenState extends State<ChatScreen> {
       _isSending = true;
       _replyToMessage = null;
       _showEmojiPicker = false;
-      _msgStatus[msgId] = MessageStatus.sent;
+      _msgStatus[localMsgId] = MessageStatus.sent;
       _messages.add(
         Message(
-          id: msgId,
+          id: localMsgId,
           direction: 'OUT',
           bodyText: text,
           sentAt: DateTime.now().toIso8601String(),
@@ -1377,13 +1379,40 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint('integrationAccountId utilisé: $integrationAccountId');
       debugPrint('content: $text');
       debugPrint('==================');
-      await inboxService.sendMessage(
+      final serverMsgId = await inboxService.sendMessage(
         threadId: widget.threadId,
         provider: provider,
         integrationAccountId: integrationAccountId,
         type: 'text',
         content: text,
       );
+
+      // Remplacer l'ID local par le vrai ID serveur — sans ça,
+      // message_status_updated (WebSocket) ne trouve jamais ce message
+      // dans _msgStatus et l'horloge ne progresse jamais.
+      if (serverMsgId != null && mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == localMsgId);
+          if (idx != -1) {
+            final oldMsg = _messages[idx];
+            _messages[idx] = Message(
+              id: serverMsgId,
+              direction: oldMsg.direction,
+              bodyText: oldMsg.bodyText,
+              messageType: oldMsg.messageType,
+              sentAt: oldMsg.sentAt,
+              status: 'sent',
+            );
+            // Transférer le statut au vrai ID
+            final oldStatus = _msgStatus.remove(localMsgId);
+            _msgStatus[serverMsgId] = oldStatus ?? MessageStatus.sent;
+          }
+        });
+        debugPrint(
+          '=== _send: localId $localMsgId → serverMsgId $serverMsgId ===',
+        );
+      }
+
       // Le message envoyé n'est pas dans le cache — l'invalider pour que
       // le prochain chargement de la conversation le récupère depuis l'API.
       inboxService.invalidateMessagesCache(widget.threadId);
@@ -1400,8 +1429,8 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint('==================');
       if (!mounted) return;
       setState(() {
-        _messages.removeWhere((m) => m.id == msgId);
-        _msgStatus.remove(msgId);
+        _messages.removeWhere((m) => m.id == localMsgId);
+        _msgStatus.remove(localMsgId);
       });
       var errorMsg = 'Échec de l\'envoi du message';
       if (e is DioException) {

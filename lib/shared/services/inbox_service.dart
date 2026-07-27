@@ -71,7 +71,8 @@ abstract class InboxService {
   );
 
   /// POST /api/v1.2/inbox/{provider}/messages
-  Future<void> sendMessage({
+  /// Retourne le message_id du serveur, ou null si absent de la réponse.
+  Future<String?> sendMessage({
     required String threadId,
     required String provider,
     String? integrationAccountId,
@@ -372,8 +373,9 @@ class HttpInboxService implements InboxService {
   }
 
   /// POST /api/v1.2/inbox/{provider}/messages
+  /// Retourne le message_id du serveur, ou null si absent de la réponse.
   @override
-  Future<void> sendMessage({
+  Future<String?> sendMessage({
     required String threadId,
     required String provider,
     String? integrationAccountId,
@@ -406,6 +408,7 @@ class HttpInboxService implements InboxService {
       '/inbox/$resolvedProvider/messages',
       data: data,
     );
+    debugPrint('=== sendMessage response: ${resp.data} ===');
     if (resp.statusCode == null ||
         resp.statusCode! < 200 ||
         resp.statusCode! >= 300) {
@@ -415,6 +418,14 @@ class HttpInboxService implements InboxService {
         type: DioExceptionType.badResponse,
       );
     }
+
+    final responseData = resp.data;
+    if (responseData is Map) {
+      final msgId = responseData['message_id']?.toString();
+      debugPrint('=== sendMessage message_id serveur: $msgId ===');
+      return msgId;
+    }
+    return null;
   }
 
   /// POST /api/v1.2/inbox/{provider}/messages (type: "carousel")
@@ -566,7 +577,7 @@ class MockInboxService implements InboxService {
   }
 
   @override
-  Future<void> sendMessage({
+  Future<String?> sendMessage({
     required String threadId,
     required String provider,
     String? integrationAccountId,
@@ -575,6 +586,7 @@ class MockInboxService implements InboxService {
     String? mediaUrl,
   }) async {
     await Future.delayed(const Duration(milliseconds: 250));
+    return null;
   }
 
   @override
