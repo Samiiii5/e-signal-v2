@@ -455,7 +455,9 @@ class HttpInboxService implements InboxService {
       // Retourner le vrai message_id du serveur
       final responseData = resp.data;
       if (responseData is Map) {
-        return responseData['message_id']?.toString();
+        final msgId = responseData['message_id']?.toString();
+        debugPrint('=== CAROUSEL message_id serveur: $msgId ===');
+        return msgId;
       }
       return null;
     } on DioException catch (e) {
