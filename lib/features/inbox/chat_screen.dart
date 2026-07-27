@@ -4222,13 +4222,10 @@ class _CarouselBubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.72,
         ),
         margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.greenLight,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.green.withValues(alpha: 0.3),
-            width: 1,
-          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.06),
@@ -4237,107 +4234,34 @@ class _CarouselBubble extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.green.withValues(alpha: 0.15),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(15),
+            const Text('📦', style: TextStyle(fontSize: 22)),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Catalogue envoyé',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.greenDark,
+                  ),
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('📦', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Catalogue produits',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.greenDark,
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  count > 0
+                      ? '$count produit${count > 1 ? "s" : ""}'
+                      : 'Produits envoyés',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.greenDark,
                   ),
-                ],
-              ),
-            ),
-            // Contenu
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    count > 0
-                        ? '$count produit${count > 1 ? 's' : ''} partagé${count > 1 ? 's' : ''}'
-                        : 'Produits partagés',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.greenDark,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Le client peut voir les détails\n'
-                    'et commander directement.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.green.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.shopping_bag_outlined,
-                              size: 12,
-                              color: AppColors.greenDark,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Via Messenger/WhatsApp',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.greenDark,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        '${message.sentAtDt.hour.toString().padLeft(2, "0")}:'
-                        '${message.sentAtDt.minute.toString().padLeft(2, "0")}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ),
