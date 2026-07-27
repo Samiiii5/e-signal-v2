@@ -98,19 +98,19 @@ class CatalogService {
         if (channel.toLowerCase() == 'messenger' &&
             (displayName.contains('facebook') ||
                 displayName.contains('meta'))) {
-          accountId = account['account_id']?.toString();
+          accountId = account['id']?.toString();
           break;
         }
         // WhatsApp correspond aux comptes WhatsApp
         if (channel.toLowerCase() == 'whatsapp' &&
             (displayName.contains('whatsapp') ||
                 displayName.contains('meta'))) {
-          accountId = account['account_id']?.toString();
+          accountId = account['id']?.toString();
           break;
         }
         // Fallback: si le channel correspond au display_name
         if (displayName.contains(channel.toLowerCase())) {
-          accountId = account['account_id']?.toString();
+          accountId = account['id']?.toString();
           break;
         }
       }
