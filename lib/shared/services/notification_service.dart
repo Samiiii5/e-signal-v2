@@ -24,15 +24,21 @@ class NotificationService {
   /// NotificationsScreen pour se rafraîchir automatiquement.
   static final ValueNotifier<int> newNotificationTick = ValueNotifier<int>(0);
 
-  static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   static bool _localNotificationsReady = false;
 
   static Future<void> _initLocalNotifications() async {
     try {
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
       const iosSettings = DarwinInitializationSettings();
       await _localNotifications.initialize(
-        const InitializationSettings(android: androidSettings, iOS: iosSettings),
+        const InitializationSettings(
+          android: androidSettings,
+          iOS: iosSettings,
+        ),
       );
 
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -44,7 +50,8 @@ class NotificationService {
 
       await _localNotifications
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.createNotificationChannel(channel);
 
       _localNotificationsReady = true;
@@ -54,7 +61,10 @@ class NotificationService {
   }
 
   /// Notification locale (ex: new_comment WebSocket) — distincte du push FCM.
-  static Future<void> showLocalNotification({required String title, required String body}) async {
+  static Future<void> showLocalNotification({
+    required String title,
+    required String body,
+  }) async {
     if (!_localNotificationsReady) return;
     const androidDetails = AndroidNotificationDetails(
       'esignal_events',
@@ -62,7 +72,10 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
     );
-    const details = NotificationDetails(android: androidDetails, iOS: DarwinNotificationDetails());
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(),
+    );
     try {
       await _localNotifications.show(
         DateTime.now().millisecondsSinceEpoch.remainder(1 << 31),
@@ -78,7 +91,10 @@ class NotificationService {
   static CollectionReference<Map<String, dynamic>>? _notificationsCollection() {
     final userId = SessionService.userId;
     if (userId == null) return null;
-    return FirebaseFirestore.instance.collection('users').doc(userId).collection('notifications');
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('notifications');
   }
 
   /// GET /api/notifications/history/{user_id}
@@ -93,11 +109,12 @@ class NotificationService {
     );
     final data = resp.data;
     final raw = (data is Map ? data['notifications'] as List? : null) ?? [];
-    final items = raw
-        .whereType<Map>()
-        .map((e) => AppNotification.fromJson(Map<String, dynamic>.from(e)))
-        .toList()
-      ..sort((a, b) => b.sentAt.compareTo(a.sentAt));
+    final items =
+        raw
+            .whereType<Map>()
+            .map((e) => AppNotification.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+          ..sort((a, b) => b.sentAt.compareTo(a.sentAt));
 
     unreadCount.value = items.where((n) => !n.isRead).length;
     return items;
@@ -114,7 +131,9 @@ class NotificationService {
   }
 
   static Future<void> deleteNotification(AppNotification n) async {
-    if (!n.isRead) unreadCount.value = (unreadCount.value - 1).clamp(0, 1 << 31);
+    if (!n.isRead) {
+      unreadCount.value = (unreadCount.value - 1).clamp(0, 1 << 31);
+    }
     try {
       await _notificationsCollection()?.doc(n.id).delete();
     } catch (e) {
@@ -162,11 +181,7 @@ class NotificationService {
 
     final messaging = FirebaseMessaging.instance;
 
-    await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await messaging.requestPermission(alert: true, badge: true, sound: true);
 
     // Gérer les notifications quand l'app est ouverte
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -189,7 +204,9 @@ class NotificationService {
     final initialMessage = await messaging.getInitialMessage();
     if (initialMessage != null) {
       // navigatorKey n'est attaché qu'après le premier build de MaterialApp.router
-      WidgetsBinding.instance.addPostFrameCallback((_) => _handleNotificationTap(initialMessage));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _handleNotificationTap(initialMessage),
+      );
     }
   }
 
@@ -206,9 +223,9 @@ class NotificationService {
     try {
       final messaging = FirebaseMessaging.instance;
       final token = await messaging.getToken();
-      debugPrint('=============================');
-      debugPrint('FCM Token: $token');
-      debugPrint('=============================');
+      debugPrint(
+        '=== FCM Token obtenu : ${token != null ? "oui (${token.length} car.)" : "non"} ===',
+      );
       if (token != null) {
         await _registerToken(token);
       }
@@ -223,7 +240,9 @@ class NotificationService {
       final organizationId = SessionService.organizationId;
 
       if (userId == null || organizationId == null) {
-        debugPrint('=== FCM Token non envoyé : userId ou organizationId null ===');
+        debugPrint(
+          '=== FCM Token non envoyé : userId ou organizationId null ===',
+        );
         return;
       }
 

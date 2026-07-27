@@ -57,7 +57,10 @@ class WebSocketService {
       final uri = Uri.parse(
         'wss://ws.score360.africa/api/v1.2/inbox/ws?organization_id=$_organizationId&token=$_token',
       );
-      debugPrint('=== WebSocket URI : $uri ===');
+      // Le token JWT ne doit jamais apparaître en clair dans les logs.
+      debugPrint(
+        '=== WebSocket URI : ${uri.replace(queryParameters: {...uri.queryParameters, 'token': '***'})} ===',
+      );
       final channel = WebSocketChannel.connect(uri);
       _channel = channel;
 
