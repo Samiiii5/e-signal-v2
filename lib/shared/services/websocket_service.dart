@@ -48,6 +48,15 @@ class WebSocketService {
     _openConnection();
   }
 
+  /// Retire le token JWT de tout texte susceptible de le contenir (les
+  /// exceptions de connexion — WebSocketException, SocketException… —
+  /// embarquent souvent l'URL complète, token inclus, dans leur message).
+  String _maskToken(String input) {
+    final token = _token;
+    if (token == null || token.isEmpty) return input;
+    return input.replaceAll(token, '[MASKED]');
+  }
+
   void _openConnection() {
     if (_manuallyDisconnected || _organizationId == null || _token == null) {
       return;
@@ -59,7 +68,11 @@ class WebSocketService {
       );
       // Le token JWT ne doit jamais apparaître en clair dans les logs.
       debugPrint(
-        '=== WebSocket URI : ${uri.replace(queryParameters: {...uri.queryParameters, 'token': '***'})} ===',
+        '=== WebSocket URI : '
+        'wss://ws.score360.africa'
+        '/api/v1.2/inbox/ws'
+        '?organization_id=$_organizationId'
+        '&token=[MASKED] ===',
       );
       final channel = WebSocketChannel.connect(uri);
       _channel = channel;
@@ -75,7 +88,7 @@ class WebSocketService {
           })
           .catchError((e) {
             debugPrint('=== WS échec type: ${e.runtimeType} ===');
-            debugPrint('=== WS échec message: $e ===');
+            debugPrint('=== WS échec message: ${_maskToken(e.toString())} ===');
             debugPrint('=== WS closeCode: ${_channel?.closeCode} ===');
             debugPrint('=== WS closeReason: ${_channel?.closeReason} ===');
             _isConnected = false;
@@ -85,14 +98,18 @@ class WebSocketService {
       _channelSubscription = channel.stream.listen(
         _onData,
         onError: (e) {
-          debugPrint('=== WebSocket stream erreur : $e ===');
+          debugPrint(
+            '=== WebSocket stream erreur : ${_maskToken(e.toString())} ===',
+          );
           _handleDisconnect();
         },
         onDone: _handleDisconnect,
         cancelOnError: true,
       );
     } catch (e) {
-      debugPrint('=== Erreur connexion WebSocket : $e ===');
+      debugPrint(
+        '=== Erreur connexion WebSocket : ${_maskToken(e.toString())} ===',
+      );
       _handleDisconnect();
     }
   }
