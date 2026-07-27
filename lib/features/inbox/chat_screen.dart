@@ -992,15 +992,20 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       inboxService.invalidateMessagesCache(widget.threadId);
       if (!mounted) return;
+      final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
       _addMessage(
         Message(
-          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+          id: msgId,
           direction: 'OUT',
           bodyText:
               '📦 Catalogue envoyé — ${selectedProducts.length} produit${selectedProducts.length > 1 ? 's' : ''}',
           sentAt: DateTime.now().toIso8601String(),
         ),
       );
+      // Marquer comme envoyé — sans ça la bulle reste bloquée sur l'horloge
+      // (statut null) puisque _msgStatus n'est jamais rempli automatiquement.
+      setState(() => _msgStatus[msgId] = MessageStatus.sent);
+      debugPrint('=== CAROUSEL envoyé ✅ msgId: $msgId ===');
     } catch (e) {
       debugPrint('=== Erreur envoi catalogue: $e ===');
       if (!mounted) return;
