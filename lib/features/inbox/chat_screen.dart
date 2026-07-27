@@ -990,6 +990,10 @@ class _ChatScreenState extends State<ChatScreen> {
         integrationAccountId: accountId,
         catalogItemIds: items,
       );
+      // sendCarousel() retourne void — le statut/corps de la réponse backend
+      // ne sont visibles qu'à l'intérieur de sendCarousel() (inbox_service.dart).
+      // Cette ligne confirme seulement qu'aucune exception n'a été levée.
+      debugPrint('=== sendCarousel() terminé sans exception ===');
       // Invalider le cache et recharger pour obtenir le vrai message serveur
       inboxService.invalidateMessagesCache(widget.threadId);
       if (!mounted) return;
