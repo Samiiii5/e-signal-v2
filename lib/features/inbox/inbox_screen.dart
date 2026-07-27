@@ -136,24 +136,41 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
         ? contactName
         : null;
     final messageJson = data['message'];
-    final sentAt = messageJson is Map
+    final sentAtRaw = messageJson is Map
         ? messageJson['sent_at']?.toString()
         : null;
+    final sentAt = DateTime.tryParse(sentAtRaw ?? '') ?? DateTime.now();
     // Extraire le contenu du message pour l'afficher dans inbox
     final messageContent = messageJson is Map
         ? (messageJson['text']?.toString() ?? messageJson['body']?.toString())
         : null;
+    // copyWith() garde l'ancienne valeur si lastMessage est null — on
+    // reproduit le même repli pour que le cache reste cohérent avec l'UI.
+    final effectiveLastMessage =
+        messageContent ?? _threads[idx].lastMessage ?? '';
 
+    // Mettre à jour le cache (HttpInboxService._cachedThreads)
+    inboxService.updateThreadLastMessage(
+      threadId,
+      effectiveLastMessage,
+      sentAt,
+    );
+
+    // Mettre à jour l'UI
     setState(() {
       final updated = _threads[idx].copyWith(
         contactName: newContactName,
         unreadCount: _threads[idx].unreadCount + 1,
-        lastMessageAt: sentAt,
+        lastMessageAt: sentAt.toIso8601String(),
         lastMessage: messageContent,
       );
       _threads.removeAt(idx);
       _threads.insert(0, updated);
     });
+
+    debugPrint(
+      '=== Inbox UI mise à jour : nouveau message thread $threadId ===',
+    );
   }
 
   void _onNewCommentEvent(Map<String, dynamic> data) {

@@ -63,6 +63,13 @@ abstract class InboxService {
   /// Ajoute un message au cache existant d'un thread (ex: reçu via WebSocket).
   void addMessageToCache(String threadId, Message message);
 
+  /// Met à jour le dernier message d'un thread dans le cache (appelé depuis WebSocket).
+  void updateThreadLastMessage(
+    String threadId,
+    String lastMessage,
+    DateTime lastAt,
+  );
+
   /// POST /api/v1.2/inbox/{provider}/messages
   Future<void> sendMessage({
     required String threadId,
@@ -147,6 +154,30 @@ class HttpInboxService implements InboxService {
       _messagesCache[threadId]!.add(message);
       debugPrint('=== Message ajouté au cache $threadId ===');
     }
+  }
+
+  @override
+  void updateThreadLastMessage(
+    String threadId,
+    String lastMessage,
+    DateTime lastAt,
+  ) {
+    if (_cachedThreads == null) return;
+    final idx = _cachedThreads!.indexWhere((t) => t.id == threadId);
+    if (idx == -1) return;
+
+    final old = _cachedThreads![idx];
+    _cachedThreads![idx] = old.copyWith(
+      lastMessage: lastMessage,
+      lastMessageAt: lastAt.toIso8601String(),
+      unreadCount: old.unreadCount + 1,
+    );
+
+    // Remonter ce thread en haut de la liste
+    final updated = _cachedThreads!.removeAt(idx);
+    _cachedThreads!.insert(0, updated);
+
+    debugPrint('=== Cache thread $threadId mis à jour : $lastMessage ===');
   }
 
   /// Produits en cache, ou null si absent/expiré.
@@ -486,6 +517,13 @@ class MockInboxService implements InboxService {
 
   @override
   void addMessageToCache(String threadId, Message message) {}
+
+  @override
+  void updateThreadLastMessage(
+    String threadId,
+    String lastMessage,
+    DateTime lastAt,
+  ) {}
 
   @override
   Future<List<Thread>> getThreads({
