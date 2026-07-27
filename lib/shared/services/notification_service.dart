@@ -14,7 +14,6 @@ export 'package:esignal/shared/models/notification_model.dart';
 class NotificationService {
   // URL de ton backend — à changer après déploiement sur Render
   static const String _backendUrl = 'https://e-signal-v2-backend-notifications.onrender.com';
-  static const String _apiKey = 'Esignal2027!';
 
   /// Nombre de notifications non lues — alimente le badge sur la cloche de
   /// l'inbox. Mis à jour dès l'appel des méthodes ci-dessous (pas d'attente
@@ -90,7 +89,7 @@ class NotificationService {
     final dio = Dio();
     final resp = await dio.get(
       '$_backendUrl/api/notifications/history/$userId',
-      options: Options(headers: {'X-API-Key': _apiKey}),
+      options: Options(headers: {'X-API-Key': 'Esignal2027!'}),
     );
     final data = resp.data;
     final raw = (data is Map ? data['notifications'] as List? : null) ?? [];
