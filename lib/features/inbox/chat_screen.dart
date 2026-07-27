@@ -984,23 +984,21 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint(
         '=== CAROUSEL body : thread=${widget.threadId} provider=$provider accountId=$accountId items=$items ===',
       );
-      await inboxService.sendCarousel(
+      final serverMessageId = await inboxService.sendCarousel(
         threadId: widget.threadId,
         provider: provider,
         integrationAccountId: accountId,
         catalogItemIds: items,
       );
-      // sendCarousel() retourne void — le statut/corps de la réponse backend
-      // ne sont visibles qu'à l'intérieur de sendCarousel() (inbox_service.dart).
-      // Cette ligne confirme seulement qu'aucune exception n'a été levée.
-      debugPrint('=== sendCarousel() terminé sans exception ===');
       // Invalider le cache et recharger pour obtenir le vrai message serveur
       inboxService.invalidateMessagesCache(widget.threadId);
       if (!mounted) return;
 
-      // Afficher une bulle optimiste le temps du rechargement — le msgId
-      // local ne correspondra jamais à l'ID retourné par le serveur.
-      final msgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+      // Utiliser le vrai message_id du serveur (fallback local si absent de
+      // la réponse) pour que WebSocket puisse mettre à jour le statut
+      // correctement via message_status_updated.
+      final msgId =
+          serverMessageId ?? 'msg_${DateTime.now().millisecondsSinceEpoch}';
       _addMessage(
         Message(
           id: msgId,
@@ -1013,14 +1011,13 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
       setState(() => _msgStatus[msgId] = MessageStatus.sent);
+      debugPrint('=== CAROUSEL envoyé ✅ serverMsgId: $msgId ===');
 
       // Recharger en arrière-plan pour remplacer la bulle optimiste par le
-      // vrai message du serveur (bon id, bon statut).
+      // vrai message du serveur (utile surtout si serverMessageId était null).
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) _revalidateMessagesInBackground();
       });
-
-      debugPrint('=== CAROUSEL envoyé ✅ msgId: $msgId ===');
     } catch (e) {
       debugPrint('=== Erreur envoi catalogue: $e ===');
       if (!mounted) return;

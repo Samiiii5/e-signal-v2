@@ -82,7 +82,8 @@ abstract class InboxService {
   });
 
   /// POST /api/v1.2/inbox/{provider}/messages (type: "carousel")
-  Future<void> sendCarousel({
+  /// Retourne le message_id du serveur, ou null si absent de la réponse.
+  Future<String?> sendCarousel({
     required String threadId,
     required String provider,
     required String integrationAccountId,
@@ -418,7 +419,7 @@ class HttpInboxService implements InboxService {
 
   /// POST /api/v1.2/inbox/{provider}/messages (type: "carousel")
   @override
-  Future<void> sendCarousel({
+  Future<String?> sendCarousel({
     required String threadId,
     required String provider,
     required String integrationAccountId,
@@ -450,6 +451,13 @@ class HttpInboxService implements InboxService {
           resp.statusCode! >= 300) {
         throw Exception('HTTP ${resp.statusCode} - ${resp.data}');
       }
+
+      // Retourner le vrai message_id du serveur
+      final responseData = resp.data;
+      if (responseData is Map) {
+        return responseData['message_id']?.toString();
+      }
+      return null;
     } on DioException catch (e) {
       debugPrint('=== CAROUSEL DioException: ${e.type} - ${e.message} ===');
       debugPrint('=== CAROUSEL DioException response: ${e.response?.data} ===');
@@ -568,13 +576,14 @@ class MockInboxService implements InboxService {
   }
 
   @override
-  Future<void> sendCarousel({
+  Future<String?> sendCarousel({
     required String threadId,
     required String provider,
     required String integrationAccountId,
     required List<Map<String, dynamic>> catalogItemIds,
   }) async {
     await Future.delayed(const Duration(milliseconds: 250));
+    return null;
   }
 
   @override
