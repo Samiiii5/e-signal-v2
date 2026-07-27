@@ -4987,6 +4987,7 @@ class _ProductTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Text(
@@ -5002,21 +5003,25 @@ class _ProductTile extends StatelessWidget {
                         ),
                         if (isService) ...[
                           const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.statusCreatedBg,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Service',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.statusCreatedText,
+                          Flexible(
+                            flex: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.statusCreatedBg,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Service',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.statusCreatedText,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ),
@@ -5037,31 +5042,40 @@ class _ProductTile extends StatelessWidget {
                     ],
                     const SizedBox(height: 4),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          '${_fmt(price)} $currency',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.green,
+                        Flexible(
+                          flex: 0,
+                          child: Text(
+                            '${_fmt(price)} $currency',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.green,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (sku != null && sku.isNotEmpty) ...[
                           const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.backgroundStatus,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              sku,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: AppColors.textSecondary,
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.backgroundStatus,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                sku,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textSecondary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
                             ),
                           ),
