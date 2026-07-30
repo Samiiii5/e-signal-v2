@@ -1,191 +1,205 @@
-# Contraintes fonctionnelles — Périmètre du système e-Signal
+# Contraintes fonctionnelles — Périmètre de l'application e-Signal
 
 > Définition des **limites du système** au sens du cours UML n°2 § 2-1 :
 > *« la première tâche consiste à définir les limites du système (c.-à-d. ce qui est
 > inclus ou pas dans le système) »*.
-> Source : analyse du code de la branche `feature/retouch`.
-
-**Frontière retenue** : le système = **plateforme e-Signal** (application mobile Flutter
-+ API backend `ws.score360.africa/api/v1.2`).
+>
+> **Portée de ce document** : ce qui est présent ou absent **dans l'application
+> mobile**, tel que constaté dans le code de la branche `feature/retouch`.
+> Aucune hypothèse n'est faite sur l'état du backend.
 
 ---
 
-## 1. Tableau de synthèse global
+## 1. Tableau de synthèse
 
-| ✅ INCLUS dans le périmètre | ❌ EXCLU du périmètre |
+| ✅ INCLUS dans l'application | ❌ EXCLU de l'application |
 |---|---|
-| Réception et affichage unifiés des conversations de 6 canaux (WhatsApp, Messenger, Instagram, TikTok, SMS, Email) | Hébergement et exploitation des canaux eux-mêmes (serveurs Meta, opérateurs SMS) |
-| Envoi de messages texte vers le canal d'origine du client | Rédaction automatique / réponses par intelligence artificielle |
-| Envoi de la position GPS du commercial | Cartographie et calcul d'itinéraire |
-| Envoi d'un carrousel produits (max 10 articles) | Composition graphique du carrousel (faite par WhatsApp/Meta) |
-| Consultation du catalogue produits de l'organisation | Création, modification, suppression de produits (back-office web) |
-| Génération de liens de paiement mobile money (7 fournisseurs) | Encaissement, débit du client, reversement des fonds (passerelles) |
-| Consultation, annulation et export des transactions | Rapprochement bancaire, comptabilité, facturation légale |
+| Réception et affichage unifiés des conversations de 6 canaux (WhatsApp, Messenger, Instagram, TikTok, SMS, Email) | Prospection sortante : l'application ne permet pas d'initier une conversation avec un nouveau contact |
+| Envoi de messages **texte** | Envoi de messages vocaux, vidéo, documents (l'affichage est géré, pas l'envoi) |
+| Envoi de la position GPS du commercial | Affichage d'une carte dans l'application |
+| Envoi d'un carrousel de produits (1 à 10 articles) | Envoi de plus de 10 produits en une fois |
+| Consultation du catalogue produits | Création, modification, suppression d'un produit |
+| Génération de liens de paiement mobile money (7 fournisseurs) | Saisie d'un montant libre sans passer par un produit du catalogue |
+| Consultation, annulation et export des transactions (CSV, Excel, reçu PDF) | Le paiement lui-même : il se déroule hors de l'application, sur la page du fournisseur |
 | Consultation et réponse aux commentaires Facebook / Instagram / TikTok | Publication de nouveaux posts sur les réseaux sociaux |
-| Tableau de bord (revenus, conversations, taux de réponse, canaux) | Construction des indicateurs (calculés par le backend d'analytique) |
-| Authentification, activation de compte, réinitialisation du mot de passe | Création des comptes utilisateurs et des organisations (administration) |
-| Réception de notifications push | Infrastructure de notification (Firebase Cloud Messaging) |
-| Consultation du profil et des canaux connectés | Connexion / configuration d'un nouveau canal d'intégration |
-| Fonctionnement mobile Android et iOS | Version web ou de bureau |
-| Interface en français, montants en FCFA / XOF | Multilingue, multidevise, conversion de devises |
+| Affichage du tableau de bord (revenus, conversations, taux de réponse, canaux) | Export ou impression du tableau de bord |
+| Authentification, activation d'un compte invité, réinitialisation du mot de passe par OTP | Création de comptes utilisateurs et d'organisations |
+| Réception et gestion des notifications push | Réglage fin des notifications par canal ou par type |
+| Consultation du profil et de la liste des canaux connectés | Modification du profil, changement de mot de passe, connexion d'un nouveau canal |
+| Fonctionnement Android et iOS | Version web ou de bureau |
+| Interface en français, montants en FCFA / XOF | Multilingue, multidevise |
 
 ---
 
-## 2. Détail par domaine fonctionnel
+## 2. Détail par domaine
 
 ### 2.1 Messagerie
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Liste unifiée des conversations, tous canaux confondus | Création d'une conversation à froid (le client initie toujours l'échange) |
-| Filtrage par canal, par non-lus, par commentaires | Filtrage par commercial assigné, par date, par étiquette |
-| Recherche d'une conversation par nom de contact | Recherche globale multi-conversations |
-| Consultation de l'historique paginé d'une conversation | Archivage et conservation longue durée des messages (backend) |
-| Marquage automatique des messages comme lus | Accusé de lecture émis par le client (produit par la plateforme) |
-| Envoi de messages **texte** | Envoi de messages vocaux, vidéo, documents *(affichage supporté, envoi non implémenté)* |
-| Partage de la position GPS | Partage de contact, sondage, bouton de réponse rapide |
-| Réception des messages en temps réel | Notification des messages hors ligne autrement que par push |
-| Recherche dans une conversation | Recherche dans les pièces jointes |
-| Export d'une conversation au format texte | Export au format PDF ou archive certifiée |
-| Consultation du profil du client et de sa présence | Modification de la fiche client (CRM) |
-| Appel téléphonique du client via l'application téléphone | Téléphonie intégrée (VoIP), appel vidéo, enregistrement d'appel |
+| Liste unifiée des conversations, tous canaux confondus | Démarrer une conversation avec un contact qui n'a jamais écrit |
+| Filtrage par canal, par messages non lus, par commentaires | Filtrage par commercial, par date, par étiquette |
+| Recherche d'une conversation par nom de contact | Recherche portant sur le contenu de toutes les conversations |
+| Consultation de l'historique, chargement par pages | Consultation des pièces jointes regroupées |
+| Marquage des messages comme lus à l'ouverture | Marquer manuellement une conversation comme non lue |
+| Envoi de messages texte avec émojis | Envoi de messages vocaux, vidéo, documents |
+| Partage de la position GPS | Partage d'une fiche contact, d'un sondage, de boutons de réponse rapide |
+| Réception des messages en temps réel | Consultation hors connexion (seul un affichage temporaire du cache est possible) |
+| Recherche dans une conversation ouverte | Recherche avancée (par date, par type de message) |
+| Export d'une conversation au format texte | Export au format PDF |
+| Consultation de la fiche du client et de son état de présence | Modification de la fiche client, ajout de notes internes |
+| Lancement d'un appel via l'application téléphone du terminal | Appel intégré à l'application, appel vidéo, enregistrement d'appel |
+| Affichage des indicateurs de saisie et de lecture | Envoi d'un indicateur de saisie vers le client |
 
 ### 2.2 Catalogue
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Consultation des produits **actifs** de l'organisation | Consultation des produits inactifs ou en brouillon |
-| Filtrage produits / services | Recherche par mot-clé, tri par prix |
-| Sélection de 1 à 10 produits pour un envoi | Envoi de plus de 10 produits (limite des plateformes Meta) |
-| Affichage image, nom, description, prix, référence (SKU) | Gestion des stocks, des variantes (taille, couleur), des remises |
-| — | Création / modification / suppression d'un produit |
-| — | Import en masse du catalogue (CSV, tableur) |
+| Consultation des produits **actifs** | Consultation des produits inactifs ou en brouillon |
+| Filtrage entre produits et services | Recherche par mot-clé, tri par prix |
+| Sélection de 1 à 10 produits en vue d'un envoi | Sélection de plus de 10 produits |
+| Affichage de l'image, du nom, de la description, du prix et de la référence | Affichage des stocks, des variantes (taille, couleur), des remises |
+| — | Création, modification, suppression d'un produit |
+| — | Import du catalogue depuis un fichier |
 
 ### 2.3 Paiement
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Création d'un lien de paiement en 3 étapes (client → produit → paiement) | Saisie d'un montant libre sans produit du catalogue |
-| Choix parmi 7 fournisseurs (Wave, Orange Money, MTN, Moov, Djamo, CinetPay, FedaPay) | Paiement par carte bancaire, virement, espèces |
-| Partage du lien dans la conversation ou par copie | Relance automatique du client en cas de non-paiement |
-| Suivi des statuts : Créé / En attente / Payé / Expiré | Le processus de paiement lui-même (page de la passerelle) |
-| Annulation d'un lien non encore payé | Remboursement, paiement partiel, échelonnement |
-| Téléchargement du reçu au format PDF | Facture fiscale conforme, mentions légales, TVA |
-| Export des transactions en CSV et Excel | Connexion à un logiciel comptable |
-| Consultation du récapitulatif des montants | Gestion de la trésorerie, prévisionnel |
+| Création d'un lien de paiement en 3 étapes : client → produit → mode de paiement | Panier de plusieurs articles dans un même lien |
+| Choix parmi 7 fournisseurs (Wave, Orange Money, MTN Money, Moov Money, Djamo, CinetPay, FedaPay) | Paiement par carte bancaire, virement ou espèces |
+| Insertion du lien dans la conversation, copie du lien | Relance automatique du client s'il ne paie pas |
+| Affichage des statuts : Créé / En attente / Payé / Expiré | L'opération de paiement, qui se déroule sur la page du fournisseur |
+| Annulation d'un lien non encore payé | Remboursement, paiement partiel, paiement échelonné |
+| Téléchargement d'un reçu au format PDF | Édition d'une facture avec mentions légales et TVA |
+| Export des transactions en CSV et en Excel | Envoi de l'export par email, connexion à un logiciel de comptabilité |
+| Consultation du détail d'une transaction | Modification d'un lien déjà créé |
 
 ### 2.4 Livraison
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Option de livraison à domicile lors de la création d'un lien (+2 000 FCFA) | Tarification variable selon la distance ou le poids |
-| Saisie de l'adresse (destinataire, téléphone, commune, quartier, secteur) | Géocodage / validation de l'adresse |
-| Affichage du livreur assigné (nom, note, délai estimé) | Suivi en temps réel de la position du livreur |
-| — | Application dédiée au livreur, acceptation / refus de course |
-| — | Rémunération du livreur, gestion des litiges de livraison |
-| ⚠️ *Fonctionnalité actuellement simulée : le service livreur n'est pas connecté au backend réel.* | |
+| Option de livraison à domicile lors de la création d'un lien (+2 000 FCFA) | Tarif variable selon la distance, le poids ou la zone |
+| Saisie de l'adresse : destinataire, téléphone, commune, quartier, secteur | Vérification ou géolocalisation de l'adresse saisie |
+| Affichage d'un livreur assigné (nom, note, délai estimé) | Suivi de la position du livreur en temps réel |
+| — | Choix manuel du livreur parmi plusieurs propositions |
+| — | Notification du livreur, acceptation ou refus de la course |
+| ⚠️ *L'application affiche pour l'instant un livreur de démonstration : la recherche de livreur n'effectue aucun appel réseau.* | |
 
-### 2.5 Commentaires réseaux sociaux
+### 2.5 Commentaires des réseaux sociaux
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Consultation des publications de l'organisation | Publication d'un nouveau post, programmation de contenu |
-| Consultation du fil de commentaires d'une publication | Modération automatique, détection de spam |
-| Réponse publique à un commentaire | Message privé au commentateur depuis le commentaire |
-| Mention « J'aime » sur un commentaire | Partage, republication |
-| Changement de statut (Nouveau / Répondu / Masqué) | Suppression définitive du commentaire chez le réseau social |
+| Consultation des publications de l'organisation | Publication d'un post, programmation de contenu |
+| Consultation du fil de commentaires d'une publication | Détection automatique du spam, modération assistée |
+| Réponse publique à un commentaire | Passage du commentaire en message privé |
+| Mention « J'aime » sur un commentaire | Partage ou republication |
+| Changement de statut : Nouveau / Répondu / Masqué | Suppression définitive d'un commentaire |
 
 ### 2.6 Statistiques
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Consultation des revenus, du nombre de conversations, du taux de réponse | Calcul des indicateurs (réalisé par le backend d'analytique) |
-| Répartition des conversations par canal | Statistiques par commercial, par produit, par zone géographique |
-| Évolution des revenus sur la période | Projections, prévisions, objectifs commerciaux |
-| Filtre sur 3 périodes : 7 jours, 30 jours, mois en cours | Période personnalisée, comparaison entre périodes |
-| — | Export ou impression du tableau de bord |
+| Affichage des revenus, du nombre de conversations et du taux de réponse | Statistiques par commercial, par produit, par zone |
+| Répartition des conversations par canal | Comparaison entre deux périodes |
+| Courbe d'évolution des revenus | Projections, objectifs commerciaux |
+| Choix de la période : 7 jours, 30 jours, mois en cours | Période personnalisée (dates au choix) |
+| — | Export ou partage du tableau de bord |
 
 ### 2.7 Compte et sécurité
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Connexion par identifiant (email ou téléphone) + mot de passe | Connexion biométrique, code PIN, double authentification |
-| Activation d'un compte invité (définition du premier mot de passe) | Création du compte lui-même (fait par un administrateur) |
-| Réinitialisation du mot de passe par code OTP envoyé par email | Réinitialisation par SMS |
-| Renouvellement automatique et transparent de la session | Gestion des sessions multi-appareils, révocation à distance |
-| Déconnexion | Verrouillage automatique après inactivité |
-| Consultation du profil (nom, email, téléphone, niveau KYC, statut) | Modification des informations personnelles *(prévu ultérieurement)* |
-| Consultation des canaux connectés | Connexion d'un nouveau canal *(prévu ultérieurement)* |
-| Activation / désactivation des notifications | Réglage fin par type de notification ou par canal |
-| — | Changement du mot de passe depuis le profil *(prévu ultérieurement)* |
-| — | Aide et support intégrés *(prévu ultérieurement)* |
-| — | Vérification KYC (le niveau est affiché mais non modifiable) |
+| Connexion par identifiant (email ou téléphone) puis mot de passe | Connexion biométrique, code PIN, double authentification |
+| Activation d'un compte invité par définition du premier mot de passe | Création du compte lui-même |
+| Réinitialisation du mot de passe par code OTP reçu par email | Réinitialisation par SMS |
+| Maintien de la session sans reconnexion manuelle | Gestion de plusieurs appareils, déconnexion à distance |
+| Déconnexion manuelle | Verrouillage automatique après une période d'inactivité |
+| Consultation du profil : nom, email, téléphone, niveau KYC, statut | Modification des informations personnelles |
+| Consultation de la liste des canaux connectés | Connexion d'un nouveau canal depuis l'application |
+| Activation ou désactivation générale des notifications | Changement de mot de passe depuis le profil |
+| — | Aide et support intégrés |
+| — | Envoi de pièces justificatives pour la vérification KYC |
+| — | Bascule entre plusieurs organisations |
 
 ### 2.8 Notifications
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Réception des notifications push (message, appel, paiement) | Notifications par email ou SMS |
-| Historique groupé par période (aujourd'hui, hier, cette semaine…) | Conservation illimitée de l'historique |
-| Filtrage par type (Tous / Messages / Appels / Paiements) | Filtrage par conversation ou par client |
+| Réception des notifications push : message, appel, paiement | Notifications par email ou par SMS |
+| Historique groupé par période (aujourd'hui, hier, cette semaine, plus ancien) | Recherche dans l'historique des notifications |
+| Filtrage par type : Tous / Messages / Appels / Paiements | Filtrage par conversation ou par client |
 | Réponse rapide sans ouvrir la conversation | Réponse avec pièce jointe depuis la notification |
-| Marquer comme lue, tout marquer, archiver, supprimer, tout effacer | Report d'une notification (« me le rappeler plus tard ») |
+| Rappel du contact depuis la notification | Report d'une notification |
+| Marquer comme lue, tout marquer, archiver, supprimer, tout effacer | Restauration d'une notification supprimée |
 
-### 2.9 Gestion d'équipe *(hors périmètre mobile)*
+### 2.9 Travail en équipe
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Affichage de l'état d'affectation d'une conversation | **Assignation** d'une conversation à un commercial |
-| Prise en compte automatique de la clôture d'une conversation | **Clôture / résolution** d'une conversation |
-| — | Gestion des utilisateurs, des rôles et des permissions |
-| — | Supervision de l'activité des commerciaux |
-| ⚠️ *L'application mobile **reçoit** les événements d'affectation et de clôture, mais ne peut pas les **déclencher** : ces actions relèvent du back-office web.* | |
+| Affichage de l'état d'affectation d'une conversation | **Assigner** une conversation à un commercial |
+| Prise en compte automatique de la clôture d'une conversation | **Clôturer** ou **rouvrir** une conversation |
+| — | Consultation de la liste des membres de l'équipe |
+| — | Gestion des rôles et des droits d'accès |
+| — | Notes internes ou discussion entre commerciaux sur une conversation |
+| ⚠️ *L'application est informée qu'une conversation a été affectée ou clôturée et met sa liste à jour, mais elle n'offre aucun écran permettant de déclencher ces actions.* | |
 
 ---
 
-## 3. Fonctionnalités présentes à l'écran mais non transmises au backend
+## 3. Fonctionnalités présentes dans l'interface mais sans effet réel
 
-⚠️ **À signaler dans votre rapport** : ces actions existent dans l'interface et donnent
-un retour visuel au commercial, mais **ne quittent pas le téléphone**. Elles ne sont
-donc **ni pleinement incluses, ni exclues** — elles constituent le périmètre à
-consolider.
+⚠️ **Constat côté application** : les actions ci-dessous existent à l'écran et
+affichent une confirmation au commercial, mais l'application **n'émet aucune requête
+réseau** — l'effet reste donc limité à l'affichage sur le téléphone. Elles ne sont ni
+pleinement incluses, ni exclues : c'est le périmètre à consolider.
 
-| Fonctionnalité | Comportement réel | Conséquence |
-|---|---|---|
-| Envoi d'une photo produit | Affichée dans le fil, image conservée en local | Le client ne la reçoit pas |
-| Envoi d'un devis rapide | Message affiché en local | Le client ne le reçoit pas |
-| Envoi d'une promotion | Message affiché en local | Le client ne le reçoit pas |
-| Demande d'avis client | Message affiché en local | Le client ne le reçoit pas |
-| Envoi d'un suivi de commande | Carte affichée en local | Le client ne le reçoit pas |
-| Transfert d'un message | Confirmation affichée | Aucun envoi réel |
-| Modification / suppression d'un message | Modifié dans la liste locale | Réapparaît au rechargement |
-| Épinglage / marquage d'un message | État conservé en mémoire | Perdu à la fermeture de l'écran |
-| Réaction par emoji | Affichée en local | Non visible par le client |
-| Mise en sourdine d'une conversation | Indicateur visuel | Les notifications continuent |
-| Blocage d'un contact | Message de confirmation | Le contact peut toujours écrire |
-| Suppression d'une conversation | Message de confirmation | La conversation revient au rechargement |
-| Appel audio / vidéo | Message « Appel en cours… » | Aucun appel n'est établi |
+| Action | Ce que fait réellement l'application |
+|---|---|
+| Envoyer une photo produit | Ajoute l'image au fil, en conservant le chemin du fichier sur le téléphone |
+| Envoyer un devis rapide | Ajoute le message formaté au fil |
+| Envoyer une promotion | Ajoute le message pré-rédigé au fil |
+| Demander un avis client | Ajoute le message pré-rédigé au fil |
+| Envoyer un suivi de commande | Ajoute une carte de suivi au fil |
+| Transférer un message | Affiche une confirmation de transfert |
+| Modifier un message | Modifie le texte dans la liste affichée |
+| Supprimer un message | Retire le message de la liste affichée |
+| Épingler ou marquer un message | Conserve l'état en mémoire jusqu'à la fermeture de l'écran |
+| Réagir par un émoji | Ajoute la réaction sous le message affiché |
+| Mettre une conversation en sourdine | Change l'icône de sourdine |
+| Bloquer un contact | Affiche un message de confirmation |
+| Supprimer une conversation | Affiche un message de confirmation |
+| Appel audio ou vidéo | Affiche « Appel en cours… » |
+| Rechercher un livreur | Affiche un livreur de démonstration après 2 secondes |
 
-➡️ **Recommandation de formulation pour votre rapport** :
-> « Le périmètre de la version actuelle couvre l'envoi de messages texte, de
-> localisation et de carrousels produits. L'envoi de médias (photo, audio, vidéo,
-> document) ainsi que les actions de gestion des messages (modification, suppression,
-> épinglage) sont implémentés côté interface et restent à raccorder au backend. »
+**Actions qui, à l'inverse, émettent bien une requête réseau** : envoi d'un message
+texte, envoi de la localisation, envoi d'un carrousel produits, marquage des messages
+comme lus, chargement des conversations et des messages, chargement du catalogue,
+création et annulation d'un lien de paiement, réponse à un commentaire, mention
+« J'aime » sur un commentaire, changement de statut d'un commentaire, chargement du
+tableau de bord, connexion et réinitialisation du mot de passe, enregistrement du
+terminal pour les notifications.
+
+➡️ **Formulation suggérée pour le rapport** :
+> « La version actuelle de l'application couvre l'envoi de messages texte, de la
+> localisation et de carrousels produits. L'envoi de médias et les actions de gestion
+> des messages (modification, suppression, épinglage, transfert) sont réalisés au
+> niveau de l'interface et restent à finaliser. »
 
 ---
 
 ## 4. Contraintes fonctionnelles transversales
 
-| Contrainte | Valeur imposée |
+| Contrainte | Valeur |
 |---|---|
-| Nombre maximum de produits par carrousel | **10** (limite des plateformes Meta) |
-| Délai de réponse à un client WhatsApp | **24 h** au-delà desquelles l'envoi est refusé par la plateforme |
-| Frais de livraison à domicile | **2 000 FCFA** (montant fixe) |
-| Durée de validité d'un lien de paiement | Définie par la passerelle, affichée dans le détail de la transaction |
-| Devise unique | **FCFA / XOF** |
-| Langue unique de l'interface | **Français** |
+| Nombre maximum de produits par carrousel | **10** |
+| Frais de livraison à domicile | **2 000 FCFA**, montant fixe |
+| Nombre de produits par lien de paiement | **1** (pas de panier) |
 | Longueur minimale du mot de passe | **8 caractères** |
-| Un lien de paiement porte **un seul** produit | Pas de panier multi-articles |
-| Le client doit avoir écrit en premier | Aucune prospection sortante possible |
-| Une organisation par utilisateur connecté | Pas de bascule multi-organisations |
-| Connexion internet obligatoire | Pas de mode hors ligne (seule une consultation du cache récent est possible) |
+| Devise | **FCFA / XOF** uniquement |
+| Langue de l'interface | **Français** uniquement |
+| Périodes disponibles pour les statistiques | 7 jours, 30 jours, mois en cours |
+| Fournisseurs de paiement proposés | 7 (Wave, Orange Money, MTN Money, Moov Money, Djamo, CinetPay, FedaPay) |
+| Canaux de messagerie pris en charge | 6 (WhatsApp, Messenger, Instagram, TikTok, SMS, Email) |
+| Point de départ d'une conversation | Le client écrit toujours en premier |
+| Organisation active | Une seule à la fois, celle du compte connecté |
+| Connexion internet | Obligatoire pour toute action ; hors connexion, seules les données récemment consultées s'affichent |
