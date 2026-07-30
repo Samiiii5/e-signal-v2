@@ -15,12 +15,12 @@
 | ✅ INCLUS dans l'application | ❌ EXCLU de l'application |
 |---|---|
 | Réception et affichage unifiés des conversations de 6 canaux (WhatsApp, Messenger, Instagram, TikTok, SMS, Email) | Prospection sortante : l'application ne permet pas d'initier une conversation avec un nouveau contact |
-| Envoi de messages **texte** | Envoi de messages vocaux, vidéo, documents (l'affichage est géré, pas l'envoi) |
+| Envoi de messages **texte** | Partage d'une fiche contact, d'un sondage ou de boutons de réponse rapide |
 | Envoi de la position GPS du commercial | Affichage d'une carte dans l'application |
 | Envoi d'un carrousel de produits (1 à 10 articles) | Envoi de plus de 10 produits en une fois |
 | Consultation du catalogue produits | Création, modification, suppression d'un produit |
-| Génération de liens de paiement mobile money (7 fournisseurs) | Saisie d'un montant libre sans passer par un produit du catalogue |
-| Consultation, annulation et export des transactions (CSV, Excel, reçu PDF) | Le paiement lui-même : il se déroule hors de l'application, sur la page du fournisseur |
+| Génération de liens de paiement mobile money (7 fournisseurs) | Modification d'un lien déjà créé, relance automatique du client |
+| Consultation, annulation et export des transactions (CSV, Excel, reçu PDF) | Remboursement, paiement partiel ou échelonné |
 | Consultation et réponse aux commentaires Facebook / Instagram / TikTok | Publication de nouveaux posts sur les réseaux sociaux |
 | Affichage du tableau de bord (revenus, conversations, taux de réponse, canaux) | Export ou impression du tableau de bord |
 | Authentification, activation d'un compte invité, réinitialisation du mot de passe par OTP | Création de comptes utilisateurs et d'organisations |
@@ -42,8 +42,7 @@
 | Recherche d'une conversation par nom de contact | Recherche portant sur le contenu de toutes les conversations |
 | Consultation de l'historique, chargement par pages | Consultation des pièces jointes regroupées |
 | Marquage des messages comme lus à l'ouverture | Marquer manuellement une conversation comme non lue |
-| Envoi de messages texte avec émojis | Envoi de messages vocaux, vidéo, documents |
-| Partage de la position GPS | Partage d'une fiche contact, d'un sondage, de boutons de réponse rapide |
+| Envoi de messages texte avec émojis, partage de la position GPS | Partage d'une fiche contact, d'un sondage, de boutons de réponse rapide |
 | Réception des messages en temps réel | Consultation hors connexion (seul un affichage temporaire du cache est possible) |
 | Recherche dans une conversation ouverte | Recherche avancée (par date, par type de message) |
 | Export d'une conversation au format texte | Export au format PDF |
@@ -66,14 +65,14 @@
 
 | ✅ Inclus | ❌ Exclu |
 |---|---|
-| Création d'un lien de paiement en 3 étapes : client → produit → mode de paiement | Panier de plusieurs articles dans un même lien |
-| Choix parmi 7 fournisseurs (Wave, Orange Money, MTN Money, Moov Money, Djamo, CinetPay, FedaPay) | Paiement par carte bancaire, virement ou espèces |
-| Insertion du lien dans la conversation, copie du lien | Relance automatique du client s'il ne paie pas |
-| Affichage des statuts : Créé / En attente / Payé / Expiré | L'opération de paiement, qui se déroule sur la page du fournisseur |
-| Annulation d'un lien non encore payé | Remboursement, paiement partiel, paiement échelonné |
+| Création d'un lien de paiement en 3 étapes : client → produit → mode de paiement | Paiement par carte bancaire, virement ou espèces |
+| Choix parmi 7 fournisseurs (Wave, Orange Money, MTN Money, Moov Money, Djamo, CinetPay, FedaPay) | Relance automatique du client s'il ne paie pas |
+| Insertion du lien dans la conversation, copie du lien | Remboursement, paiement partiel, paiement échelonné |
+| Affichage des statuts : Créé / En attente / Payé / Expiré | Modification d'un lien déjà créé |
+| Annulation d'un lien non encore payé | Notification du commerçant à l'échéance d'un lien |
 | Téléchargement d'un reçu au format PDF | Édition d'une facture avec mentions légales et TVA |
 | Export des transactions en CSV et en Excel | Envoi de l'export par email, connexion à un logiciel de comptabilité |
-| Consultation du détail d'une transaction | Modification d'un lien déjà créé |
+| Consultation du détail d'une transaction | Filtrage des transactions par client ou par produit |
 
 ### 2.4 Livraison
 
@@ -193,7 +192,6 @@ terminal pour les notifications.
 |---|---|
 | Nombre maximum de produits par carrousel | **10** |
 | Frais de livraison à domicile | **2 000 FCFA**, montant fixe |
-| Nombre de produits par lien de paiement | **1** (pas de panier) |
 | Longueur minimale du mot de passe | **8 caractères** |
 | Devise | **FCFA / XOF** uniquement |
 | Langue de l'interface | **Français** uniquement |
