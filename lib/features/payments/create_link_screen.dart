@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/models/lien_paiement_model.dart';
 import '../../shared/services/catalog_service.dart';
 import '../../shared/services/inbox_service.dart';
+import '../../shared/services/payment_service.dart';
 
 int _asIntPrice(dynamic n) {
   if (n is num) return n.toInt();
@@ -29,6 +31,19 @@ String _fmtNum(dynamic n) {
   }
   return buf.toString();
 }
+
+/// Libellé affiché → identifiant de fournisseur attendu par l'API.
+/// Même correspondance que dans CreateLinkSheet.
+String _providerFor(String label) => switch (label) {
+  'Wave' => 'wave',
+  'FedaPay' => 'fedapay',
+  'Orange Money' => 'orange_money',
+  'CinetPay' => 'cinetpay',
+  'Moov Money' => 'moov_money',
+  'MTN Money' => 'mtn_money',
+  'Djamo' => 'djamo',
+  _ => 'wave',
+};
 
 // Return value when a link is generated
 class CreateLinkResult {
@@ -146,33 +161,56 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
   Future<void> _generate() async {
     if (_selectedProduct == null) return;
     setState(() => _isGenerating = true);
-    await Future.delayed(const Duration(milliseconds: 800));
+
+    final product = _selectedProduct!;
+    final priceValue = _asIntPrice(product['base_price']);
+    final currency = (product['currency'] ?? 'FCFA').toString();
+    final frais = _hasDelivery ? 2000 : 0;
+    final total = priceValue + frais;
+
+    // Effective thread: picked in step 1 OR pre-filled from caller
+    final effectiveThreadId = _selectedThread?.id ?? widget.threadId;
+
+    // Même endpoint que CreateLinkSheet : POST /payment-links/organizations/{org}/product
+    final PaymentLink link;
+    try {
+      link = await paymentService.createPaymentLink(
+        catalogItemId: (product['product_id'] ?? '').toString(),
+        provider: _providerFor(_selectedPayment),
+        customerName: _contactName.isNotEmpty ? _contactName : null,
+        customerPhone: _telephoneCtrl.text.isNotEmpty
+            ? _telephoneCtrl.text
+            : null,
+        threadId: effectiveThreadId,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isGenerating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error('Impossible de générer le lien de paiement.'),
+      );
+      return;
+    }
     if (!mounted) return;
 
-    final priceValue = _asIntPrice(_selectedProduct!['base_price']);
-    final currency = (_selectedProduct!['currency'] ?? 'FCFA').toString();
-    final total = priceValue + (_hasDelivery ? 2000 : 0);
-
     final lien = LienPaiement(
-      id: 'lien_${DateTime.now().millisecondsSinceEpoch}',
+      id: link.id,
       contactNom: _contactName,
-      description:
-          '📦 ${_selectedProduct!['name']} — Commande de $_contactName',
+      description: '📦 ${product['name']} — Commande de $_contactName',
       montantCommande: priceValue,
-      fraisLivraison: _hasDelivery ? 2000 : 0,
+      fraisLivraison: frais,
       montantTotal: total,
-      statut: 'created',
+      statut: link.status.isNotEmpty ? link.status : 'created',
       livreurNom: _hasDelivery ? 'Koné Ibrahima' : '',
       createdAt: DateTime.now(),
-      lienUrl: 'https://pay.score360.africa/l/link',
+      lienUrl: link.checkoutUrl.isNotEmpty
+          ? link.checkoutUrl
+          : 'https://pay.esignal.ci/l/${link.id}',
     );
 
     setState(() => _isGenerating = false);
 
     if (!mounted) return;
-
-    // Effective thread: picked in step 1 OR pre-filled from caller
-    final effectiveThreadId = _selectedThread?.id ?? widget.threadId;
 
     if (effectiveThreadId != null) {
       // Inject payment link message into the thread (mock service only)

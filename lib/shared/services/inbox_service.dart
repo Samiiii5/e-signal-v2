@@ -33,11 +33,25 @@ class InboxForbiddenException implements Exception {
   const InboxForbiddenException();
 }
 
+/// Réponse serveur inexploitable (code non-2xx, format inattendu, ou
+/// organization_id absent de la session). Aucune donnée de démonstration n'est
+/// substituée : l'écran doit afficher une erreur explicite plutôt que de faire
+/// croire à des conversations réelles.
+class InboxServerException implements Exception {
+  final int statusCode;
+  const InboxServerException(this.statusCode);
+}
+
 // ── Contrat ────────────────────────────────────────────────────────────────
 
 abstract class InboxService {
   /// GET /api/v1.2/inbox/threads?organization_id=&channel=&limit=&offset=
-  Future<List<Thread>> getThreads({String? channelFilter, bool? unreadOnly});
+  Future<List<Thread>> getThreads({
+    String? channelFilter,
+    bool? unreadOnly,
+    int limit = 50,
+    int offset = 0,
+  });
 
   /// GET /api/v1.2/inbox/threads/:id/messages?organization_id=&limit=&before_id=
   Future<MessagesResult> getMessages(
@@ -209,9 +223,13 @@ class HttpInboxService implements InboxService {
   Future<List<Thread>> getThreads({
     String? channelFilter,
     bool? unreadOnly,
+    int limit = 50,
+    int offset = 0,
   }) async {
-    // Le cache ne s'applique qu'à la liste complète (sans filtre).
-    final useCache = channelFilter == null && unreadOnly != true;
+    // Le cache ne s'applique qu'à la première page de la liste complète
+    // (sans filtre) — les pages suivantes sont toujours demandées au serveur.
+    final useCache =
+        channelFilter == null && unreadOnly != true && offset == 0;
     if (useCache &&
         _cachedThreads != null &&
         _threadsCachedAt != null &&
@@ -222,6 +240,8 @@ class HttpInboxService implements InboxService {
     final threads = await _fetchThreads(
       channelFilter: channelFilter,
       unreadOnly: unreadOnly,
+      limit: limit,
+      offset: offset,
     );
     if (useCache) {
       _cachedThreads = threads;
@@ -235,19 +255,21 @@ class HttpInboxService implements InboxService {
   Future<List<Thread>> _fetchThreads({
     String? channelFilter,
     bool? unreadOnly,
+    int limit = 50,
+    int offset = 0,
   }) async {
     final orgId = SessionService.organizationId;
     // ignore: avoid_print
     print('=== GET THREADS appelé ===');
     // ignore: avoid_print
     print('=== ORG ID utilisé : ${SessionService.organizationId} ===');
-    if (orgId == null) return List.from(mockThreads);
+    if (orgId == null) throw const InboxServerException(0);
 
     try {
       final params = <String, dynamic>{
         'organization_id': orgId,
-        'limit': 50,
-        'offset': 0,
+        'limit': limit,
+        'offset': offset,
       };
       if (channelFilter != null) params['channel'] = channelFilter;
       if (unreadOnly == true) params['status'] = 'unread';
@@ -271,7 +293,7 @@ class HttpInboxService implements InboxService {
         } else if (data is Map && data['threads'] is List) {
           items = data['threads'] as List;
         } else {
-          return List.from(mockThreads);
+          throw InboxServerException(resp.statusCode ?? 0);
         }
         final threads = items
             .map((e) => Thread.fromJson(e as Map<String, dynamic>))
@@ -286,11 +308,11 @@ class HttpInboxService implements InboxService {
       } else if (resp.statusCode == 401) {
         throw const InboxUnauthorizedException();
       } else {
-        return List.from(mockThreads);
+        throw InboxServerException(resp.statusCode ?? 0);
       }
     } on DioException catch (e) {
       if (_isNetworkError(e)) throw const InboxNetworkException();
-      return List.from(mockThreads);
+      throw InboxServerException(e.response?.statusCode ?? 0);
     }
   }
 
@@ -332,9 +354,7 @@ class HttpInboxService implements InboxService {
     String? beforeId,
   }) async {
     final orgId = SessionService.organizationId;
-    if (orgId == null) {
-      return MessagesResult(messages: List.from(mockMessagesThread001));
-    }
+    if (orgId == null) throw const InboxServerException(0);
 
     try {
       final params = <String, dynamic>{
@@ -364,11 +384,11 @@ class HttpInboxService implements InboxService {
       } else if (resp.statusCode == 403) {
         throw const InboxForbiddenException();
       } else {
-        return MessagesResult(messages: List.from(mockMessagesThread001));
+        throw InboxServerException(resp.statusCode ?? 0);
       }
     } on DioException catch (e) {
       if (_isNetworkError(e)) throw const InboxNetworkException();
-      return MessagesResult(messages: List.from(mockMessagesThread001));
+      throw InboxServerException(e.response?.statusCode ?? 0);
     }
   }
 
@@ -383,8 +403,14 @@ class HttpInboxService implements InboxService {
     String? content,
     String? mediaUrl,
   }) async {
-    // Fallback sur 'whatsapp' si le channel est vide pour éviter /inbox//messages
-    final resolvedProvider = provider.isNotEmpty ? provider : 'whatsapp';
+    // Aucun repli silencieux : deviner 'whatsapp' enverrait le message sur le
+    // mauvais fournisseur (ex. conversation Messenger) sans que rien ne le
+    // signale. Mieux vaut une erreur explicite.
+    if (provider.isEmpty) {
+      throw ArgumentError(
+        'Provider manquant : impossible d\'envoyer le message sans canal défini',
+      );
+    }
 
     final Map<String, dynamic> data = {'thread_id': threadId, 'type': type};
     if (content != null && content.isNotEmpty) {
@@ -397,7 +423,7 @@ class HttpInboxService implements InboxService {
       data['integration_account_id'] = integrationAccountId;
     }
 
-    debugPrint('=== sendMessage url: /inbox/$resolvedProvider/messages ===');
+    debugPrint('=== sendMessage url: /inbox/$provider/messages ===');
     debugPrint('=== sendMessage body: $data ===');
 
     // ApiClient accepte tous les codes HTTP sans exception (validateStatus) —
@@ -405,7 +431,7 @@ class HttpInboxService implements InboxService {
     // pour que l'appelant (_send() dans chat_screen.dart) puisse distinguer
     // les codes d'erreur (401/403/404/422/429/500/502...).
     final resp = await ApiClient.dio.post(
-      '/inbox/$resolvedProvider/messages',
+      '/inbox/$provider/messages',
       data: data,
     );
     debugPrint('=== sendMessage response: ${resp.data} ===');
@@ -436,21 +462,26 @@ class HttpInboxService implements InboxService {
     required String integrationAccountId,
     required List<Map<String, dynamic>> catalogItemIds,
   }) async {
-    // Fallback sur 'whatsapp' si le channel est vide pour éviter /inbox//messages
-    final resolvedProvider = provider.isNotEmpty ? provider : 'whatsapp';
+    // Même règle que sendMessage : pas de repli silencieux sur 'whatsapp'.
+    if (provider.isEmpty) {
+      throw ArgumentError(
+        'Provider manquant : impossible d\'envoyer le message sans canal défini',
+      );
+    }
 
+    // Une seule clé de type — 'type' est celle utilisée par sendMessage() pour
+    // tous les autres formats de message.
     final body = <String, dynamic>{
       'thread_id': threadId,
       'type': 'carousel',
-      'message_type': 'carousel',
       'integration_account_id': integrationAccountId,
       'carousel': {'items': catalogItemIds},
     };
-    debugPrint('=== CAROUSEL envoyé : /inbox/$resolvedProvider/messages ===');
+    debugPrint('=== CAROUSEL envoyé : /inbox/$provider/messages ===');
     debugPrint('=== CAROUSEL body : $body ===');
     try {
       final resp = await ApiClient.dio.post(
-        '/inbox/$resolvedProvider/messages',
+        '/inbox/$provider/messages',
         data: body,
       );
       debugPrint('=== CAROUSEL response status: ${resp.statusCode} ===');
@@ -484,12 +515,20 @@ class HttpInboxService implements InboxService {
     final orgId = SessionService.organizationId;
     if (orgId == null) return;
     try {
-      await ApiClient.dio.post(
+      final resp = await ApiClient.dio.post(
         '/inbox/threads/$threadId/read',
         queryParameters: {'organization_id': orgId},
       );
-    } catch (_) {
-      // Non-bloquant — ignorer les erreurs
+      if (resp.statusCode == null ||
+          resp.statusCode! < 200 ||
+          resp.statusCode! >= 300) {
+        debugPrint(
+          '=== markAsRead échec HTTP ${resp.statusCode} : ${resp.data} ===',
+        );
+      }
+    } catch (e) {
+      // Non-bloquant pour l'utilisateur, mais tracé pour le diagnostic.
+      debugPrint('=== markAsRead error: $e ===');
     }
   }
 
@@ -550,6 +589,8 @@ class MockInboxService implements InboxService {
   Future<List<Thread>> getThreads({
     String? channelFilter,
     bool? unreadOnly,
+    int limit = 50,
+    int offset = 0,
   }) async {
     await Future.delayed(const Duration(milliseconds: 400));
     var results = List<Thread>.from(mockThreads);
@@ -559,7 +600,12 @@ class MockInboxService implements InboxService {
     if (unreadOnly == true) {
       results = results.where((t) => t.unreadCount > 0).toList();
     }
-    return results;
+    // Pagination : même contrat que l'implémentation HTTP.
+    if (offset >= results.length) return <Thread>[];
+    return results.sublist(
+      offset,
+      (offset + limit).clamp(0, results.length),
+    );
   }
 
   @override

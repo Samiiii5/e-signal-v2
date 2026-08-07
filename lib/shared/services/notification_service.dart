@@ -15,6 +15,31 @@ class NotificationService {
   // URL de ton backend — à changer après déploiement sur Render
   static const String _backendUrl = 'https://e-signal-v2-backend-notifications.onrender.com';
 
+  /// Clé d'API du backend notifications.
+  ///
+  /// En production, la valeur DOIT être injectée à la compilation :
+  ///   `flutter build apk --dart-define=NOTIFICATION_API_KEY=LA_CLE`
+  ///   `flutter run --dart-define=NOTIFICATION_API_KEY=LA_CLE`
+  ///
+  /// La valeur par défaut n'est qu'un repli de développement : toute clé écrite
+  /// en dur dans le code source est compilée dans l'APK et reste extractible.
+  static const String _apiKey = String.fromEnvironment(
+    'NOTIFICATION_API_KEY',
+    defaultValue: 'Esignal2027!',
+  );
+
+  /// Client HTTP dédié au backend notifications — distinct d'[ApiClient] :
+  /// URL de base et authentification différentes. Les délais d'attente évitent
+  /// qu'un démarrage à froid de Render bloque l'application indéfiniment.
+  static final Dio _dio = Dio(
+    BaseOptions(
+      baseUrl: _backendUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 10),
+    ),
+  );
+
   /// Nombre de notifications non lues — alimente le badge sur la cloche de
   /// l'inbox. Mis à jour dès l'appel des méthodes ci-dessous (pas d'attente
   /// réseau) pour un rendu immédiat côté UI.
@@ -102,10 +127,9 @@ class NotificationService {
     final userId = SessionService.userId;
     if (userId == null) return [];
 
-    final dio = Dio();
-    final resp = await dio.get(
-      '$_backendUrl/api/notifications/history/$userId',
-      options: Options(headers: {'X-API-Key': 'Esignal2027!'}),
+    final resp = await _dio.get(
+      '/api/notifications/history/$userId',
+      options: Options(headers: {'X-API-Key': _apiKey}),
     );
     final data = resp.data;
     final raw = (data is Map ? data['notifications'] as List? : null) ?? [];
@@ -246,9 +270,8 @@ class NotificationService {
         return;
       }
 
-      final dio = Dio();
-      await dio.post(
-        '$_backendUrl/api/notifications/register-token',
+      await _dio.post(
+        '/api/notifications/register-token',
         data: {
           'user_id': userId,
           'fcm_token': token,

@@ -46,6 +46,12 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   StreamSubscription<Map<String, dynamic>>? _wsSubscription;
   final Set<String> _typingThreads = {};
 
+  // ── Pagination de la liste des conversations ───────────────────────────────
+  static const _pageSize = 50;
+  final _threadsScrollController = ScrollController();
+  bool _isLoadingMoreThreads = false;
+  bool _hasMoreThreads = true;
+
   @override
   void initState() {
     super.initState();
@@ -56,9 +62,19 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
     if (widget.initialChannel != null) {
       _activeFilter = _channelToFilter(widget.initialChannel!);
     }
+    _threadsScrollController.addListener(_onThreadsScroll);
     _loadThreads();
     NotificationService.fetchHistory().catchError((_) => <AppNotification>[]);
     _connectWebSocket();
+  }
+
+  /// Déclenche le chargement de la page suivante à l'approche du bas de liste.
+  void _onThreadsScroll() {
+    if (!_threadsScrollController.hasClients) return;
+    final position = _threadsScrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 300) {
+      _loadMoreThreads();
+    }
   }
 
   void _connectWebSocket() {
@@ -265,6 +281,7 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
+    _threadsScrollController.dispose();
     _wsSubscription?.cancel();
     webSocketService.disconnect();
     super.dispose();
@@ -282,6 +299,8 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
       setState(() {
         _threads = cached;
         _isLoading = false; // pas de spinner
+        // Le cache ne contient que la première page.
+        _hasMoreThreads = cached.length >= _pageSize;
       });
       debugPrint('=== Inbox : cache affiché immédiatement ===');
 
@@ -298,12 +317,13 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
       });
     }
     try {
-      final threads = await inboxService.getThreads();
+      final threads = await inboxService.getThreads(limit: _pageSize);
       if (!mounted) return;
       setState(() {
         _threads = threads;
         _isLoading = false;
         _error = null;
+        _hasMoreThreads = threads.length >= _pageSize;
       });
     } on Exception catch (e) {
       if (!mounted) return;
@@ -329,16 +349,60 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
       debugPrint('=== Revalidation threads en arrière-plan ===');
       // Invalider puis recharger depuis l'API
       inboxService.invalidateThreadsCache();
-      final freshThreads = await inboxService.getThreads();
+      final freshThreads = await inboxService.getThreads(limit: _pageSize);
       if (!mounted) return;
       // Mettre à jour seulement si différent
       if (_threadsChanged(freshThreads)) {
-        setState(() => _threads = freshThreads);
+        setState(() {
+          _threads = freshThreads;
+          // La revalidation repart de la première page.
+          _hasMoreThreads = freshThreads.length >= _pageSize;
+        });
         debugPrint('=== Threads mis à jour silencieusement ===');
       }
     } catch (_) {
       // Silencieux — on garde le cache affiché
       debugPrint('=== Revalidation échouée — cache conservé ===');
+    }
+  }
+
+  /// Charge la page suivante et l'ajoute à la liste déjà affichée.
+  ///
+  /// Désactivé pendant une recherche ou un filtrage : la liste visible est
+  /// alors un sous-ensemble local, et l'offset serveur n'y correspondrait pas.
+  Future<void> _loadMoreThreads() async {
+    if (_isLoadingMoreThreads || !_hasMoreThreads || _isLoading) return;
+    if (_searchQuery.isNotEmpty ||
+        _activeFilter != _Filter.all ||
+        _hasActiveSheetFilter) {
+      return;
+    }
+
+    setState(() => _isLoadingMoreThreads = true);
+    try {
+      final page = await inboxService.getThreads(
+        limit: _pageSize,
+        offset: _threads.length,
+      );
+      if (!mounted) return;
+      // Écarter les conversations déjà présentes (le temps réel peut avoir
+      // remonté un thread entre deux pages).
+      final knownIds = _threads.map((t) => t.id).toSet();
+      final fresh = page.where((t) => !knownIds.contains(t.id)).toList();
+      setState(() {
+        _threads = [..._threads, ...fresh];
+        _hasMoreThreads = page.length >= _pageSize;
+        _isLoadingMoreThreads = false;
+      });
+      debugPrint(
+        '=== Page suivante : ${fresh.length} conversations ajoutées '
+        '(total ${_threads.length}) ===',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // Échec non bloquant : la liste déjà chargée reste affichée.
+      debugPrint('=== Chargement page suivante échoué : $e ===');
+      setState(() => _isLoadingMoreThreads = false);
     }
   }
 
@@ -811,20 +875,40 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
                       onRefresh: _revalidateThreadsInBackground,
                       color: AppColors.green,
                       child: ListView.separated(
+                        controller: _threadsScrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.only(top: 4, bottom: 16),
-                        itemCount: threads.length,
+                        // +1 pour l'indicateur de chargement de page suivante
+                        itemCount:
+                            threads.length + (_isLoadingMoreThreads ? 1 : 0),
                         separatorBuilder: (_, __) => const Divider(
                           indent: 76,
                           height: 0,
                           thickness: 0.5,
                           color: AppColors.borderLight,
                         ),
-                        itemBuilder: (_, i) => _ThreadTile(
-                          thread: threads[i],
-                          onReturn: _loadThreads,
-                          isTyping: _typingThreads.contains(threads[i].id),
-                        ),
+                        itemBuilder: (_, i) {
+                          if (i >= threads.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 18),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: AppColors.green,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          return _ThreadTile(
+                            thread: threads[i],
+                            onReturn: _loadThreads,
+                            isTyping: _typingThreads.contains(threads[i].id),
+                          );
+                        },
                       ),
                     ),
             ),

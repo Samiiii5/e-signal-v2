@@ -14,6 +14,11 @@ class CommentsUnavailableException implements Exception {
   const CommentsUnavailableException();
 }
 
+class CommentsServerException implements Exception {
+  final int statusCode;
+  const CommentsServerException(this.statusCode);
+}
+
 class CommentsService {
   bool _isNetworkError(DioException e) =>
       e.type == DioExceptionType.connectionError ||
@@ -101,10 +106,15 @@ class CommentsService {
     required String message,
     required String provider,
   }) async {
-    await ApiClient.dio.post(
+    // ApiClient accepte tous les codes HTTP (validateStatus) — sans cette
+    // vérification, un 401/422/500 remonterait comme un succès.
+    final resp = await ApiClient.dio.post(
       '/comments/$commentId/reply',
       data: {'message': message, 'provider': provider},
     );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw CommentsServerException(resp.statusCode ?? 0);
+    }
   }
 
   /// POST /api/v1.2/comments/{comment_id}/like
@@ -112,10 +122,13 @@ class CommentsService {
     required String commentId,
     required String provider,
   }) async {
-    await ApiClient.dio.post(
+    final resp = await ApiClient.dio.post(
       '/comments/$commentId/like',
       queryParameters: {'provider': provider},
     );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw CommentsServerException(resp.statusCode ?? 0);
+    }
   }
 
   /// PATCH /api/v1.2/comments/{comment_id}/status
@@ -123,10 +136,13 @@ class CommentsService {
     required String commentId,
     required String status,
   }) async {
-    await ApiClient.dio.patch(
+    final resp = await ApiClient.dio.patch(
       '/comments/$commentId/status',
       data: {'status': status},
     );
+    if (resp.statusCode != 200 && resp.statusCode != 201) {
+      throw CommentsServerException(resp.statusCode ?? 0);
+    }
   }
 }
 

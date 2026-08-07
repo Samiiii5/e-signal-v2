@@ -10,6 +10,14 @@ class PaymentUnauthorizedException implements Exception {}
 class PaymentNetworkException implements Exception {}
 class PaymentNotFoundException implements Exception {}
 
+/// Réponse serveur inexploitable. Aucune donnée de démonstration n'est
+/// substituée : l'écran doit afficher une erreur explicite plutôt que de faire
+/// croire à des transactions réelles.
+class PaymentServerException implements Exception {
+  final int statusCode;
+  const PaymentServerException(this.statusCode);
+}
+
 abstract class PaymentService {
   /// GET /api/v1.2/payment-links/organizations/{org_id}
   Future<List<PaymentLink>> getPaymentLinks({
@@ -86,9 +94,13 @@ class HttpPaymentService implements PaymentService {
 
       final resp = await ApiClient.dio.get(_base, queryParameters: params);
       if (resp.statusCode == 401) throw PaymentUnauthorizedException();
-      if (resp.statusCode == 404) return List.from(mockPaymentLinks);
+      if (resp.statusCode != 200) {
+        throw PaymentServerException(resp.statusCode ?? 0);
+      }
       return _parseList(resp.data);
     } on PaymentUnauthorizedException {
+      rethrow;
+    } on PaymentServerException {
       rethrow;
     } on DioException {
       throw PaymentNetworkException();
