@@ -13,7 +13,6 @@ import '../../core/services/session_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/messages_mock.dart';
 import '../../shared/mock/threads_mock.dart';
-import '../../shared/mock/products_mock.dart';
 import '../../shared/services/catalog_service.dart';
 import '../../shared/services/inbox_service.dart';
 import '../../shared/services/websocket_service.dart';
@@ -5154,9 +5153,21 @@ class _DevisSheet extends StatefulWidget {
 }
 
 class _DevisSheetState extends State<_DevisSheet> {
-  Product? _selectedProduct;
+  Map<String, dynamic>? _selectedProduct;
   final _qtyCtrl = TextEditingController();
   final _prixCtrl = TextEditingController();
+
+  // Catalogue réel — même instance globale (et donc même cache) que le
+  // catalogue du chat et les écrans de paiement.
+  List<Map<String, dynamic>> _products = [];
+  bool _isLoadingProducts = true;
+  String? _productsError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
 
   @override
   void dispose() {
@@ -5165,15 +5176,92 @@ class _DevisSheetState extends State<_DevisSheet> {
     super.dispose();
   }
 
+  /// GET /organizations/{org_id}/products
+  ///
+  /// `catalogService.getProducts()` renvoie son cache mémoire (valable 30 min)
+  /// sans requête réseau lorsqu'il est encore frais : si le commercial a déjà
+  /// ouvert le catalogue ou l'écran de paiement, la liste est immédiate.
+  Future<void> _loadProducts() async {
+    setState(() {
+      _isLoadingProducts = true;
+      _productsError = null;
+    });
+    try {
+      final items = await catalogService.getProducts();
+      if (!mounted) return;
+      setState(() {
+        _products = items;
+        _isLoadingProducts = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('=== Chargement du catalogue (devis) échoué : $e ===');
+      setState(() {
+        _isLoadingProducts = false;
+        _productsError = 'Impossible de charger le catalogue.';
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(AppSnackbar.error('Impossible de charger le catalogue.'));
+    }
+  }
+
   int get _qty => int.tryParse(_qtyCtrl.text) ?? 0;
   int get _prix => int.tryParse(_prixCtrl.text.replaceAll(' ', '')) ?? 0;
   int get _total => _qty * _prix;
 
-  void _selectProduct(Product p) {
+  void _selectProduct(Map<String, dynamic> p) {
     setState(() {
       _selectedProduct = p;
-      _prixCtrl.text = p.price.toString();
+      _prixCtrl.text = _priceOf(p).toString();
     });
+  }
+
+  /// base_price peut arriver en nombre ou en chaîne décimale (« 32900.00 »).
+  static int _priceOf(Map<String, dynamic> p) {
+    final raw = p['base_price'];
+    if (raw is num) return raw.toInt();
+    final str = raw?.toString() ?? '';
+    final dotIndex = str.indexOf('.');
+    final numStr = dotIndex >= 0 ? str.substring(0, dotIndex) : str;
+    return int.tryParse(numStr) ?? 0;
+  }
+
+  static String _nameOf(Map<String, dynamic> p) => (p['name'] ?? '').toString();
+
+  /// Pictogramme déduit du type d'article — le catalogue Score360 ne fournit
+  /// pas d'emoji, contrairement aux anciennes données de démonstration.
+  static String _emojiFor(Map<String, dynamic> p) =>
+      p['item_type']?.toString() == 'service' ? '🛠️' : '📦';
+
+  /// Vignette du produit : image du catalogue, ou icône de repli.
+  Widget _thumbnail(Map<String, dynamic> p, double size) {
+    final imageUrl = p['thumbnail_url']?.toString();
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: (imageUrl != null && imageUrl.isNotEmpty)
+          ? Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.inventory_2_outlined,
+                size: 16,
+                color: AppColors.textHint,
+              ),
+            )
+          : const Icon(
+              Icons.inventory_2_outlined,
+              size: 16,
+              color: AppColors.textHint,
+            ),
+    );
   }
 
   @override
@@ -5214,101 +5302,9 @@ class _DevisSheetState extends State<_DevisSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            // Product selector
-            GestureDetector(
-              onTap: () async {
-                final p = await showModalBottomSheet<Product>(
-                  context: context,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => Container(
-                    decoration: const BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(24),
-                      ),
-                    ),
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Center(
-                          child: Container(
-                            width: 36,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: AppColors.borderLight,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Choisir un produit',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ...mockProducts.map(
-                          (p) => InkWell(
-                            onTap: () => Navigator.pop(context, p),
-                            borderRadius: BorderRadius.circular(10),
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.backgroundPage,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: AppColors.borderLight,
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    p.emoji,
-                                    style: const TextStyle(fontSize: 22),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      p.name,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    '${p.price} FCFA',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.green,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-                if (p != null) _selectProduct(p);
-              },
-              child: Container(
+            // Product selector — chargement
+            if (_isLoadingProducts)
+              Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
@@ -5316,64 +5312,257 @@ class _DevisSheetState extends State<_DevisSheet> {
                 decoration: BoxDecoration(
                   color: AppColors.backgroundPage,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _selectedProduct != null
-                        ? AppColors.green
-                        : AppColors.borderLight,
-                  ),
+                  border: Border.all(color: AppColors.borderLight),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    if (_selectedProduct != null) ...[
-                      Text(
-                        _selectedProduct!.emoji,
-                        style: const TextStyle(fontSize: 20),
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.green,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _selectedProduct!.name,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${_selectedProduct!.price} FCFA',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.green,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ] else ...[
-                      const Icon(
-                        Icons.shopping_bag_outlined,
-                        size: 18,
-                        color: AppColors.textHint,
-                      ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Text(
-                          'Sélectionner un produit',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textHint,
-                          ),
-                        ),
-                      ),
-                    ],
-                    const Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: AppColors.textSecondary,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Chargement du catalogue…',
+                      style: TextStyle(fontSize: 14, color: AppColors.textHint),
                     ),
                   ],
                 ),
+              )
+            // Product selector — erreur
+            else if (_productsError != null)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundPage,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderLight),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.wifi_off_outlined,
+                      size: 18,
+                      color: AppColors.textHint,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _productsError!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _loadProducts,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Réessayer',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.green,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            // Product selector — catalogue chargé
+            else
+              GestureDetector(
+                onTap: () async {
+                  final p = await showModalBottomSheet<Map<String, dynamic>>(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => Container(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.6,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 36,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: AppColors.borderLight,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Choisir un produit',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_products.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 28),
+                              child: Text(
+                                'Aucun produit dans le catalogue',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            )
+                          else
+                            Flexible(
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: _products.length,
+                                itemBuilder: (_, i) {
+                                  final p = _products[i];
+                                  return InkWell(
+                                    onTap: () => Navigator.pop(context, p),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.backgroundPage,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: AppColors.borderLight,
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          _thumbnail(p, 34),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              _nameOf(p),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '${_fmtN(_priceOf(p))} FCFA',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.green,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                  if (p != null) _selectProduct(p);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.backgroundPage,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _selectedProduct != null
+                          ? AppColors.green
+                          : AppColors.borderLight,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      if (_selectedProduct != null) ...[
+                        _thumbnail(_selectedProduct!, 28),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _nameOf(_selectedProduct!),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_fmtN(_priceOf(_selectedProduct!))} FCFA',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.green,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ] else ...[
+                        const Icon(
+                          Icons.shopping_bag_outlined,
+                          size: 18,
+                          color: AppColors.textHint,
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Sélectionner un produit',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textHint,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: AppColors.textSecondary,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -5439,7 +5628,7 @@ class _DevisSheetState extends State<_DevisSheet> {
                 onPressed: (_selectedProduct != null && _qty > 0)
                     ? () => widget.onSend(
                         '📋 *Devis pour ${widget.contactName}*\n\n'
-                        '• Produit : ${_selectedProduct!.emoji} ${_selectedProduct!.name}\n'
+                        '• Produit : ${_emojiFor(_selectedProduct!)} ${_nameOf(_selectedProduct!)}\n'
                         '• Quantité : $_qty\n'
                         '• Prix unitaire : ${_fmtN(_prix)} FCFA\n'
                         '━━━━━━━━━━━━━━\n'
