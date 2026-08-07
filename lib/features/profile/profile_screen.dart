@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/session_service.dart';
 import '../../core/utils/responsive.dart';
+import '../../shared/services/catalog_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,6 +14,39 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationsEnabled = true;
+
+  // Canaux connectés — GET /organizations/{org_id}/accounts
+  List<Map<String, dynamic>> _accounts = [];
+  bool _isLoadingAccounts = true;
+  String? _accountsError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccounts();
+  }
+
+  Future<void> _loadAccounts() async {
+    setState(() {
+      _isLoadingAccounts = true;
+      _accountsError = null;
+    });
+    try {
+      final accounts = await catalogService.getAccounts();
+      if (!mounted) return;
+      setState(() {
+        _accounts = accounts;
+        _isLoadingAccounts = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('=== Chargement des canaux échoué : $e ===');
+      setState(() {
+        _isLoadingAccounts = false;
+        _accountsError = 'Impossible de charger les canaux.';
+      });
+    }
+  }
 
   Future<void> _logout() async {
     final router = GoRouter.of(context);
@@ -124,16 +158,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 12),
 
-              // Section Canaux connectés
+              // Section Canaux connectés — construite depuis l'API
               _Section(
                 title: 'Canaux connectés',
                 child: Column(
                   children: [
-                    _ChannelRow(name: 'WhatsApp Business', icon: Icons.chat_bubble, color: const Color(0xFF25D366), connected: true),
-                    _ChannelRow(name: 'SMS', icon: Icons.sms, color: const Color(0xFF5C6BC0), connected: true),
-                    _ChannelRow(name: 'Email', icon: Icons.email_outlined, color: const Color(0xFFEA4335), connected: true),
-                    _ChannelRow(name: 'Facebook', icon: Icons.facebook, color: const Color(0xFF1877F2), connected: false),
-                    _ChannelRow(name: 'Instagram', icon: Icons.camera_alt_outlined, color: const Color(0xFFE1306C), connected: false),
+                    if (_isLoadingAccounts)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 28),
+                        child: Center(
+                          child: SizedBox(
+                            width: 22, height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.green),
+                          ),
+                        ),
+                      )
+                    else if (_accountsError != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.cloud_off_rounded, size: 30, color: AppColors.borderLight),
+                            const SizedBox(height: 8),
+                            Text(
+                              _accountsError!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 10),
+                            TextButton.icon(
+                              onPressed: _loadAccounts,
+                              style: TextButton.styleFrom(
+                                backgroundColor: AppColors.greenLight,
+                                foregroundColor: AppColors.greenDark,
+                                shape: const StadiumBorder(),
+                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+                              ),
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const Text('Réessayer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_accounts.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                        child: Center(
+                          child: Text(
+                            'Aucun canal connecté',
+                            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          ),
+                        ),
+                      )
+                    else
+                      for (int i = 0; i < _accounts.length; i++) ...[
+                        _ChannelRow(
+                          name: _channelLabel(_accounts[i]),
+                          icon: _channelIcon(_channelKey(_accounts[i])),
+                          color: _channelColor(_channelKey(_accounts[i])),
+                          connected: _isConnected(_accounts[i]),
+                        ),
+                        if (i < _accounts.length - 1)
+                          const Divider(indent: 56, height: 0, thickness: 0.5, color: AppColors.borderLight),
+                      ],
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                       child: OutlinedButton.icon(
@@ -200,6 +287,61 @@ String _initials(String firstName, String lastName) {
   final f = firstName.isNotEmpty ? firstName[0].toUpperCase() : '';
   final l = lastName.isNotEmpty  ? lastName[0].toUpperCase()  : '';
   return (f + l).isNotEmpty ? f + l : '?';
+}
+
+// ─── Canaux connectés : lecture de la réponse API ─────────────────────────────
+
+/// Clé technique du canal, utilisée pour choisir l'icône et la couleur.
+String _channelKey(Map<String, dynamic> account) =>
+    (account['channel'] ?? account['provider'] ?? account['name'] ?? '')
+        .toString()
+        .toLowerCase();
+
+/// Libellé affiché : nom lisible connu du canal, sinon ce que renvoie l'API.
+String _channelLabel(Map<String, dynamic> account) {
+  const labels = <String, String>{
+    'whatsapp': 'WhatsApp Business',
+    'sms': 'SMS',
+    'email': 'Email',
+    'messenger': 'Facebook Messenger',
+    'facebook': 'Facebook',
+    'instagram': 'Instagram',
+    'tiktok': 'TikTok',
+  };
+  final key = _channelKey(account);
+  final known = labels[key];
+  if (known != null) return known;
+  final fallback = (account['display_name'] ?? account['name'] ?? '').toString();
+  if (fallback.isNotEmpty) return fallback;
+  return key.isNotEmpty ? key : 'Canal inconnu';
+}
+
+IconData _channelIcon(String key) => switch (key) {
+  'whatsapp' => Icons.chat_bubble,
+  'sms' => Icons.sms,
+  'email' => Icons.email_outlined,
+  'messenger' || 'facebook' => Icons.facebook,
+  'instagram' => Icons.camera_alt_outlined,
+  'tiktok' => Icons.music_note,
+  _ => Icons.hub_outlined,
+};
+
+Color _channelColor(String key) => switch (key) {
+  'whatsapp' => const Color(0xFF25D366),
+  'sms' => const Color(0xFF5C6BC0),
+  'email' => const Color(0xFFEA4335),
+  'messenger' || 'facebook' => const Color(0xFF1877F2),
+  'instagram' => const Color(0xFFE1306C),
+  'tiktok' => const Color(0xFF000000),
+  _ => AppColors.textSecondary,
+};
+
+/// L'API expose soit un booléen `is_active`, soit un `status` textuel.
+bool _isConnected(Map<String, dynamic> account) {
+  final isActive = account['is_active'];
+  if (isActive is bool) return isActive;
+  final status = account['status']?.toString().toLowerCase();
+  return status == 'active' || status == 'connected';
 }
 
 String _translateStatus(String status) {

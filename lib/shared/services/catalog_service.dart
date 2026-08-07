@@ -61,6 +61,27 @@ class CatalogService {
   }
 
   /// GET /api/v1.2/organizations/{organization_id}/accounts
+  /// Retourne la liste complète des comptes intégrés de l'organisation
+  /// (canaux connectés). Lève une exception si l'appel échoue, pour que
+  /// l'écran appelant puisse afficher une erreur explicite.
+  Future<List<Map<String, dynamic>>> getAccounts() async {
+    final orgId = SessionService.organizationId;
+    if (orgId == null) throw Exception('organization_id manquant');
+
+    final response = await ApiClient.dio.get('/organizations/$orgId/accounts');
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
+    final items = response.data['items'] as List? ?? [];
+    final accounts = items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    debugPrint('=== ACCOUNTS récupérés : ${accounts.length} ===');
+    return accounts;
+  }
+
+  /// GET /api/v1.2/organizations/{organization_id}/accounts
   /// Retourne l'id du compte intégré dont le channel correspond, ou null.
   Future<String?> getIntegrationAccountId(String channel) async {
     // Cache → retourner immédiatement

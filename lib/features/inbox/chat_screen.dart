@@ -67,16 +67,45 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _typingTimer;
   DateTime? _lastSeenAt;
 
+  /// Dernier envoi de typing_on — sert d'anti-rebond (5 s) pour ne pas
+  /// bombarder le serveur à chaque frappe.
+  DateTime? _lastTypingSent;
+
   @override
   void initState() {
     super.initState();
     // Utiliser le thread pré-chargé si disponible — évite un appel getThreads() inutile.
     if (widget.thread != null) _thread = widget.thread;
     _controller.addListener(() => setState(() {}));
+    _controller.addListener(_onTypingChanged);
     _scrollController.addListener(_onScroll);
     _loadMessages();
     // Établir la connexion WebSocket pour cet écran
     _connectWebSocket();
+  }
+
+  /// POST /inbox/messenger/sender-action — le contact voit « en train
+  /// d'écrire ». L'action n'existe que sur Messenger : inutile de l'envoyer
+  /// pour WhatsApp, SMS ou Email.
+  void _onTypingChanged() {
+    if (_thread?.channel != 'messenger') return;
+    final threadId = _thread?.id;
+    if (threadId == null) return;
+
+    if (_controller.text.trim().isEmpty) {
+      if (_lastTypingSent == null) return;
+      _lastTypingSent = null;
+      inboxService.sendTypingAction(threadId, false);
+      return;
+    }
+
+    final last = _lastTypingSent;
+    if (last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 5)) {
+      return;
+    }
+    _lastTypingSent = DateTime.now();
+    inboxService.sendTypingAction(threadId, true);
   }
 
   void _connectWebSocket() {
@@ -95,6 +124,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    // Prévenir le contact que la saisie est terminée avant de quitter l'écran.
+    final threadId = _thread?.id;
+    if (_lastTypingSent != null &&
+        threadId != null &&
+        _thread?.channel == 'messenger') {
+      inboxService.sendTypingAction(threadId, false);
+    }
     _controller.dispose();
     _scrollController.dispose();
     _searchController.dispose();
@@ -3874,7 +3910,9 @@ class _ImageBubble extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Align(
-        alignment: Alignment.centerRight,
+        alignment: message.isFromContact
+            ? Alignment.centerLeft
+            : Alignment.centerRight,
         child: Container(
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.65,
@@ -3894,23 +3932,7 @@ class _ImageBubble extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             child: Stack(
               children: [
-                Image.file(
-                  File(message.mediaUrl!),
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: 200,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 160,
-                    color: AppColors.backgroundPage,
-                    child: const Center(
-                      child: Icon(
-                        Icons.broken_image_outlined,
-                        color: AppColors.textHint,
-                        size: 40,
-                      ),
-                    ),
-                  ),
-                ),
+                _buildImage(),
                 Positioned(
                   bottom: 6,
                   right: 8,
@@ -3936,6 +3958,67 @@ class _ImageBubble extends StatelessWidget {
       ),
     );
   }
+
+  /// Les images reçues du serveur portent une URL HTTP ; celles que le
+  /// commercial vient de choisir dans sa galerie portent un chemin local.
+  /// Image.file ne sait lire que le second cas — d'où l'aiguillage.
+  Widget _buildImage() {
+    final url = message.mediaUrl;
+    if (url == null || url.isEmpty) return _placeholder();
+
+    if (url.startsWith('http')) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 200,
+        loadingBuilder: (_, child, progress) {
+          if (progress == null) return child;
+          final total = progress.expectedTotalBytes;
+          return Container(
+            height: 200,
+            width: double.infinity,
+            color: AppColors.backgroundPage,
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.green,
+                  value: total != null
+                      ? progress.cumulativeBytesLoaded / total
+                      : null,
+                ),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+
+    return Image.file(
+      File(url),
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: 200,
+      errorBuilder: (_, __, ___) => _placeholder(),
+    );
+  }
+
+  Widget _placeholder() => Container(
+    height: 160,
+    width: double.infinity,
+    color: AppColors.backgroundPage,
+    child: const Center(
+      child: Icon(
+        Icons.broken_image_outlined,
+        color: AppColors.textHint,
+        size: 40,
+      ),
+    ),
+  );
 }
 
 // ── Bulle audio ───────────────────────────────────────────────────────────────
@@ -6308,23 +6391,48 @@ class _FullscreenImageViewer extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
-        child: InteractiveViewer(
-          child: message.mediaUrl != null
-              ? Image.file(
-                  File(message.mediaUrl!),
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.broken_image,
-                    color: Colors.white54,
-                    size: 64,
-                  ),
-                )
-              : const Icon(Icons.broken_image, color: Colors.white54, size: 64),
-        ),
-      ),
+      body: Center(child: InteractiveViewer(child: _buildImage())),
     );
   }
+
+  /// Même aiguillage que _ImageBubble : URL HTTP pour les images reçues,
+  /// chemin local pour celles choisies dans la galerie.
+  Widget _buildImage() {
+    final url = message.mediaUrl;
+    if (url == null || url.isEmpty) return _broken();
+
+    if (url.startsWith('http')) {
+      return Image.network(
+        url,
+        fit: BoxFit.contain,
+        loadingBuilder: (_, child, progress) {
+          if (progress == null) return child;
+          final total = progress.expectedTotalBytes;
+          return SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: Colors.white70,
+              value: total != null
+                  ? progress.cumulativeBytesLoaded / total
+                  : null,
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => _broken(),
+      );
+    }
+
+    return Image.file(
+      File(url),
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => _broken(),
+    );
+  }
+
+  Widget _broken() =>
+      const Icon(Icons.broken_image, color: Colors.white54, size: 64);
 }
 
 // ── Infos message ─────────────────────────────────────────────────────────────

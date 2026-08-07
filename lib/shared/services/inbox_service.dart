@@ -105,6 +105,11 @@ abstract class InboxService {
     required List<Map<String, dynamic>> catalogItemIds,
   });
 
+  /// POST /api/v1.2/inbox/messenger/sender-action
+  /// Signale au contact que le commercial est en train d'écrire.
+  /// Non critique : les erreurs sont ignorées silencieusement.
+  Future<void> sendTypingAction(String threadId, bool isTyping);
+
   /// POST /api/v1.2/inbox/threads/:id/read
   Future<void> markAsRead(String threadId);
 
@@ -511,6 +516,22 @@ class HttpInboxService implements InboxService {
   }
 
   @override
+  Future<void> sendTypingAction(String threadId, bool isTyping) async {
+    try {
+      await ApiClient.dio.post(
+        '/inbox/messenger/sender-action',
+        data: {
+          'thread_id': threadId,
+          'action': isTyping ? 'typing_on' : 'typing_off',
+        },
+      );
+    } catch (e) {
+      // Purement cosmétique côté contact — ne jamais gêner la saisie.
+      debugPrint('=== sendTypingAction error: $e ===');
+    }
+  }
+
+  @override
   Future<void> markAsRead(String threadId) async {
     final orgId = SessionService.organizationId;
     if (orgId == null) return;
@@ -645,6 +666,9 @@ class MockInboxService implements InboxService {
     await Future.delayed(const Duration(milliseconds: 250));
     return null;
   }
+
+  @override
+  Future<void> sendTypingAction(String threadId, bool isTyping) async {}
 
   @override
   Future<void> markAsRead(String threadId) async {}

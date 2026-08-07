@@ -20,32 +20,21 @@ class _StatsScreenState extends State<StatsScreen> {
   String? _error;
   DashboardData? _data;
 
-  // Valeurs affichées (API ou mock en fallback)
-  late int _revenue;
-  late int _conversations;
-  late double _responseRate;
-  late double _revenueGrowth;
-  late double _conversationsGrowth;
-  late double _responseRateGrowth;
-  late List<ChannelStat> _channelStats;
-  late List<DailyRevenue> _dailyRevenue;
+  // Valeurs affichées — uniquement ce que l'API a réellement renvoyé.
+  // Aucune donnée de démonstration : un chiffre absent reste absent.
+  int _revenue = 0;
+  int _conversations = 0;
+  double _responseRate = 0;
+  double _revenueGrowth = 0;
+  double _conversationsGrowth = 0;
+  double _responseRateGrowth = 0;
+  List<ChannelStat> _channelStats = [];
+  List<DailyRevenue> _dailyRevenue = [];
 
   @override
   void initState() {
     super.initState();
-    _initMock();
     _loadDashboard();
-  }
-
-  void _initMock() {
-    _revenue = mockRevenue;
-    _conversations = mockConversations;
-    _responseRate = mockResponseRate.toDouble();
-    _revenueGrowth = mockRevenueGrowth;
-    _conversationsGrowth = mockConversationsGrowth;
-    _responseRateGrowth = mockResponseRateGrowth;
-    _channelStats = List.from(mockChannelStats);
-    _dailyRevenue = List.from(mockDailyRevenue);
   }
 
   String _periodParam() => switch (_period) {
@@ -74,14 +63,26 @@ class _StatsScreenState extends State<StatsScreen> {
     } on StatsNetworkException {
       if (!mounted) return;
       setState(() { _isLoading = false; _error = 'Vérifiez votre connexion internet.'; });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      // Fallback silencieux sur mock
-      setState(() { _isLoading = false; _error = null; });
+      debugPrint('=== Chargement du tableau de bord échoué : $e ===');
+      setState(() { _isLoading = false; _error = 'Impossible de charger les statistiques.'; });
     }
   }
 
   void _applyData(DashboardData data) {
+    // Repartir de zéro : sans cette remise à plat, changer de période
+    // laisserait affichées les valeurs de la période précédente si la
+    // nouvelle réponse ne contient pas la section correspondante.
+    _revenue = 0;
+    _conversations = 0;
+    _responseRate = 0;
+    _revenueGrowth = 0;
+    _conversationsGrowth = 0;
+    _responseRateGrowth = 0;
+    _channelStats = [];
+    _dailyRevenue = [];
+
     // ── KPIs ────────────────────────────────────────────────────────────────
     if (data.kpis.isNotEmpty) {
       for (final kpi in data.kpis) {
@@ -98,15 +99,16 @@ class _StatsScreenState extends State<StatsScreen> {
         final val = toDouble(rawVal);
         final change = toDouble(rawChange);
 
+        // Le signe est conservé : une baisse doit s'afficher comme une baisse.
         if (label.contains('revenu') || label.contains('revenue') || label.contains('chiffre')) {
           _revenue = val.toInt();
-          _revenueGrowth = change.abs();
+          _revenueGrowth = change;
         } else if (label.contains('convers')) {
           _conversations = val.toInt();
-          _conversationsGrowth = change.abs();
+          _conversationsGrowth = change;
         } else if (label.contains('répon') || label.contains('response') || label.contains('taux')) {
           _responseRate = val;
-          _responseRateGrowth = change.abs();
+          _responseRateGrowth = change;
         }
       }
     }
@@ -177,6 +179,11 @@ class _StatsScreenState extends State<StatsScreen> {
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: AppColors.green, strokeWidth: 2.5))
+            // Aucune donnée jamais reçue + erreur → écran d'erreur plein.
+            // Si _data existe, on garde les vrais chiffres à l'écran et on
+            // signale l'échec de rafraîchissement par un simple bandeau.
+            : (_error != null && _data == null)
+            ? _StatsErrorState(error: _error!, onRetry: _loadDashboard)
             : RefreshIndicator(
                 onRefresh: _loadDashboard,
                 color: AppColors.green,
@@ -255,6 +262,9 @@ class _StatsScreenState extends State<StatsScreen> {
                             children: [
                               const Text('Conversations par canal', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                               const SizedBox(height: 16),
+                              if (_channelStats.isEmpty)
+                                const _NoDataHint()
+                              else
                               Row(
                                 children: [
                                   SizedBox(
@@ -309,10 +319,19 @@ class _StatsScreenState extends State<StatsScreen> {
                                   const Spacer(),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(color: AppColors.greenLight, borderRadius: BorderRadius.circular(8)),
+                                    decoration: BoxDecoration(
+                                      color: _revenueGrowth >= 0 ? AppColors.greenLight : const Color(0xFFFFEDED),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                     child: Text(
-                                      '+${_revenueGrowth.toStringAsFixed(1)}%',
-                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.greenDark),
+                                      _revenueGrowth >= 0
+                                          ? '+${_revenueGrowth.toStringAsFixed(1)}%'
+                                          : '${_revenueGrowth.toStringAsFixed(1)}%',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: _revenueGrowth >= 0 ? AppColors.greenDark : Colors.red.shade700,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -327,18 +346,22 @@ class _StatsScreenState extends State<StatsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              SizedBox(
-                                height: 120,
-                                child: CustomPaint(
-                                  painter: _LineChartPainter(data: _dailyRevenue),
-                                  size: const Size(double.infinity, 120),
+                              if (_dailyRevenue.length < 2)
+                                const _NoDataHint()
+                              else ...[
+                                SizedBox(
+                                  height: 120,
+                                  child: CustomPaint(
+                                    painter: _LineChartPainter(data: _dailyRevenue),
+                                    size: const Size(double.infinity, 120),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: _dailyRevenue.map((d) => Text(d.day, style: const TextStyle(fontSize: 10, color: AppColors.textHint))).toList(),
-                              ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: _dailyRevenue.map((d) => Text(d.day, style: const TextStyle(fontSize: 10, color: AppColors.textHint))).toList(),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -361,6 +384,66 @@ class _StatsScreenState extends State<StatsScreen> {
       buf.write(s[i]);
     }
     return buf.toString();
+  }
+}
+
+// ── Écran d'erreur (aucune donnée disponible) ─────────────────────────────────
+
+class _StatsErrorState extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+  const _StatsErrorState({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.insert_chart_outlined, size: 48, color: AppColors.borderLight),
+            const SizedBox(height: 12),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.green,
+                foregroundColor: AppColors.white,
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Absence de données pour la période ────────────────────────────────────────
+
+class _NoDataHint extends StatelessWidget {
+  const _NoDataHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 28),
+      child: Center(
+        child: Text(
+          'Aucune donnée pour cette période',
+          style: TextStyle(fontSize: 12, color: AppColors.textHint),
+        ),
+      ),
+    );
   }
 }
 
@@ -475,9 +558,22 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              const Icon(Icons.trending_up, size: 12, color: AppColors.green),
+              Icon(
+                growth >= 0 ? Icons.trending_up : Icons.trending_down,
+                size: 12,
+                color: growth >= 0 ? AppColors.green : Colors.red,
+              ),
               const SizedBox(width: 2),
-              Text('+${growth.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 10, color: AppColors.green, fontWeight: FontWeight.w600)),
+              Text(
+                growth >= 0
+                    ? '+${growth.toStringAsFixed(1)}%'
+                    : '${growth.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: growth >= 0 ? AppColors.green : Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ],

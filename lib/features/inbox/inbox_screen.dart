@@ -45,6 +45,10 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   StreamSubscription<Map<String, dynamic>>? _wsSubscription;
   final Set<String> _typingThreads = {};
 
+  /// Un minuteur d'expiration par conversation — annulable et réarmable, pour
+  /// que plusieurs événements consécutifs ne se marchent pas dessus.
+  final Map<String, Timer> _typingTimers = {};
+
   // ── Pagination de la liste des conversations ───────────────────────────────
   static const _pageSize = 50;
   final _threadsScrollController = ScrollController();
@@ -205,16 +209,24 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
     if (threadId == null) return;
     final idx = _threads.indexWhere((t) => t.id == threadId);
     if (idx == -1) return;
-    // Mettre à jour l'UI pour afficher "écrit" - nécessite un champ supplémentaire dans Thread
-    // Pour l'instant, on peut utiliser un Set<String> _typingThreads
-    setState(() {
-      _typingThreads.add(threadId);
-    });
-    // Retirer après 3 secondes d'inactivité
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() => _typingThreads.remove(threadId));
-      }
+
+    // Toujours annuler le minuteur en cours : un nouvel événement réarme le
+    // délai au lieu de laisser expirer le précédent.
+    _typingTimers.remove(threadId)?.cancel();
+
+    if (data['is_typing'] == false) {
+      setState(() => _typingThreads.remove(threadId));
+      return;
+    }
+
+    setState(() => _typingThreads.add(threadId));
+    // 7 secondes d'auto-expiration, conformément à la documentation WebSocket.
+    _typingTimers[threadId] = Timer(const Duration(seconds: 7), () {
+      if (!mounted) return;
+      setState(() {
+        _typingThreads.remove(threadId);
+        _typingTimers.remove(threadId);
+      });
     });
   }
 
@@ -281,6 +293,10 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _threadsScrollController.dispose();
+    for (final t in _typingTimers.values) {
+      t.cancel();
+    }
+    _typingTimers.clear();
     _wsSubscription?.cancel();
     webSocketService.disconnect();
     super.dispose();
