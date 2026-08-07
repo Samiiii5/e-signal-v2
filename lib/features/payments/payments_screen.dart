@@ -8,8 +8,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/navigation/app_router.dart';
 import '../../core/services/session_service.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/shimmer_box.dart';
-import '../../shared/mock/payments_mock.dart';
 import '../../shared/services/payment_service.dart';
 import 'create_link_sheet.dart';
 
@@ -84,11 +84,20 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       navigatorKey.currentContext?.go('/login');
     } on PaymentNetworkException {
       if (!mounted) return;
-      setState(() { _isLoading = false; _error = 'Pas de connexion internet. Vérifiez votre réseau.'; });
-    } catch (_) {
+      _setLoadError('Pas de connexion internet. Vérifiez votre réseau.');
+    } catch (e) {
       if (!mounted) return;
-      setState(() { _links = List.from(mockPaymentLinks); _isLoading = false; });
+      debugPrint('=== Chargement des transactions échoué : $e ===');
+      _setLoadError('Impossible de charger les transactions.');
     }
+  }
+
+  /// Affiche l'erreur à la place de la liste (avec bouton « Réessayer ») et la
+  /// signale par un snackbar — plus aucune transaction de démonstration n'est
+  /// substituée à un échec serveur.
+  void _setLoadError(String message) {
+    setState(() { _isLoading = false; _error = message; });
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error(message));
   }
 
   Future<void> _openCreateSheet() async {

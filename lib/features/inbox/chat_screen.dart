@@ -324,19 +324,23 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     } on InboxNetworkException {
       if (!mounted) return;
-      setState(() {
-        _isLoadingMessages = false;
-        _loadError = 'Vérifiez votre connexion internet.';
-      });
-      _fallbackToMock();
-    } catch (_) {
+      _setLoadError('Vérifiez votre connexion internet.');
+    } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _isLoadingMessages = false;
-        _loadError = null;
-      });
-      _fallbackToMock();
+      debugPrint('=== _loadMessages error: $e ===');
+      _setLoadError('Impossible de charger la conversation.');
     }
+  }
+
+  /// Affiche l'erreur à la place de la liste (avec bouton « Réessayer ») et la
+  /// signale par un snackbar. Aucune donnée de démonstration n'est substituée :
+  /// le commercial doit savoir que la conversation n'a pas pu être chargée.
+  void _setLoadError(String message) {
+    setState(() {
+      _isLoadingMessages = false;
+      _loadError = message;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error(message));
   }
 
   // Revalidation silencieuse en arrière-plan
@@ -359,18 +363,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {
       debugPrint('=== Revalidation messages échouée — cache conservé ===');
     }
-  }
-
-  void _fallbackToMock() {
-    setState(() {
-      _messages = List.from(mockMessagesThread001);
-      for (final m in _messages) {
-        if (m.initialStatus != null && !_msgStatus.containsKey(m.id)) {
-          _msgStatus[m.id] = m.initialStatus!;
-        }
-      }
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 
   Future<void> _loadMoreMessages() async {
@@ -1461,7 +1453,10 @@ class _ChatScreenState extends State<ChatScreen> {
         _msgStatus.remove(localMsgId);
       });
       var errorMsg = 'Échec de l\'envoi du message';
-      if (e is DioException) {
+      if (e is ArgumentError) {
+        // Provider absent du thread — sendMessage() refuse de deviner le canal.
+        errorMsg = 'Canal de la conversation inconnu — impossible d\'envoyer';
+      } else if (e is DioException) {
         final status = e.response?.statusCode;
         final responseData = e.response?.data;
         final serverMsg = responseData is Map

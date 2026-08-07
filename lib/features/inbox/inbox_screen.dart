@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/session_service.dart';
 import '../../core/utils/responsive.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/shimmer_box.dart';
 import '../../shared/mock/threads_mock.dart';
 import '../../shared/mock/publications_mock.dart';
@@ -29,10 +30,8 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
   _Filter _activeFilter = _Filter.all;
   bool _isLoading = true;
   List<Thread> _threads = [];
-  List<Publication> _publications = [];
   List<Map<String, dynamic>> _apiPosts = [];
   bool _postsLoading = false;
-  bool _postsFallback = false; // true only when getPosts() errored unexpectedly
   String? _postsError;
   String? _networkFilter; // null = Tous, 'facebook', 'instagram', 'tiktok'
 
@@ -431,7 +430,6 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         _apiPosts = posts;
-        _postsFallback = false;
         _postsLoading = false;
       });
     } on CommentsUnauthorizedException {
@@ -446,33 +444,26 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
       });
     } on CommentsNetworkException {
       if (!mounted) return;
-      setState(() {
-        _postsLoading = false;
-        _postsError = 'Vérifiez votre connexion internet.';
-      });
-    } catch (_) {
+      _setPostsError('Vérifiez votre connexion internet.');
+    } catch (e) {
       if (!mounted) return;
-      // Fallback sur le mock uniquement en cas d'erreur API inattendue (pas si la liste est vide)
-      setState(() {
-        _apiPosts = [];
-        _publications = List.from(mockPublications);
-        _postsFallback = true;
-        _postsLoading = false;
-      });
+      debugPrint('=== Chargement des publications échoué : $e ===');
+      _setPostsError('Impossible de charger les publications.');
     }
   }
 
-  Widget _buildPublicationsView() {
-    // Fallback mock uniquement si le dernier appel API a échoué — pas pour une liste vide légitime
-    final useMock = _postsFallback && !_postsLoading;
-    final filtered = useMock
-        ? (_networkFilter == null
-              ? List<Publication>.from(_publications)
-              : _publications
-                    .where((p) => p.network == _networkFilter)
-                    .toList())
-        : null; // used only in mock branch
+  /// Affiche le bandeau d'erreur (avec bouton de rechargement) et le signale par
+  /// un snackbar — plus aucune publication de démonstration n'est substituée.
+  void _setPostsError(String message) {
+    setState(() {
+      _apiPosts = [];
+      _postsLoading = false;
+      _postsError = message;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error(message));
+  }
 
+  Widget _buildPublicationsView() {
     const networks = [
       (null, 'Tous', null),
       ('facebook', 'Facebook', Color(0xFF1877F2)),
@@ -565,21 +556,6 @@ class _InboxScreenState extends State<InboxScreen> with WidgetsBindingObserver {
         Expanded(
           child: _postsLoading
               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-              : useMock
-              ? (filtered!.isEmpty
-                    ? const _EmptyState(query: '')
-                    : ListView.separated(
-                        padding: const EdgeInsets.only(top: 4, bottom: 16),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const Divider(
-                          indent: 66,
-                          height: 0,
-                          thickness: 0.5,
-                          color: AppColors.borderLight,
-                        ),
-                        itemBuilder: (_, i) =>
-                            _PublicationTile(publication: filtered[i]),
-                      ))
               : (_apiPosts.isEmpty
                     ? const _EmptyState(query: '')
                     : RefreshIndicator(
@@ -1606,110 +1582,6 @@ class _ChannelOption extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ── Publication tile ──────────────────────────────────────────────────────────
-
-class _PublicationTile extends StatelessWidget {
-  final Publication publication;
-  const _PublicationTile({required this.publication});
-
-  @override
-  Widget build(BuildContext context) {
-    final pub = publication;
-    return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PublicationDetailScreen(publication: pub),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
-          children: [
-            _NetworkCircle(network: pub.network),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          pub.title,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _fmtDate(pub.publishedAt),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textHint,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.chat_bubble_outline,
-                        size: 13,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${pub.commentCount} commentaires',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.greenLight,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '${pub.commentCount}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.greenDark,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _fmtDate(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    if (diff.inDays == 1) return 'Hier';
-    return '${dt.day}/${dt.month}';
   }
 }
 

@@ -1115,6 +1115,7 @@ class _ContactPickerSheet extends StatefulWidget {
 class _ContactPickerSheetState extends State<_ContactPickerSheet> {
   List<Thread> _threads = [];
   bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -1122,7 +1123,15 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
     _load();
   }
 
+  /// GET /inbox/threads — la liste des contacts vient toujours du serveur.
+  /// En cas d'échec, on affiche une erreur : proposer des contacts de
+  /// démonstration ferait générer un lien pour un client qui n'existe pas.
   Future<void> _load() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final threads = await inboxService.getThreads();
       if (!mounted) return;
@@ -1130,12 +1139,12 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
         _threads = threads;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      // Fallback sur le mock uniquement en cas d'erreur API
+      debugPrint('=== Chargement des contacts échoué : $e ===');
       setState(() {
-        _threads = List.from(mockThreads);
         _isLoading = false;
+        _error = 'Impossible de charger les contacts.';
       });
     }
   }
@@ -1185,6 +1194,8 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
+                : _error != null
+                ? _ContactPickerError(message: _error!, onRetry: _load)
                 : _threads.isEmpty
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
@@ -1603,5 +1614,54 @@ class _PaymentProductTile extends StatelessWidget {
     // Supprimer les espaces multiples et trim
     text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
     return text;
+  }
+}
+
+// ── Erreur de chargement des contacts ─────────────────────────────────────────
+
+class _ContactPickerError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ContactPickerError({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 34,
+            color: AppColors.borderLight,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextButton.icon(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.greenLight,
+              foregroundColor: AppColors.greenDark,
+              shape: const StadiumBorder(),
+              padding: const EdgeInsets.symmetric(
+                vertical: 10,
+                horizontal: 20,
+              ),
+            ),
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Réessayer'),
+          ),
+        ],
+      ),
+    );
   }
 }

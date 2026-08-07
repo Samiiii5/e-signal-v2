@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/session_service.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../shared/mock/publications_mock.dart';
 import '../../shared/services/comments_service.dart';
 
@@ -113,13 +114,41 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
     );
   }
 
-  void _sendReply() {
+  Future<void> _sendReply() async {
     final text = _replyCtrl.text.trim();
     if (text.isEmpty) return;
 
-    final provider = _replyTarget != null && _replyTarget!.provider.isNotEmpty
-        ? _replyTarget!.provider
+    final target = _replyTarget;
+    final provider = target != null && target.provider.isNotEmpty
+        ? target.provider
         : widget.publication.network;
+
+    // Appel API si on a un vrai ID de commentaire cible. La publication réelle
+    // est attendue avant l'affichage : sans ça, une réponse rejetée par le
+    // réseau social apparaîtrait quand même comme publiée dans le fil.
+    if (target != null && widget.apiPostId != null) {
+      try {
+        await commentsService.replyToComment(
+          commentId: target.id,
+          message: text,
+          provider: provider,
+        );
+      } on CommentsServerException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppSnackbar.error('Réponse non publiée (erreur ${e.statusCode}).'),
+        );
+        return;
+      } catch (e) {
+        if (!mounted) return;
+        debugPrint('=== replyToComment error: $e ===');
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppSnackbar.error('Réponse non publiée. Vérifiez votre connexion.'),
+        );
+        return;
+      }
+      if (!mounted) return;
+    }
 
     final newComment = PublicationComment(
       id: 'reply_${DateTime.now().millisecondsSinceEpoch}',
@@ -127,25 +156,16 @@ class _PublicationDetailScreenState extends State<PublicationDetailScreen> {
       initials: 'V',
       text: text,
       sentAt: DateTime.now(),
-      replyToCommentId: _replyTarget?.id,
-      replyToName: _replyTarget?.authorName,
+      replyToCommentId: target?.id,
+      replyToName: target?.authorName,
       isOwnerReply: true,
       status: 'replied',
       provider: provider,
     );
 
-    // Appel API si on a un vrai ID de commentaire cible
-    if (_replyTarget != null && widget.apiPostId != null) {
-      commentsService.replyToComment(
-        commentId: _replyTarget!.id,
-        message: text,
-        provider: provider,
-      ).ignore();
-    }
-
     setState(() {
-      if (_replyTarget != null) {
-        final targetId = _replyTarget!.id;
+      if (target != null) {
+        final targetId = target.id;
         _comments = _comments.map((c) => _addReplyTo(c, targetId, newComment)).toList();
       } else {
         _comments.insert(0, newComment);
