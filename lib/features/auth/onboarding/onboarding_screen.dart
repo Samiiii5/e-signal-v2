@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/session_service.dart';
@@ -99,151 +100,155 @@ class _Slide1 extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    return Container(
-      color: const Color(0xFF2D1B69),
-      child: Stack(
-        children: [
-          // ── Dame bas-gauche, dépasse légèrement vers le haut ──────────────
-          Positioned(
-            bottom: 48,        // laisse de la place pour les dots
-            left: 0,
-            child: Image.asset(
-              'design/image_onboarding1.png',
-              width: size.width * 0.62,
-              fit: BoxFit.fitWidth,
-              alignment: Alignment.bottomLeft,
-            ),
-          ),
-
-          // ── Icônes canaux flottantes repositionnées ───────────────────────
-          // Message vert — haut-droite de la dame
-          Positioned(
-            bottom: size.height * 0.44,
-            right: size.width * 0.32,
-            child: _FloatingIcon(icon: Icons.chat_bubble_rounded, color: const Color(0xFF1E9E5E)),
-          ),
-          // Email violet — droite au niveau de la taille
-          Positioned(
-            bottom: size.height * 0.30,
-            right: 20,
-            child: _FloatingIcon(icon: Icons.email_rounded, color: const Color(0xFF6C5CE7)),
-          ),
-          // SMS/smartphone vert — bas-droite de la dame
-          Positioned(
-            bottom: size.height * 0.18,
-            right: 28,
-            child: _FloatingIcon(icon: Icons.sms_rounded, color: const Color(0xFF1E9E5E)),
-          ),
-          // WhatsApp cercle vert — gauche de la dame
-          Positioned(
-            bottom: size.height * 0.28,
-            left: 8,
-            child: _FloatingIcon(icon: Icons.chat_rounded, color: const Color(0xFF25D366)),
-          ),
-          // Notification — au-dessus à gauche
-          Positioned(
-            bottom: size.height * 0.50,
-            left: 24,
-            child: _FloatingIcon(icon: Icons.notifications_rounded, color: Colors.white),
-          ),
-          // Graphique — haut-droite loin de la dame
-          Positioned(
-            bottom: size.height * 0.52,
-            right: 20,
-            child: _FloatingIcon(icon: Icons.bar_chart_rounded, color: const Color(0xFF1E9E5E)),
-          ),
-
-          // ── Décoration géométrique bas-droite ─────────────────────────────
-          Positioned(
-            bottom: 60,
-            right: 20,
-            child: SizedBox(
-              width: 72,
-              height: 72,
-              child: CustomPaint(painter: _GeoDeco()),
-            ),
-          ),
-
-          // ── Contenu principal (logo + texte + dots) ───────────────────────
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 24),
-
-                  // Logo e-Signal — image réelle
-                  Image.asset(
-                    'design/logo_onboarding.png',
-                    height: 80,
-                    fit: BoxFit.contain,
-                  ),
-
-                  SizedBox(height: size.height * 0.02),
-
-                  // Titre centré
-                  SizedBox(
-                    width: double.infinity,
-                    child: RichText(
-                    textAlign: TextAlign.center,
-                    text: const TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Tout votre business\nconnecté, analysé,\n',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            height: 1.3,
-                          ),
-                        ),
-                        TextSpan(
-                          text: 'et propulsé.',
-                          style: TextStyle(
-                            color: Color(0xFF1E9E5E),
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // Description centrée
-                  SizedBox(
-                    width: double.infinity,
-                    child: Text(
-                    'Centralisez vos conversations, comprenez\nvos performances et prenez de meilleures\ndécisions.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      height: 1.55,
-                    ),
-                  ),
-                  ),
-
-                  const Spacer(),
-
-                  // 4 dots centrés — pas de boutons
-                  _Dots(
-                    current: currentPage,
-                    count: 4,
-                    activeColor: Colors.white,
-                    inactiveColor: Colors.white.withValues(alpha: 0.35),
-                  ),
-                  const SizedBox(height: 28),
-                ],
+    // Fond violet foncé #2D1B69 → icônes système blanches.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Container(
+        color: const Color(0xFF2D1B69),
+        child: Stack(
+          children: [
+            // ── Dame bas-gauche, dépasse légèrement vers le haut ──────────────
+            Positioned(
+              bottom: 48,        // laisse de la place pour les dots
+              left: 0,
+              child: Image.asset(
+                'design/image_onboarding1.png',
+                width: size.width * 0.62,
+                fit: BoxFit.fitWidth,
+                alignment: Alignment.bottomLeft,
               ),
             ),
-          ),
-        ],
+
+            // ── Icônes canaux flottantes repositionnées ───────────────────────
+            // Message vert — haut-droite de la dame
+            Positioned(
+              bottom: size.height * 0.44,
+              right: size.width * 0.32,
+              child: _FloatingIcon(icon: Icons.chat_bubble_rounded, color: const Color(0xFF1E9E5E)),
+            ),
+            // Email violet — droite au niveau de la taille
+            Positioned(
+              bottom: size.height * 0.30,
+              right: 20,
+              child: _FloatingIcon(icon: Icons.email_rounded, color: const Color(0xFF6C5CE7)),
+            ),
+            // SMS/smartphone vert — bas-droite de la dame
+            Positioned(
+              bottom: size.height * 0.18,
+              right: 28,
+              child: _FloatingIcon(icon: Icons.sms_rounded, color: const Color(0xFF1E9E5E)),
+            ),
+            // WhatsApp cercle vert — gauche de la dame
+            Positioned(
+              bottom: size.height * 0.28,
+              left: 8,
+              child: _FloatingIcon(icon: Icons.chat_rounded, color: const Color(0xFF25D366)),
+            ),
+            // Notification — au-dessus à gauche
+            Positioned(
+              bottom: size.height * 0.50,
+              left: 24,
+              child: _FloatingIcon(icon: Icons.notifications_rounded, color: Colors.white),
+            ),
+            // Graphique — haut-droite loin de la dame
+            Positioned(
+              bottom: size.height * 0.52,
+              right: 20,
+              child: _FloatingIcon(icon: Icons.bar_chart_rounded, color: const Color(0xFF1E9E5E)),
+            ),
+
+            // ── Décoration géométrique bas-droite ─────────────────────────────
+            Positioned(
+              bottom: 60,
+              right: 20,
+              child: SizedBox(
+                width: 72,
+                height: 72,
+                child: CustomPaint(painter: _GeoDeco()),
+              ),
+            ),
+
+            // ── Contenu principal (logo + texte + dots) ───────────────────────
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 24),
+
+                    // Logo e-Signal — image réelle
+                    Image.asset(
+                      'design/logo_onboarding.png',
+                      height: 80,
+                      fit: BoxFit.contain,
+                    ),
+
+                    SizedBox(height: size.height * 0.02),
+
+                    // Titre centré
+                    SizedBox(
+                      width: double.infinity,
+                      child: RichText(
+                      textAlign: TextAlign.center,
+                      text: const TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Tout votre business\nconnecté, analysé,\n',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              height: 1.3,
+                            ),
+                          ),
+                          TextSpan(
+                            text: 'et propulsé.',
+                            style: TextStyle(
+                              color: Color(0xFF1E9E5E),
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Description centrée
+                    SizedBox(
+                      width: double.infinity,
+                      child: Text(
+                      'Centralisez vos conversations, comprenez\nvos performances et prenez de meilleures\ndécisions.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.72),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        height: 1.55,
+                      ),
+                    ),
+                    ),
+
+                    const Spacer(),
+
+                    // 4 dots centrés — pas de boutons
+                    _Dots(
+                      current: currentPage,
+                      count: 4,
+                      activeColor: Colors.white,
+                      inactiveColor: Colors.white.withValues(alpha: 0.35),
+                    ),
+                    const SizedBox(height: 28),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -344,197 +349,201 @@ class _Slide2 extends StatelessWidget {
     // Marge horizontale de chaque côté du téléphone
     final phoneMargin = (size.width - phoneW) / 2;
 
-    return Container(
-      color: const Color(0xFFF7F8FA),
-      child: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
+    // Fond gris très clair #F7F8FA → icônes système sombres.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Container(
+        color: const Color(0xFFF7F8FA),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
 
-            // ── Titre + description (ne pas toucher) ─────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  RichText(
-                    textAlign: TextAlign.center,
-                    text: const TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Centralisez toutes vos\n',
-                          style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w700, height: 1.3),
-                        ),
-                        TextSpan(
-                          text: 'conversations',
-                          style: TextStyle(color: AppColors.green, fontSize: 24, fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'WhatsApp, SMS, Email, Facebook\net plus encore dans une seule inbox.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // ── Zone téléphone + bulles flottantes ────────────────────────────
-            Expanded(
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.topCenter,
-                children: [
-                  // ── Mockup iPhone centré ──────────────────────────────────
-                  Center(
-                    child: Container(
-                      width: phoneW,
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(40),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 8)),
-                          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2)),
+              // ── Titre + description (ne pas toucher) ─────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: const TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Centralisez toutes vos\n',
+                            style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w700, height: 1.3),
+                          ),
+                          TextSpan(
+                            text: 'conversations',
+                            style: TextStyle(color: AppColors.green, fontSize: 24, fontWeight: FontWeight.w700),
+                          ),
                         ],
                       ),
-                      child: Padding(
-                        // épaisseur bordure noire
-                        padding: const EdgeInsets.all(7),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(34),
-                          child: Container(
-                            color: Colors.white,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Notch + status bar
-                                _PhoneStatusBar(),
-                                // Header Inbox
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
-                                  child: Row(
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'WhatsApp, SMS, Email, Facebook\net plus encore dans une seule inbox.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Zone téléphone + bulles flottantes ────────────────────────────
+              Expanded(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.topCenter,
+                  children: [
+                    // ── Mockup iPhone centré ──────────────────────────────────
+                    Center(
+                      child: Container(
+                        width: phoneW,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          borderRadius: BorderRadius.circular(40),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 8)),
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2)),
+                          ],
+                        ),
+                        child: Padding(
+                          // épaisseur bordure noire
+                          padding: const EdgeInsets.all(7),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(34),
+                            child: Container(
+                              color: Colors.white,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Notch + status bar
+                                  _PhoneStatusBar(),
+                                  // Header Inbox
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+                                    child: Row(
+                                      children: [
+                                        const Text('Inbox', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                                        const Spacer(),
+                                        const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
+                                        const SizedBox(width: 12),
+                                        const Icon(Icons.tune, size: 18, color: AppColors.textSecondary),
+                                      ],
+                                    ),
+                                  ),
+                                  const Divider(height: 1, thickness: 0.5, color: AppColors.borderLight),
+                                  // 5 conversations
+                                  ...List.generate(_convos.length, (i) => Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Text('Inbox', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                                      const Spacer(),
-                                      const Icon(Icons.search, size: 18, color: AppColors.textSecondary),
-                                      const SizedBox(width: 12),
-                                      const Icon(Icons.tune, size: 18, color: AppColors.textSecondary),
+                                      _InboxRow(data: _convos[i]),
+                                      if (i < _convos.length - 1)
+                                        const Divider(height: 1, thickness: 0.5, indent: 54, color: AppColors.borderLight),
                                     ],
+                                  )),
+                                  // Home indicator
+                                  const SizedBox(height: 6),
+                                  Center(
+                                    child: Container(
+                                      width: 40, height: 4,
+                                      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.20), borderRadius: BorderRadius.circular(2)),
+                                    ),
                                   ),
-                                ),
-                                const Divider(height: 1, thickness: 0.5, color: AppColors.borderLight),
-                                // 5 conversations
-                                ...List.generate(_convos.length, (i) => Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _InboxRow(data: _convos[i]),
-                                    if (i < _convos.length - 1)
-                                      const Divider(height: 1, thickness: 0.5, indent: 54, color: AppColors.borderLight),
-                                  ],
-                                )),
-                                // Home indicator
-                                const SizedBox(height: 6),
-                                Center(
-                                  child: Container(
-                                    width: 40, height: 4,
-                                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.20), borderRadius: BorderRadius.circular(2)),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                              ],
+                                  const SizedBox(height: 6),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
 
-                  // ── Bulles flottantes AUTOUR du téléphone ────────────────
-                  // WhatsApp vert — haut gauche (déborde à gauche du téléphone)
-                  Positioned(
-                    top: 10,
-                    left: phoneMargin - 46,
-                    child: _ChannelBubble(color: const Color(0xFF25D366), icon: Icons.call, size: 68),
-                  ),
-                  // Facebook bleu — milieu gauche
-                  Positioned(
-                    top: 140,
-                    left: phoneMargin - 52,
-                    child: _ChannelBubble(color: const Color(0xFF1877F2), icon: Icons.facebook, size: 68),
-                  ),
-                  // Chat violet — bas gauche
-                  Positioned(
-                    top: 270,
-                    left: phoneMargin - 42,
-                    child: _ChannelBubble(color: const Color(0xFF6C5CE7), icon: Icons.chat_bubble_rounded, size: 62),
-                  ),
-                  // Email violet — haut droite
-                  Positioned(
-                    top: 10,
-                    right: phoneMargin - 46,
-                    child: _ChannelBubble(color: const Color(0xFF6C5CE7), icon: Icons.email_rounded, size: 68),
-                  ),
-                  // SMS orange — milieu droite
-                  Positioned(
-                    top: 155,
-                    right: phoneMargin - 52,
-                    child: _ChannelBubble(color: const Color(0xFFF59E0B), label: 'SMS', size: 68),
-                  ),
-                ],
+                    // ── Bulles flottantes AUTOUR du téléphone ────────────────
+                    // WhatsApp vert — haut gauche (déborde à gauche du téléphone)
+                    Positioned(
+                      top: 10,
+                      left: phoneMargin - 46,
+                      child: _ChannelBubble(color: const Color(0xFF25D366), icon: Icons.call, size: 68),
+                    ),
+                    // Facebook bleu — milieu gauche
+                    Positioned(
+                      top: 140,
+                      left: phoneMargin - 52,
+                      child: _ChannelBubble(color: const Color(0xFF1877F2), icon: Icons.facebook, size: 68),
+                    ),
+                    // Chat violet — bas gauche
+                    Positioned(
+                      top: 270,
+                      left: phoneMargin - 42,
+                      child: _ChannelBubble(color: const Color(0xFF6C5CE7), icon: Icons.chat_bubble_rounded, size: 62),
+                    ),
+                    // Email violet — haut droite
+                    Positioned(
+                      top: 10,
+                      right: phoneMargin - 46,
+                      child: _ChannelBubble(color: const Color(0xFF6C5CE7), icon: Icons.email_rounded, size: 68),
+                    ),
+                    // SMS orange — milieu droite
+                    Positioned(
+                      top: 155,
+                      right: phoneMargin - 52,
+                      child: _ChannelBubble(color: const Color(0xFFF59E0B), label: 'SMS', size: 68),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // ── Dots ─────────────────────────────────────────────────────────
-            _Dots(current: currentPage, count: 4),
+              // ── Dots ─────────────────────────────────────────────────────────
+              _Dots(current: currentPage, count: 4),
 
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // ── Boutons Passer / Suivant (ne pas toucher) ─────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: onSkip,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              // ── Boutons Passer / Suivant (ne pas toucher) ─────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: onSkip,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Passer', style: TextStyle(fontSize: 15)),
                     ),
-                    child: const Text('Passer', style: TextStyle(fontSize: 15)),
-                  ),
-                  ElevatedButton(
-                    onPressed: onNext,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      elevation: 0,
+                    ElevatedButton(
+                      onPressed: onNext,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.white,
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        elevation: 0,
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                          SizedBox(width: 6),
+                          Icon(Icons.arrow_forward_rounded, size: 16),
+                        ],
+                      ),
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                        SizedBox(width: 6),
-                        Icon(Icons.arrow_forward_rounded, size: 16),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -690,122 +699,126 @@ class _Slide3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.white,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 24),
+    // Fond blanc → icônes système sombres.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Container(
+        color: AppColors.white,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 24),
 
-              // Titre
-              RichText(
-                textAlign: TextAlign.center,
-                text: const TextSpan(
-                  children: [
-                    TextSpan(text: 'Comprenez ', style: TextStyle(color: AppColors.primary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25)),
-                    TextSpan(text: 'ce qui\nfait grandir votre business', style: TextStyle(color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25)),
-                  ],
+                // Titre
+                RichText(
+                  textAlign: TextAlign.center,
+                  text: const TextSpan(
+                    children: [
+                      TextSpan(text: 'Comprenez ', style: TextStyle(color: AppColors.primary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25)),
+                      TextSpan(text: 'ce qui\nfait grandir votre business', style: TextStyle(color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25)),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Des tableaux de bord clairs pour suivre\nvos performances en temps réel.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 10),
+                const Text(
+                  'Des tableaux de bord clairs pour suivre\nvos performances en temps réel.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+                ),
+                const SizedBox(height: 20),
 
-              // ── Layout exact de l'image 1 : col gauche + col droite ──────────
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // ── Layout exact de l'image 1 : col gauche + col droite ──────────
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Colonne gauche : 3 cards métriques empilées
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            // Card Revenus grande
+                            _StatCard(
+                              label: 'Revenus',
+                              value: '1 250 000\nFCFA',
+                              growth: '+18.5%',
+                              showChart: true,
+                              chartColor: AppColors.green,
+                            ),
+                            const SizedBox(height: 10),
+                            // Card Conversations petite
+                            _StatCard(
+                              label: 'Conversations',
+                              value: '324',
+                              growth: '+12.3%',
+                              showChart: true,
+                              chartColor: AppColors.primary,
+                            ),
+                            const SizedBox(height: 10),
+                            // Card Taux de réponse petite
+                            _StatCard(
+                              label: 'Taux de réponse',
+                              value: '92%',
+                              growth: '+7.1%',
+                              showChart: false,
+                              chartColor: AppColors.green,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Colonne droite : card donut
+                      Expanded(
+                        flex: 6,
+                        child: _DonutCard(),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Boutons Passer / Suivant
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Colonne gauche : 3 cards métriques empilées
-                    Expanded(
-                      flex: 5,
-                      child: Column(
+                    TextButton(
+                      onPressed: onSkip,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Passer', style: TextStyle(fontSize: 15)),
+                    ),
+                    ElevatedButton(
+                      onPressed: onNext,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.white,
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        elevation: 0,
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Card Revenus grande
-                          _StatCard(
-                            label: 'Revenus',
-                            value: '1 250 000\nFCFA',
-                            growth: '+18.5%',
-                            showChart: true,
-                            chartColor: AppColors.green,
-                          ),
-                          const SizedBox(height: 10),
-                          // Card Conversations petite
-                          _StatCard(
-                            label: 'Conversations',
-                            value: '324',
-                            growth: '+12.3%',
-                            showChart: true,
-                            chartColor: AppColors.primary,
-                          ),
-                          const SizedBox(height: 10),
-                          // Card Taux de réponse petite
-                          _StatCard(
-                            label: 'Taux de réponse',
-                            value: '92%',
-                            growth: '+7.1%',
-                            showChart: false,
-                            chartColor: AppColors.green,
-                          ),
+                          Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                          SizedBox(width: 6),
+                          Icon(Icons.arrow_forward_rounded, size: 16),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    // Colonne droite : card donut
-                    Expanded(
-                      flex: 6,
-                      child: _DonutCard(),
-                    ),
                   ],
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Boutons Passer / Suivant
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: onSkip,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('Passer', style: TextStyle(fontSize: 15)),
-                  ),
-                  ElevatedButton(
-                    onPressed: onNext,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      elevation: 0,
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Suivant', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                        SizedBox(width: 6),
-                        Icon(Icons.arrow_forward_rounded, size: 16),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-            ],
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         ),
       ),
@@ -995,110 +1008,114 @@ class _Slide4 extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    return Container(
-      color: const Color(0xFFF0FFF4),
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 24),
+    // Fond vert très pâle #F0FFF4 → icônes système sombres.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Container(
+        color: const Color(0xFFF0FFF4),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 24),
 
-            // Titre
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: RichText(
-                textAlign: TextAlign.center,
-                text: const TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Décidez ',
-                      style: TextStyle(color: Color(0xFF1E9E5E), fontSize: 26, fontWeight: FontWeight.w800, height: 1.25),
-                    ),
-                    TextSpan(
-                      text: 'avec des insights\nexploitables et finançables',
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: const Text(
-                'Transformez vos données en actions\net accédez à plus d\'opportunités.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Zone centrale : image homme (contient déjà les 4 cards intégrées)
-            Expanded(
-              child: Center(
-                child: Image.asset(
-                  'design/image_onboarding4.png',
-                  height: size.height * 0.50,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-
-            // Dots
-            _Dots(current: currentPage, count: 4),
-            const SizedBox(height: 20),
-
-            // Bouton Commencer maintenant — vert foncé pleine largeur
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: onFinish,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
-                    foregroundColor: Colors.white,
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    elevation: 0,
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+              // Titre
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: RichText(
+                  textAlign: TextAlign.center,
+                  text: const TextSpan(
                     children: [
-                      Text('Commencer maintenant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward, size: 18),
+                      TextSpan(
+                        text: 'Décidez ',
+                        style: TextStyle(color: Color(0xFF1E9E5E), fontSize: 26, fontWeight: FontWeight.w800, height: 1.25),
+                      ),
+                      TextSpan(
+                        text: 'avec des insights\nexploitables et finançables',
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, height: 1.25),
+                      ),
                     ],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-
-            // Lien Se connecter
-            GestureDetector(
-              onTap: onFinish,
-              child: RichText(
-                text: const TextSpan(
-                  children: [
-                    TextSpan(text: 'Vous avez déjà un compte ? ', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                    TextSpan(
-                      text: 'Se connecter',
-                      style: TextStyle(
-                        color: Color(0xFF2E7D32),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        decoration: TextDecoration.underline,
-                        decorationColor: Color(0xFF2E7D32),
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: const Text(
+                  'Transformez vos données en actions\net accédez à plus d\'opportunités.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
                 ),
               ),
-            ),
-            const SizedBox(height: 28),
-          ],
+
+              const SizedBox(height: 12),
+
+              // Zone centrale : image homme (contient déjà les 4 cards intégrées)
+              Expanded(
+                child: Center(
+                  child: Image.asset(
+                    'design/image_onboarding4.png',
+                    height: size.height * 0.50,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+
+              // Dots
+              _Dots(current: currentPage, count: 4),
+              const SizedBox(height: 20),
+
+              // Bouton Commencer maintenant — vert foncé pleine largeur
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: onFinish,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E7D32),
+                      foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 0,
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Commencer maintenant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Lien Se connecter
+              GestureDetector(
+                onTap: onFinish,
+                child: RichText(
+                  text: const TextSpan(
+                    children: [
+                      TextSpan(text: 'Vous avez déjà un compte ? ', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                      TextSpan(
+                        text: 'Se connecter',
+                        style: TextStyle(
+                          color: Color(0xFF2E7D32),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+            ],
+          ),
         ),
       ),
     );
