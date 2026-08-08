@@ -260,92 +260,99 @@ class _CreateLinkScreenState extends State<CreateLinkScreen> {
       // Navigate directly to the thread conversation
       context.go('/inbox/$effectiveThreadId');
     } else {
-      Navigator.pop(
-        context,
-        CreateLinkResult(
-          lien: lien,
-          hasDelivery: _hasDelivery,
-          deliveryCommune: _communeCtrl.text.trim(),
-          deliveryQuartier: _quartierCtrl.text.trim(),
-          deliverySecteur: _secteurCtrl.text.trim(),
-        ),
-      );
+      // Sans conversation cible : on revient à l'écran précédent s'il existe,
+      // sinon on retombe sur la liste des paiements — un pop sur une pile vide
+      // laisserait un écran noir.
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/payments');
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back,
-            color: AppColors.textPrimary,
-            size: 22,
-          ),
-          onPressed: _goBack,
-        ),
-        title: const Text(
-          'Nouveau lien de paiement',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(44),
-          child: _StepProgress(current: _step),
-        ),
-      ),
-      body: switch (_step) {
-        1 => _Step1(
-          contactName: widget.contactName,
-          selectedThread: _selectedThread,
-          onSelectThread: (t) => setState(() => _selectedThread = t),
-          onNext: () => setState(() => _step = 2),
-        ),
-        2 => _Step2(
-          products: _catalogProducts,
-          isLoading: _isLoadingProducts,
-          error: _catalogError,
-          onRetry: _loadProducts,
-          selectedProduct: _selectedProduct,
-          onSelectProduct: (p) => setState(() => _selectedProduct = p),
-          onNext: () => setState(() => _step = 3),
-        ),
-        _ => _Step3(
-          product: _selectedProduct,
-          contactName: _contactName,
-          hasDelivery: _hasDelivery,
-          onDeliveryChanged: (v) {
-            setState(() {
-              _hasDelivery = v;
-              if (!v) {
-                _searchingLivreur = false;
-                _livreurFound = false;
-              }
-            });
-            if (v) _searchLivreur();
-          },
-          searchingLivreur: _searchingLivreur,
-          livreurFound: _livreurFound,
-          onRelancerRecherche: _searchLivreur,
-          destinataireCtrl: _destinataireCtrl,
-          telephoneCtrl: _telephoneCtrl,
-          communeCtrl: _communeCtrl,
-          quartierCtrl: _quartierCtrl,
-          secteurCtrl: _secteurCtrl,
-          selectedPayment: _selectedPayment,
-          onPaymentChanged: (v) => setState(() => _selectedPayment = v),
-          isGenerating: _isGenerating,
-          onGenerate: _generate,
-        ),
+    // Le geste de retour Android doit reculer d'une étape du formulaire, comme
+    // la flèche de l'AppBar — sans ce PopScope il fermait l'écran entier et
+    // perdait la saisie en cours.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goBack();
       },
+      child: Scaffold(
+        backgroundColor: AppColors.white,
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back,
+              color: AppColors.textPrimary,
+              size: 22,
+            ),
+            onPressed: _goBack,
+          ),
+          title: const Text(
+            'Nouveau lien de paiement',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(44),
+            child: _StepProgress(current: _step),
+          ),
+        ),
+        body: switch (_step) {
+          1 => _Step1(
+            contactName: widget.contactName,
+            selectedThread: _selectedThread,
+            onSelectThread: (t) => setState(() => _selectedThread = t),
+            onNext: () => setState(() => _step = 2),
+          ),
+          2 => _Step2(
+            products: _catalogProducts,
+            isLoading: _isLoadingProducts,
+            error: _catalogError,
+            onRetry: _loadProducts,
+            selectedProduct: _selectedProduct,
+            onSelectProduct: (p) => setState(() => _selectedProduct = p),
+            onNext: () => setState(() => _step = 3),
+          ),
+          _ => _Step3(
+            product: _selectedProduct,
+            contactName: _contactName,
+            hasDelivery: _hasDelivery,
+            onDeliveryChanged: (v) {
+              setState(() {
+                _hasDelivery = v;
+                if (!v) {
+                  _searchingLivreur = false;
+                  _livreurFound = false;
+                }
+              });
+              if (v) _searchLivreur();
+            },
+            searchingLivreur: _searchingLivreur,
+            livreurFound: _livreurFound,
+            onRelancerRecherche: _searchLivreur,
+            destinataireCtrl: _destinataireCtrl,
+            telephoneCtrl: _telephoneCtrl,
+            communeCtrl: _communeCtrl,
+            quartierCtrl: _quartierCtrl,
+            secteurCtrl: _secteurCtrl,
+            selectedPayment: _selectedPayment,
+            onPaymentChanged: (v) => setState(() => _selectedPayment = v),
+            isGenerating: _isGenerating,
+            onGenerate: _generate,
+          ),
+        },
+      ),
     );
   }
 }

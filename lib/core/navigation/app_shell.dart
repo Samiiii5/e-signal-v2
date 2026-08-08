@@ -66,7 +66,9 @@ class AppShell extends StatelessWidget {
               color: AppColors.primary,
               onTap: () {
                 Navigator.pop(context);
-                GoRouter.of(context).go('/create-link');
+                // push et non go : go remplace la pile, le retour depuis
+                // l'écran de création n'aurait alors plus rien à dépiler.
+                GoRouter.of(context).push('/create-link');
               },
             ),
             const SizedBox(height: 12),
