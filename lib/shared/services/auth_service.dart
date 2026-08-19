@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/services/api_client.dart';
 
 // ─── Modèle de réponse ────────────────────────────────────────────────────────
@@ -103,7 +104,8 @@ abstract class AuthService {
     String newPassword,
   );
 
-  /// GET /api/v1.2/auth/me  → retourne l'organization_id du premier élément.
+  /// GET /api/v1.2/auth/me/capabilities
+  /// → retourne le workspace_id du premier élément de "workspaces".
   Future<String?> getMe();
 
   /// POST /api/v1.2/auth/forgot-password
@@ -170,13 +172,18 @@ class HttpAuthService implements AuthService {
   @override
   Future<String?> getMe() async {
     try {
-      final resp = await ApiClient.dio.get('/auth/me');
+      final resp = await ApiClient.dio.get('/auth/me/capabilities');
+      debugPrint('=== GET /auth/me/capabilities ===');
+      debugPrint('=== statusCode: ${resp.statusCode} ===');
       if (resp.statusCode != 200) return null;
       final data = resp.data as Map<String, dynamic>;
-      final orgs = data['organizations'] as List<dynamic>?;
-      if (orgs != null && orgs.isNotEmpty) {
-        final first = orgs.first as Map<String, dynamic>;
-        return first['organization_id'] as String?;
+      final workspaces = data['workspaces'] as List<dynamic>?;
+      debugPrint(
+        '=== workspace_id: ${workspaces?.isNotEmpty == true ? (workspaces!.first as Map)['workspace_id'] : 'null'} ===',
+      );
+      if (workspaces != null && workspaces.isNotEmpty) {
+        final first = workspaces.first as Map<String, dynamic>;
+        return first['workspace_id'] as String?;
       }
       return null;
     } on DioException {
