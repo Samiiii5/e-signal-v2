@@ -23,6 +23,7 @@ class PaymentLinkBubble extends StatelessWidget {
       description: message.content,
       amount: double.tryParse(message.paymentAmount ?? '') ?? 0.0,
       currency: message.paymentCurrency ?? 'XOF',
+      provider: message.paymentProvider ?? '',
       status: switch (message.paymentStatus) {
         PaymentStatus.paid => 'paid',
         PaymentStatus.pending => 'pending',
@@ -138,13 +139,29 @@ class PaymentLinkBubble extends StatelessWidget {
                 14,
                 12,
               ),
-              child: Text(
-                '${link.formattedAmount} ${link.currency}',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${link.formattedAmount} ${link.currency}',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (link.providerLabel.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        'via ${link.providerLabel}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
 

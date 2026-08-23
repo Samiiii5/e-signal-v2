@@ -15,6 +15,7 @@ class PaymentLinkModel {
   final double amount;
   final String currency;
   final String status;
+  final String provider;
   final String? url;
 
   const PaymentLinkModel({
@@ -23,8 +24,23 @@ class PaymentLinkModel {
     this.amount = 0.0,
     this.currency = 'XOF',
     this.status = 'pending',
+    this.provider = '',
     this.url,
   });
+
+  /// Nom commercial du fournisseur de paiement, à partir de son identifiant
+  /// technique (`wave`, `orange_money`…). Chaîne vide si inconnu.
+  String get providerLabel => switch (provider.toLowerCase()) {
+    'wave' => 'Wave',
+    'orange_money' || 'orangemoney' || 'orange' => 'Orange Money',
+    'mtn_money' || 'mtnmoney' || 'mtn' => 'MTN Money',
+    'moov_money' || 'moovmoney' || 'moov' => 'Moov Money',
+    'djamo' => 'Djamo',
+    'cinetpay' => 'CinetPay',
+    'fedapay' => 'FedaPay',
+    '' => '',
+    _ => provider,
+  };
 
   /// Vrai si le lien peut être ouvert dans un navigateur.
   bool get hasUrl => url != null && url!.trim().isNotEmpty;
@@ -39,7 +55,8 @@ class PaymentLinkModel {
   @override
   String toString() =>
       'PaymentLinkModel(id: $id, description: $description, '
-      'amount: $amount, currency: $currency, status: $status, url: $url)';
+      'amount: $amount, currency: $currency, status: $status, '
+      'provider: $provider, url: $url)';
 
   /// Vrai si le paiement est déjà réglé — le bouton n'a alors plus de sens.
   bool get isPaid {
@@ -79,6 +96,7 @@ class PaymentLinkModel {
         amount: _num(json['payment_amount']),
         currency: _str(json['payment_currency'], fallback: 'XOF'),
         status: _str(json['payment_status'], fallback: 'pending'),
+        provider: _str(json['payment_provider'] ?? json['provider']),
         url: _nullableStr(
           json['payment_url'] ??
               json['checkout_url'] ??
@@ -121,6 +139,13 @@ class PaymentLinkModel {
       status: _str(
         json['status'] ?? json['payment_status'] ?? json['state'],
         fallback: 'pending',
+      ),
+      // Variantes de fournisseur : provider, payment_provider, gateway, method
+      provider: _str(
+        json['provider'] ??
+            json['payment_provider'] ??
+            json['gateway'] ??
+            json['payment_method'],
       ),
       // Variantes d'URL : url, checkout_url, payment_url, link, short_url
       url: _nullableStr(
