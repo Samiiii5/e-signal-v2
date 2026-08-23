@@ -47,9 +47,12 @@ class _LoginPage2ScreenState extends State<LoginPage2Screen> {
       );
       await SessionService.saveAuthResult(result);
 
-      // Récupère l'organization_id depuis /auth/me
+      // Récupère le workspace_id depuis /auth/me/capabilities
       final orgId = await authService.getMe();
-      if (orgId != null) await SessionService.saveOrganizationId(orgId);
+      final effectiveOrgId = orgId ?? '';
+
+      // TODO: supprimer ce fallback en production
+      await SessionService.saveOrganizationId(effectiveOrgId);
 
       // Enregistrer le FCM token après connexion réussie
       await NotificationService.registerFCMToken();

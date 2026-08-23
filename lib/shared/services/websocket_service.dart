@@ -1,28 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../core/navigation/app_router.dart';
 import '../../core/services/session_service.dart';
 
-/// Codes de fermeture WebSocket ayant un sens applicatif particulier.
-/// - 4001 : session invalide côté serveur → déconnexion forcée de l'utilisateur.
-/// - 4003 : le serveur demande explicitement d'arrêter de se reconnecter.
-/// - 1000 : fermeture propre (normale) → pas de reconnexion.
 const _closeCodeUnauthorized = 4001;
 const _closeCodeStopReconnect = 4003;
 const _closeCodeNormal = 1000;
 
-/// Connexion temps réel à l'inbox.
-///
-/// wss://ws.score360.africa/api/v1.2/inbox/ws?organization_id={uuid}&token={jwt}
-/// Le token part sans le préfixe "Bearer " — juste la valeur du JWT.
-///
-/// Émet chaque message JSON reçu tel quel sur [events] (sauf "pong", qui ne
-/// sert qu'au keepalive) ; c'est à chaque écran (InboxScreen, ChatScreen)
-/// de filtrer les événements qui le concernent.
-class WebSocketService {
+class WebSocketService with WidgetsBindingObserver {
   static const Duration _pingInterval = Duration(seconds: 30);
   static const Duration _reconnectDelay = Duration(seconds: 5);
 
@@ -41,16 +30,26 @@ class WebSocketService {
   bool get isConnected => _isConnected;
 
   void connect({required String organizationId, required String token}) {
-    disconnect();
+    WidgetsBinding.instance.addObserver(this);
+    disconnect(removeObserver: false);
     _organizationId = organizationId;
     _token = token;
     _manuallyDisconnected = false;
     _openConnection();
   }
 
-  /// Retire le token JWT de tout texte susceptible de le contenir (les
-  /// exceptions de connexion — WebSocketException, SocketException… —
-  /// embarquent souvent l'URL complète, token inclus, dans leur message).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('=== App resumed → vérification WebSocket ===');
+      if (!_isConnected && !_manuallyDisconnected) {
+        debugPrint('=== WebSocket déconnecté → reconnexion forcée ===');
+        _reconnectTimer?.cancel();
+        _openConnection();
+      }
+    }
+  }
+
   String _maskToken(String input) {
     final token = _token;
     if (token == null || token.isEmpty) return input;
@@ -62,11 +61,9 @@ class WebSocketService {
       return;
     }
     try {
-      // Construire l'Uri manuellement pour éviter le port 0
       final uri = Uri.parse(
         'wss://ws.score360.africa/api/v1.2/inbox/ws?organization_id=$_organizationId&token=$_token',
       );
-      // Le token JWT ne doit jamais apparaître en clair dans les logs.
       debugPrint(
         '=== WebSocket URI : '
         'wss://ws.score360.africa'
@@ -77,9 +74,6 @@ class WebSocketService {
       final channel = WebSocketChannel.connect(uri);
       _channel = channel;
 
-      // channel.ready se résout une fois la poignée de main WebSocket réussie.
-      // Sans ce catchError, une erreur de connexion (timeout, refus TLS…) remonte
-      // comme "Unhandled Exception" et peut faire planter l'application.
       channel.ready
           .then((_) {
             debugPrint('=== WebSocket connecté ✓ ===');
@@ -119,7 +113,7 @@ class WebSocketService {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) return;
-      if (decoded['event'] == 'pong') return; // keepalive — rien à faire
+      if (decoded['event'] == 'pong') return;
       _eventsController.add(decoded);
     } catch (e) {
       debugPrint('=== Erreur parsing message WebSocket : $e ===');
@@ -167,7 +161,10 @@ class WebSocketService {
     GoRouter.of(context).go('/login');
   }
 
-  void disconnect() {
+  void disconnect({bool removeObserver = true}) {
+    if (removeObserver) {
+      WidgetsBinding.instance.removeObserver(this);
+    }
     _manuallyDisconnected = true;
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();

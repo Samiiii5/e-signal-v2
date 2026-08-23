@@ -51,7 +51,7 @@ class PaymentLink {
   }
 
   /// Montant en entier (pour affichage formaté).
-  int get amountInt => int.tryParse(amount) ?? 0;
+  int get amountInt => double.tryParse(amount)?.toInt() ?? 0;
 
   /// Date d'expiration parsée (null si invalide).
   DateTime? get expiresAtDate => DateTime.tryParse(expiresAt);

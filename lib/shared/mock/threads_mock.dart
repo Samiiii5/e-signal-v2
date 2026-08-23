@@ -137,10 +137,25 @@ class Thread {
       assignedToUserId:
           json['assignedToUserId']?.toString() ??
           json['assigned_to_user_id']?.toString(),
-      lastMessage:
-          json['lastMessage']?.toString() ??
-          json['last_message']?.toString() ??
-          json['last_message_text']?.toString(),
+      lastMessage: () {
+        final lm = json['lastMessage'] ?? json['last_message'];
+        if (lm is Map) {
+          final text = (lm['body_text'] ?? lm['text'] ?? lm['body'] ?? lm['content'])?.toString();
+          if (text != null && text.trim().isNotEmpty) return text;
+          
+          final type = (lm['message_type'] ?? lm['type'])?.toString().toUpperCase();
+          if (type == 'IMAGE') return '📷 Image';
+          if (type == 'VIDEO') return '🎥 Vidéo';
+          if (type == 'AUDIO') return '🎵 Audio';
+          if (type == 'DOCUMENT') return '📄 Document';
+          if (type == 'STICKER') return 'Sticker';
+          if (type == 'LOCATION') return '📍 Position';
+          if (type == 'PAYMENT_LINK') return '💳 Lien de paiement';
+          
+          return 'Message';
+        }
+        return lm?.toString() ?? json['last_message_text']?.toString();
+      }(),
       isOnline:
           json['is_online'] == true || json['presence']?.toString() == 'online',
       presence: json['presence']?.toString(),

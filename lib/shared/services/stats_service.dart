@@ -36,7 +36,10 @@ class StatsService {
       );
 
       if (resp.statusCode == 200) {
-        return DashboardData.fromJson(resp.data as Map<String, dynamic>);
+        final payload = resp.data is Map && resp.data['data'] != null
+            ? resp.data['data'] as Map<String, dynamic>
+            : resp.data as Map<String, dynamic>;
+        return DashboardData.fromJson(payload);
       } else if (resp.statusCode == 401) {
         throw const StatsUnauthorizedException();
       } else if (resp.statusCode == 503 || resp.statusCode == 502) {

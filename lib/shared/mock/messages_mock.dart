@@ -17,6 +17,7 @@ enum MessageType {
   carousel,
   contact,
   linkPreview,
+  sticker,
 }
 
 class Message {
@@ -62,19 +63,25 @@ class Message {
 
   DateTime get sentAtDt => DateTime.tryParse(sentAt)?.toLocal() ?? DateTime.now();
 
-  MessageType get type => switch (messageType.toUpperCase()) {
-    'PAYMENT_LINK'   => MessageType.paymentLink,
-    'IMAGE'          => MessageType.image,
-    'LOCATION'       => MessageType.location,
-    'ORDER_TRACKING' => MessageType.orderTracking,
-    'AUDIO'          => MessageType.audio,
-    'VIDEO'          => MessageType.video,
-    'DOCUMENT'       => MessageType.document,
-    'CAROUSEL'       => MessageType.carousel,
-    'CONTACT'        => MessageType.contact,
-    'LINK_PREVIEW'   => MessageType.linkPreview,
-    _                => MessageType.text,
-  };
+  MessageType get type {
+    final t = messageType.toUpperCase();
+    if (t == 'STICKER' || (t == 'TEXT' && (bodyText == '[sticker]' || bodyText == '[Sticker]'))) {
+      return MessageType.sticker;
+    }
+    return switch (t) {
+      'PAYMENT_LINK'   => MessageType.paymentLink,
+      'IMAGE'          => MessageType.image,
+      'LOCATION'       => MessageType.location,
+      'ORDER_TRACKING' => MessageType.orderTracking,
+      'AUDIO'          => MessageType.audio,
+      'VIDEO'          => MessageType.video,
+      'DOCUMENT'       => MessageType.document,
+      'CAROUSEL'       => MessageType.carousel,
+      'CONTACT'        => MessageType.contact,
+      'LINK_PREVIEW'   => MessageType.linkPreview,
+      _                => MessageType.text,
+    };
+  }
 
   MessageStatus? get initialStatus => switch (status.toLowerCase()) {
     'read'      => MessageStatus.read,

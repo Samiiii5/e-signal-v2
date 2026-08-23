@@ -1636,6 +1636,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       message: msg,
                       onTap: () => _showFullscreenImage(msg),
                     ),
+                    MessageType.sticker => _StickerBubble(message: msg),
                     MessageType.audio => _AudioBubble(message: msg),
                     MessageType.video => _VideoBubble(message: msg),
                     MessageType.document => _DocumentBubble(message: msg),
@@ -4019,6 +4020,73 @@ class _ImageBubble extends StatelessWidget {
       ),
     ),
   );
+}
+
+// ── Bulle Sticker ─────────────────────────────────────────────────────────────
+
+class _StickerBubble extends StatelessWidget {
+  final Message message;
+  const _StickerBubble({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = message.mediaUrl;
+    Widget content;
+    
+    if (url != null && url.isNotEmpty) {
+      content = Image.network(
+        url,
+        width: 120,
+        height: 120,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(
+          Icons.broken_image, 
+          size: 48, 
+          color: AppColors.textHint,
+        ),
+      );
+    } else {
+      content = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: message.isFromContact ? AppColors.backgroundPage : AppColors.greenLight,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sticky_note_2_outlined, size: 20, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Text(
+              message.content.isNotEmpty ? message.content : 'Sticker',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Align(
+      alignment: message.isFromContact ? Alignment.centerLeft : Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Column(
+          crossAxisAlignment: message.isFromContact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+          children: [
+            content,
+            const SizedBox(height: 4),
+            Text(
+              '${message.sentAtDt.hour.toString().padLeft(2, '0')}:${message.sentAtDt.minute.toString().padLeft(2, '0')}',
+              style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── Bulle audio ───────────────────────────────────────────────────────────────

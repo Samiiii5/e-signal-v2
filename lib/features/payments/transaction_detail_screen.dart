@@ -357,7 +357,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 }
 
 String _fmtAmount(String raw) {
-  final n = int.tryParse(raw) ?? 0;
+  final n = double.tryParse(raw)?.toInt() ?? 0;
   final s = n.toString();
   final buf = StringBuffer();
   for (int i = 0; i < s.length; i++) {

@@ -57,7 +57,6 @@ class AuthResult {
 // ─── Exceptions typées ────────────────────────────────────────────────────────
 
 /// 403 : compte INVITED, pas encore activé → first-login requis.
-/// Transporte l'identifier normalisé renvoyé par le backend dans le body 403.
 class AccountNotActivatedException implements Exception {
   final String identifier;
   const AccountNotActivatedException(this.identifier);
@@ -105,7 +104,7 @@ abstract class AuthService {
   );
 
   /// GET /api/v1.2/auth/me/capabilities
-  /// → retourne le workspace_id du premier élément de "workspaces".
+  /// → retourne le workspace_id du workspace eSignal actif.
   Future<String?> getMe();
 
   /// POST /api/v1.2/auth/forgot-password
@@ -115,7 +114,6 @@ abstract class AuthService {
   Future<void> requestOtp(String identifier);
 
   /// PATCH /api/v1.2/auth/forgot-password/reset
-  /// Retourne uniquement {"status": "string", "identifier": "string"} — pas de tokens.
   Future<void> resetPassword({
     required String identifier,
     required String otpCode,
@@ -133,7 +131,6 @@ class HttpAuthService implements AuthService {
         '/auth/login',
         data: {'identifier': identifier, 'password': password},
       );
-      // validateStatus = accepte tout → on vérifie le code ici, sans ambiguïté.
       if (resp.statusCode == 200) {
         return AuthResult.fromJson(resp.data as Map<String, dynamic>);
       }
@@ -176,16 +173,22 @@ class HttpAuthService implements AuthService {
       debugPrint('=== GET /auth/me/capabilities ===');
       debugPrint('=== statusCode: ${resp.statusCode} ===');
       if (resp.statusCode != 200) return null;
+
       final data = resp.data as Map<String, dynamic>;
       final workspaces = data['workspaces'] as List<dynamic>?;
-      debugPrint(
-        '=== workspace_id: ${workspaces?.isNotEmpty == true ? (workspaces!.first as Map)['workspace_id'] : 'null'} ===',
+      if (workspaces == null || workspaces.isEmpty) return null;
+
+      // Cherche le workspace eSignal actif en priorité
+      final workspace = workspaces.firstWhere(
+        (w) =>
+            (w as Map)['slug'] == 'esignal' && (w)['status'] == 'active',
+        orElse: () => workspaces.first,
       );
-      if (workspaces != null && workspaces.isNotEmpty) {
-        final first = workspaces.first as Map<String, dynamic>;
-        return first['workspace_id'] as String?;
-      }
-      return null;
+
+      final workspaceId =
+          (workspace as Map<String, dynamic>)['workspace_id'] as String?;
+      debugPrint('=== workspace_id sélectionné: $workspaceId ===');
+      return workspaceId;
     } on DioException {
       return null;
     }
@@ -214,7 +217,9 @@ class HttpAuthService implements AuthService {
         '/auth/forgot-password/request-otp',
         data: {'identifier': identifier},
       );
-      if (resp.statusCode != 200 && resp.statusCode != 202 && resp.statusCode != 204) {
+      if (resp.statusCode != 200 &&
+          resp.statusCode != 202 &&
+          resp.statusCode != 204) {
         _throwFromResponse(resp.statusCode, resp.data);
       }
     } on DioException catch (e) {
@@ -249,8 +254,6 @@ class HttpAuthService implements AuthService {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Inspecte directement le statusCode HTTP → lance l'exception métier appropriée.
-/// Jamais de DioException ici — on travaille sur la réponse décodée.
 Never _throwFromResponse(int? status, dynamic data) {
   if (status == 401) throw const UnauthorizedException();
   if (status == 403) {
@@ -277,7 +280,6 @@ String _extractMsg(dynamic data) {
   return _translateApiMessage(raw.isNotEmpty ? raw : 'Erreur inconnue');
 }
 
-/// Traduit les messages d'erreur anglais retournés par le backend.
 String _translateApiMessage(String msg) {
   const translations = <String, String>{
     'Invalid credentials': 'Identifiant ou mot de passe incorrect.',
@@ -303,18 +305,19 @@ String _translateApiMessage(String msg) {
     'Erreur inconnue': 'Une erreur est survenue. Réessayez.',
   };
 
-  // Recherche exacte d'abord
   if (translations.containsKey(msg)) return translations[msg]!;
 
-  // Recherche partielle (insensible à la casse) pour les messages longs
   final lower = msg.toLowerCase();
   for (final entry in translations.entries) {
     if (lower.contains(entry.key.toLowerCase())) return entry.value;
   }
 
-  // Si le message contient déjà du français (heuristique simple), on le garde
-  if (msg.contains('é') || msg.contains('è') || msg.contains('à') ||
-      msg.contains('ê') || msg.contains('î') || msg.contains('ô')) {
+  if (msg.contains('é') ||
+      msg.contains('è') ||
+      msg.contains('à') ||
+      msg.contains('ê') ||
+      msg.contains('î') ||
+      msg.contains('ô')) {
     return msg;
   }
 
