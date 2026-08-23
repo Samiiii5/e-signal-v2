@@ -1,3 +1,7 @@
+import '../models/payment_link_model.dart';
+
+export '../models/payment_link_model.dart';
+
 // Statut de livraison (UI uniquement — animation envoi)
 enum MessageStatus { sent, delivered, read }
 
@@ -32,11 +36,15 @@ class Message {
   final String? deliveredAt;
   final String? readAt;
 
-  // Champs paiement (messages créés localement, absents de l'API)
+  // Champs paiement (messages créés localement)
   final String? paymentAmount;
   final String? paymentCurrency;
   final PaymentStatus? paymentStatus;
   final String? paymentProvider;
+
+  /// Lien de paiement typé, issu de l'API. Renseigné par [fromJson] ; null pour
+  /// les messages créés localement, qui utilisent les quatre champs ci-dessus.
+  final PaymentLinkModel? paymentLink;
 
   const Message({
     required this.id,
@@ -53,6 +61,7 @@ class Message {
     this.paymentCurrency,
     this.paymentStatus,
     this.paymentProvider,
+    this.paymentLink,
   });
 
   // ── Backward-compat getters ─────────────────────────────────────────────────
@@ -68,6 +77,10 @@ class Message {
     if (t == 'STICKER' || (t == 'TEXT' && (bodyText == '[sticker]' || bodyText == '[Sticker]'))) {
       return MessageType.sticker;
     }
+    // Un message porteur d'un lien de paiement est traité comme tel même si le
+    // serveur n'emploie pas exactement le libellé 'PAYMENT_LINK' : sans cela le
+    // message retomberait sur MessageType.text et s'afficherait en bulle vide.
+    if (paymentLink != null) return MessageType.paymentLink;
     return switch (t) {
       'PAYMENT_LINK'   => MessageType.paymentLink,
       'IMAGE'          => MessageType.image,
@@ -104,6 +117,7 @@ class Message {
       sentAt: (json['sent_at'] ?? '').toString(),
       deliveredAt: json['delivered_at']?.toString(),
       readAt: json['read_at']?.toString(),
+      paymentLink: PaymentLinkModel.fromMessageJson(json),
     );
   }
 }

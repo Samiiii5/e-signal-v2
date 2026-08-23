@@ -16,6 +16,7 @@ import '../../shared/mock/threads_mock.dart';
 import '../../shared/services/catalog_service.dart';
 import '../../shared/services/inbox_service.dart';
 import '../../shared/services/websocket_service.dart';
+import 'widgets/payment_link_bubble.dart';
 
 class ChatScreen extends StatefulWidget {
   final String threadId;
@@ -1345,20 +1346,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── URL launcher ─────────────────────────────────────────────────────────────
-
-  Future<void> _launchUrl(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(AppSnackbar.error('Impossible d\'ouvrir le lien'));
-      }
-    }
-  }
-
   // ── Image plein écran ────────────────────────────────────────────────────────
 
   void _showFullscreenImage(Message msg) {
@@ -1624,10 +1611,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   final msg = row.message!;
                   final isSelected = _selectedIds.contains(msg.id);
                   Widget bubble = switch (msg.type) {
-                    MessageType.paymentLink => _PaymentBubble(
-                      message: msg,
-                      onTap: () => _launchUrl('https://pay.wave.com/mock'),
-                    ),
+                    MessageType.paymentLink => PaymentLinkBubble(message: msg),
                     MessageType.location => _LocationBubble(message: msg),
                     MessageType.orderTracking => _OrderTrackingBubble(
                       message: msg,
@@ -2500,156 +2484,6 @@ class _LinkChip extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Bulle paiement ────────────────────────────────────────────────────────────
-
-class _PaymentBubble extends StatelessWidget {
-  final Message message;
-  final VoidCallback? onTap;
-  const _PaymentBubble({required this.message, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.greenLight, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: const BoxDecoration(
-                color: AppColors.greenLight,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.link, size: 14, color: AppColors.greenDark),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Lien de paiement',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.greenDark,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (message.paymentStatus != null)
-                    _PaymentStatusBadge(status: message.paymentStatus!),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-              child: Text(
-                '${message.paymentAmount ?? "0"} FCFA',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Text(
-                'Valide 7 jours',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-            ),
-            if (message.paymentStatus != PaymentStatus.paid)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: onTap,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Voir le lien',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PaymentStatusBadge extends StatelessWidget {
-  final PaymentStatus status;
-  const _PaymentStatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final (bg, text, label) = switch (status) {
-      PaymentStatus.paid => (
-        AppColors.statusPaidBg,
-        AppColors.statusPaidText,
-        'Payé',
-      ),
-      PaymentStatus.pending => (
-        AppColors.statusPendingBg,
-        AppColors.statusPendingText,
-        'En attente',
-      ),
-      PaymentStatus.created => (
-        AppColors.statusCreatedBg,
-        AppColors.statusCreatedText,
-        'Créé',
-      ),
-      PaymentStatus.expired => (
-        AppColors.statusExpiredBg,
-        AppColors.statusExpiredText,
-        'Expiré',
-      ),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: text,
-        ),
       ),
     );
   }
