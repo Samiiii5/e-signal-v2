@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Lien de paiement rattaché à un message de conversation.
 ///
 /// Distinct de [PaymentLink] (`payment_link.dart`), qui modélise la réponse de
@@ -20,12 +22,24 @@ class PaymentLinkModel {
     this.description = '',
     this.amount = 0.0,
     this.currency = 'XOF',
-    this.status = '',
+    this.status = 'pending',
     this.url,
   });
 
   /// Vrai si le lien peut être ouvert dans un navigateur.
   bool get hasUrl => url != null && url!.trim().isNotEmpty;
+
+  /// Vrai si aucun champ exploitable n'a pu être extrait — l'appelant doit
+  /// alors afficher un repli plutôt qu'une bulle vide.
+  bool get isEmpty =>
+      description.isEmpty && amount == 0.0 && !hasUrl && id.isEmpty;
+
+  /// Trace lisible pour le diagnostic (sans ce toString, un debugPrint
+  /// afficherait « Instance of 'PaymentLinkModel' »).
+  @override
+  String toString() =>
+      'PaymentLinkModel(id: $id, description: $description, '
+      'amount: $amount, currency: $currency, status: $status, url: $url)';
 
   /// Vrai si le paiement est déjà réglé — le bouton n'a alors plus de sens.
   bool get isPaid {
@@ -50,23 +64,35 @@ class PaymentLinkModel {
     for (final key in _objectKeys) {
       final raw = json[key];
       if (raw is Map) {
+        // Trace décisive : la structure réelle renvoyée par le serveur.
+        debugPrint('=== payment_link brut (clé "$key") : $raw ===');
         return PaymentLinkModel.fromJson(Map<String, dynamic>.from(raw));
       }
     }
     // Repli : champs préfixés directement sur le message.
     final flat = json['payment_amount'] ?? json['payment_status'];
     if (flat != null) {
+      debugPrint('=== payment_link à plat sur le message : $json ===');
       return PaymentLinkModel(
         id: _str(json['payment_link_id'] ?? json['payment_id']),
         description: _str(json['body_text'] ?? json['description']),
         amount: _num(json['payment_amount']),
         currency: _str(json['payment_currency'], fallback: 'XOF'),
-        status: _str(json['payment_status']),
+        status: _str(json['payment_status'], fallback: 'pending'),
         url: _nullableStr(
           json['payment_url'] ??
               json['checkout_url'] ??
               json['payment_link_url'],
         ),
+      );
+    }
+    // Aucun objet ni champ de paiement : on trace les clés disponibles pour
+    // pouvoir ajouter la bonne variante si le serveur en emploie une autre.
+    final type = (json['message_type'] ?? '').toString().toUpperCase();
+    if (type.contains('PAYMENT')) {
+      debugPrint(
+        '=== message_type "$type" sans objet de paiement reconnu. '
+        'Clés présentes : ${json.keys.toList()} ===',
       );
     }
     return null;
@@ -91,8 +117,11 @@ class PaymentLinkModel {
         json['currency'] ?? json['currency_code'],
         fallback: 'XOF',
       ),
-      // Variantes de statut : status, payment_status, state
-      status: _str(json['status'] ?? json['payment_status'] ?? json['state']),
+      // Variantes de statut : status, payment_status, state — repli 'pending'
+      status: _str(
+        json['status'] ?? json['payment_status'] ?? json['state'],
+        fallback: 'pending',
+      ),
       // Variantes d'URL : url, checkout_url, payment_url, link, short_url
       url: _nullableStr(
         json['url'] ??

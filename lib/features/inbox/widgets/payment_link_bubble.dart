@@ -52,8 +52,17 @@ class PaymentLinkBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('=== payment_link map: ${message.paymentLink} ===');
+
     final link = _link;
     final fromContact = message.isFromContact;
+
+    // Aucune donnée exploitable, ni depuis l'API ni en local : on le dit au
+    // lieu d'afficher une carte vide.
+    if (link.isEmpty) {
+      return _UnavailableBubble(fromContact: fromContact);
+    }
+
     // Bouton actif seulement si une URL exploitable existe et que le paiement
     // n'est pas déjà réglé.
     final canPay = link.hasUrl && !link.isPaid;
@@ -148,11 +157,13 @@ class PaymentLinkBubble extends StatelessWidget {
                   onPressed: canPay
                       ? () => _openLink(context, link.url!)
                       : null,
+                  // Fond blanc, bordure grise, texte noir.
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
-                    disabledBackgroundColor: AppColors.borderLight,
+                    backgroundColor: AppColors.white,
+                    foregroundColor: AppColors.textPrimary,
+                    disabledBackgroundColor: AppColors.white,
                     disabledForegroundColor: AppColors.textHint,
+                    side: const BorderSide(color: AppColors.borderLight),
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     elevation: 0,
@@ -165,6 +176,45 @@ class PaymentLinkBubble extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Repli : lien de paiement inexploitable ────────────────────────────────────
+
+class _UnavailableBubble extends StatelessWidget {
+  final bool fromContact;
+  const _UnavailableBubble({required this.fromContact});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: fromContact ? Alignment.centerLeft : Alignment.centerRight,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundPage,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.link_off, size: 15, color: AppColors.textHint),
+            SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Lien de paiement indisponible',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
             ),
           ],
