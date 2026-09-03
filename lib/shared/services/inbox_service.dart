@@ -572,6 +572,7 @@ class HttpInboxService implements InboxService {
       'type': 'carousel',
       'integration_account_id': integrationAccountId,
       'carousel': {'items': catalogItemIds},
+      'body_text': '📦 Catalogue',
     };
     debugPrint('=== CAROUSEL envoyé : /inbox/$provider/messages ===');
     debugPrint('=== CAROUSEL body : $body ===');
