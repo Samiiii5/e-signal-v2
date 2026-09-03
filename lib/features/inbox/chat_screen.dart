@@ -965,31 +965,154 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
+  /// Envoi d'une photo, en deux temps : téléversement du fichier pour obtenir
+  /// une URL publique, puis envoi du message avec cette URL. Le serveur (et
+  /// Meta derrière lui) ne peut pas lire un chemin local — poster
+  /// `media_url: /data/user/0/.../image.jpg` ne partirait jamais.
+  Future<void> _pickImage([ImageSource source = ImageSource.gallery]) async {
+    if (_isSending) return;
+
+    XFile? picked;
     try {
-      final picker = ImagePicker();
-      final xFile = await picker.pickImage(
-        source: ImageSource.gallery,
+      picked = await ImagePicker().pickImage(
+        source: source,
         imageQuality: 80,
+        maxWidth: 1920,
       );
-      if (xFile == null || !mounted) return;
-      _addMessage(
-        Message(
-          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-          direction: 'OUT',
-          bodyText: 'Photo produit',
-          messageType: 'IMAGE',
-          mediaUrl: xFile.path,
-          sentAt: DateTime.now().toIso8601String(),
+    } catch (e) {
+      debugPrint('=== PICK IMAGE ERROR: $e ===');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppSnackbar.error(
+            source == ImageSource.camera
+                ? 'Impossible d\'accéder à l\'appareil photo'
+                : 'Impossible d\'accéder à la galerie',
+          ),
+        );
+      }
+      return;
+    }
+
+    final imagePath = picked?.path;
+    if (imagePath == null || !mounted) return;
+
+    if (_thread == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error(
+          'Conversation non chargée. Veuillez patienter ou rafraîchir.',
         ),
       );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(AppSnackbar.error('Impossible d\'accéder à la galerie'));
-      }
+      return;
     }
+
+    final provider = _thread?.metadataProvider ?? _thread?.channel ?? '';
+    final integrationAccountId = _thread?.integrationAccountId;
+    final localMsgId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+    final sentAt = DateTime.now().toIso8601String();
+
+    // Bulle optimiste : le fichier local s'affiche (Image.file) pendant le
+    // téléversement, puis son URL distante remplace le chemin local.
+    setState(() {
+      _isSending = true;
+      _replyToMessage = null;
+      _showEmojiPicker = false;
+      _msgStatus[localMsgId] = MessageStatus.sent;
+      _messages.add(
+        Message(
+          id: localMsgId,
+          direction: 'OUT',
+          messageType: 'IMAGE',
+          mediaUrl: imagePath,
+          sentAt: sentAt,
+        ),
+      );
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+    try {
+      debugPrint('=== SEND IMAGE: $imagePath provider=$provider ===');
+      final remoteUrl = await inboxService.uploadMedia(imagePath);
+      final serverMsgId = await inboxService.sendMessage(
+        threadId: widget.threadId,
+        provider: provider,
+        integrationAccountId: integrationAccountId,
+        type: 'image',
+        mediaUrl: remoteUrl,
+      );
+      inboxService.invalidateMessagesCache(widget.threadId);
+      if (!mounted) return;
+
+      // Même règle que pour le texte : sans le vrai message_id serveur,
+      // message_status_updated (WebSocket) ne retrouve jamais ce message.
+      setState(() {
+        final idx = _messages.indexWhere((m) => m.id == localMsgId);
+        if (idx == -1) return;
+        _messages[idx] = Message(
+          id: serverMsgId ?? localMsgId,
+          direction: 'OUT',
+          messageType: 'IMAGE',
+          mediaUrl: remoteUrl,
+          sentAt: sentAt,
+          status: 'sent',
+        );
+        if (serverMsgId != null) {
+          final oldStatus = _msgStatus.remove(localMsgId);
+          _msgStatus[serverMsgId] = oldStatus ?? MessageStatus.sent;
+        }
+      });
+    } catch (e) {
+      debugPrint('=== SEND IMAGE ERROR ===');
+      debugPrint('e.runtimeType: ${e.runtimeType}');
+      debugPrint('e: $e');
+      if (e is DioException) {
+        debugPrint('statusCode: ${e.response?.statusCode}');
+        debugPrint('responseData: ${e.response?.data}');
+        debugPrint('requestUrl: ${e.requestOptions.uri}');
+      }
+      debugPrint('=======================');
+      if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((m) => m.id == localMsgId);
+        _msgStatus.remove(localMsgId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        AppSnackbar.error(_apiErrorMessage(e, 'Échec de l\'envoi de la photo')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  /// Message d'erreur lisible pour un échec d'appel API — partagé par l'envoi
+  /// de texte et l'envoi de photo pour que les deux réagissent pareil.
+  String _apiErrorMessage(Object e, String fallback) {
+    if (e is ArgumentError) {
+      // Provider absent du thread — sendMessage() refuse de deviner le canal.
+      return 'Canal de la conversation inconnu — impossible d\'envoyer';
+    }
+    if (e is InboxMediaUploadException) return e.message;
+    if (e is DioException) {
+      final status = e.response?.statusCode;
+      final responseData = e.response?.data;
+      final serverMsg = responseData is Map
+          ? (responseData['detail'] ?? responseData['message'] ?? '')
+          : '';
+      return switch (status) {
+        400 => 'Message invalide : $serverMsg',
+        401 => 'Session expirée, reconnectez-vous',
+        403 => 'Fenêtre de messagerie expirée (24h)',
+        404 => 'Conversation introuvable',
+        413 => 'Fichier trop volumineux',
+        415 => 'Format de fichier non pris en charge',
+        422 => 'Contenu rejeté par le serveur : $serverMsg',
+        429 => 'Trop de messages envoyés, attendez',
+        500 => 'Erreur serveur, réessayez plus tard',
+        502 => 'Service temporairement indisponible',
+        null => 'Pas de connexion internet',
+        _ => 'Erreur $status : $serverMsg',
+      };
+    }
+    return fallback;
   }
 
   void _showCatalogueSheet() {
@@ -1474,29 +1597,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages.removeWhere((m) => m.id == localMsgId);
         _msgStatus.remove(localMsgId);
       });
-      var errorMsg = 'Échec de l\'envoi du message';
-      if (e is ArgumentError) {
-        // Provider absent du thread — sendMessage() refuse de deviner le canal.
-        errorMsg = 'Canal de la conversation inconnu — impossible d\'envoyer';
-      } else if (e is DioException) {
-        final status = e.response?.statusCode;
-        final responseData = e.response?.data;
-        final serverMsg = responseData is Map
-            ? (responseData['detail'] ?? responseData['message'] ?? '')
-            : '';
-        errorMsg = switch (status) {
-          400 => 'Message invalide : $serverMsg',
-          401 => 'Session expirée, reconnectez-vous',
-          403 => 'Fenêtre de messagerie expirée (24h)',
-          404 => 'Conversation introuvable',
-          422 => 'Contenu rejeté par le serveur : $serverMsg',
-          429 => 'Trop de messages envoyés, attendez',
-          500 => 'Erreur serveur, réessayez plus tard',
-          502 => 'Service temporairement indisponible',
-          null => 'Pas de connexion internet',
-          _ => 'Erreur $status : $serverMsg',
-        };
-      }
+      final errorMsg = _apiErrorMessage(e, 'Échec de l\'envoi du message');
       ScaffoldMessenger.of(context).showSnackBar(AppSnackbar.error(errorMsg));
     } finally {
       if (mounted) setState(() => _isSending = false);
@@ -1715,7 +1816,7 @@ class _ChatScreenState extends State<ChatScreen> {
               showEmojiPicker: _showEmojiPicker,
               onEmojiToggle: () =>
                   setState(() => _showEmojiPicker = !_showEmojiPicker),
-              onCamera: _pickImage,
+              onCamera: () => _pickImage(ImageSource.camera),
             ),
           ),
         ],

@@ -308,7 +308,7 @@ toutes les 30 secondes, déconnexion forcée si le serveur refuse le jeton, et
 | **Envoyer un carrousel de produits** | ✅ | jusqu'à 10 produits du catalogue |
 | Créer un lien de paiement depuis la conversation | ✅ | |
 | **Signaler « en train d'écrire » au client** | ✅ | Messenger uniquement |
-| Envoyer une photo | ⚪ | s'affiche localement, pas d'envoi serveur |
+| Envoyer une photo | ✅ | `POST /inbox/media` (téléversement) puis `POST /inbox/{canal}/messages` |
 | Devis rapide (produit + quantité + prix) | ⚪ | produits d'exemple |
 | Message promotionnel, demande d'avis, suivi de commande | ⚪ | |
 

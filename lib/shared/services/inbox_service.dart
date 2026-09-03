@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/services/api_client.dart';
@@ -42,6 +44,16 @@ class InboxServerException implements Exception {
   const InboxServerException(this.statusCode);
 }
 
+/// Le téléversement d'un média a échoué autrement que par un code HTTP :
+/// fichier absent de l'appareil, ou réponse serveur sans URL exploitable.
+class InboxMediaUploadException implements Exception {
+  final String message;
+  const InboxMediaUploadException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 // ── Contrat ────────────────────────────────────────────────────────────────
 
 abstract class InboxService {
@@ -83,6 +95,18 @@ abstract class InboxService {
     String lastMessage,
     DateTime lastAt,
   );
+
+  /// POST /api/v1.2/inbox/media  (multipart/form-data, champ `file`)
+  ///
+  /// Téléverse un fichier local et retourne l'URL publique renvoyée par le
+  /// serveur. Indispensable avant [sendMessage] pour les types image / audio /
+  /// vidéo / document : `media_url` doit être une URL téléchargeable depuis
+  /// l'extérieur (Meta/WhatsApp va la chercher), jamais un chemin local.
+  ///
+  /// Réponse attendue : `{"media_url": "https://..."}`
+  /// Lève [InboxMediaUploadException] si le fichier est introuvable ou si la
+  /// réponse ne contient aucune URL.
+  Future<String> uploadMedia(String filePath);
 
   /// POST /api/v1.2/inbox/{provider}/messages
   /// Retourne le message_id du serveur, ou null si absent de la réponse.
@@ -397,6 +421,73 @@ class HttpInboxService implements InboxService {
     }
   }
 
+  /// Chemin de téléversement des médias. Isolé en constante : c'est le seul
+  /// endroit à changer si le backend expose un autre chemin.
+  static const _mediaUploadPath = '/inbox/media';
+
+  /// POST /api/v1.2/inbox/media (multipart/form-data)
+  @override
+  Future<String> uploadMedia(String filePath) async {
+    final file = File(filePath);
+    if (!file.existsSync()) {
+      throw const InboxMediaUploadException(
+        'Fichier introuvable sur l\'appareil',
+      );
+    }
+
+    final fileName = filePath.split(Platform.pathSeparator).last;
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+
+    debugPrint(
+      '=== uploadMedia url: $_mediaUploadPath fichier: $fileName '
+      '(${file.lengthSync()} octets) ===',
+    );
+
+    // ApiClient accepte tous les codes HTTP (validateStatus) — on lève
+    // nous-mêmes sur un non-2xx pour que l'appelant puisse les distinguer.
+    final resp = await ApiClient.dio.post(_mediaUploadPath, data: formData);
+    debugPrint(
+      '=== uploadMedia response (${resp.statusCode}): ${resp.data} ===',
+    );
+    if (resp.statusCode == null ||
+        resp.statusCode! < 200 ||
+        resp.statusCode! >= 300) {
+      throw DioException(
+        requestOptions: resp.requestOptions,
+        response: resp,
+        type: DioExceptionType.badResponse,
+      );
+    }
+
+    final url = _extractMediaUrl(resp.data);
+    if (url == null || url.isEmpty) {
+      throw const InboxMediaUploadException(
+        'Le serveur n\'a pas renvoyé l\'URL du fichier',
+      );
+    }
+    return url;
+  }
+
+  /// L'URL peut être nommée différemment selon le backend, et se trouver à la
+  /// racine ou sous `data`. On accepte les clés usuelles plutôt que d'échouer
+  /// sur un simple écart de nommage.
+  static String? _extractMediaUrl(dynamic body) {
+    if (body is! Map) return null;
+    for (final key in const [
+      'media_url',
+      'url',
+      'file_url',
+      'public_url',
+      'location',
+    ]) {
+      final value = body[key];
+      if (value is String && value.isNotEmpty) return value;
+    }
+    return _extractMediaUrl(body['data']);
+  }
+
   /// POST /api/v1.2/inbox/{provider}/messages
   /// Retourne le message_id du serveur, ou null si absent de la réponse.
   @override
@@ -641,6 +732,12 @@ class MockInboxService implements InboxService {
         : <Message>[];
     final all = [...base, ...(_extraMessages[threadId] ?? [])];
     return MessagesResult(messages: List<Message>.from(all));
+  }
+
+  @override
+  Future<String> uploadMedia(String filePath) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    return 'https://picsum.photos/seed/${filePath.hashCode}/600/400';
   }
 
   @override
