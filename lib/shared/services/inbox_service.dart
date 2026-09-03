@@ -96,16 +96,22 @@ abstract class InboxService {
     DateTime lastAt,
   );
 
-  /// POST /api/v1.2/inbox/media  (multipart/form-data, champ `file`)
+  /// POST multipart/form-data (champ `file`) sur l'endpoint de téléversement.
   ///
   /// Téléverse un fichier local et retourne l'URL publique renvoyée par le
   /// serveur. Indispensable avant [sendMessage] pour les types image / audio /
   /// vidéo / document : `media_url` doit être une URL téléchargeable depuis
   /// l'extérieur (Meta/WhatsApp va la chercher), jamais un chemin local.
   ///
-  /// Réponse attendue : `{"media_url": "https://..."}`
-  /// Lève [InboxMediaUploadException] si le fichier est introuvable ou si la
-  /// réponse ne contient aucune URL.
+  /// Réponse attendue : `{"media_url": "https://..."}` — les clés `url`,
+  /// `file_url`, `public_url` et `location` sont également acceptées.
+  ///
+  /// ⚠️ Le chemin exact n'est pas encore confirmé par le backend
+  /// (`/inbox/media` répond 404) : voir `_mediaUploadPaths` côté
+  /// implémentation HTTP.
+  ///
+  /// Lève [InboxMediaUploadException] si le fichier est introuvable, si aucun
+  /// endpoint n'existe, ou si la réponse ne contient aucune URL.
   Future<String> uploadMedia(String filePath);
 
   /// POST /api/v1.2/inbox/{provider}/messages
@@ -421,11 +427,56 @@ class HttpInboxService implements InboxService {
     }
   }
 
-  /// Chemin de téléversement des médias. Isolé en constante : c'est le seul
-  /// endroit à changer si le backend expose un autre chemin.
-  static const _mediaUploadPath = '/inbox/media';
+  /// Chemins candidats pour le téléversement d'un média.
+  ///
+  /// `/inbox/media` répond 404 sur ws.score360.africa : le chemin réel n'est
+  /// pas documenté. Plutôt que de coder en dur une supposition, on sonde les
+  /// conventions habituelles une seule fois par session (voir
+  /// [_resolveMediaUploadPath]) et on retient celle qui existe. Dès que le
+  /// backend aura confirmé son chemin, ne garder que celui-là : la sonde
+  /// s'arrête alors au premier essai.
+  static const _mediaUploadPaths = [
+    '/inbox/media',
+    '/inbox/media/upload',
+    '/inbox/upload',
+    '/inbox/messages/media',
+    '/media/upload',
+    '/media',
+  ];
 
-  /// POST /api/v1.2/inbox/media (multipart/form-data)
+  /// Chemin retenu par la sonde — mémorisé pour ne sonder qu'une fois.
+  static String? _resolvedMediaUploadPath;
+
+  /// Un GET sur une route qui n'accepte que POST renvoie 405 (ou 422 côté
+  /// FastAPI), jamais 404 : c'est ce qui permet de distinguer « la route
+  /// existe » de « la route n'existe pas » sans téléverser le fichier six fois.
+  Future<String> _resolveMediaUploadPath() async {
+    final cached = _resolvedMediaUploadPath;
+    if (cached != null) return cached;
+
+    for (final path in _mediaUploadPaths) {
+      try {
+        final resp = await ApiClient.dio.get(path);
+        debugPrint('=== média: sonde $path → ${resp.statusCode} ===');
+        if (resp.statusCode != 404) {
+          _resolvedMediaUploadPath = path;
+          debugPrint('=== média: endpoint de téléversement retenu → $path ===');
+          return path;
+        }
+      } on DioException catch (e) {
+        // Panne réseau : inutile de sonder les chemins suivants.
+        debugPrint('=== média: sonde $path échouée (${e.type}) ===');
+        rethrow;
+      }
+    }
+
+    throw const InboxMediaUploadException(
+      'Envoi de photos indisponible : aucun endpoint de téléversement sur le '
+      'serveur (à activer côté backend)',
+    );
+  }
+
+  /// POST multipart/form-data sur le chemin résolu par [_resolveMediaUploadPath]
   @override
   Future<String> uploadMedia(String filePath) async {
     final file = File(filePath);
@@ -435,30 +486,31 @@ class HttpInboxService implements InboxService {
       );
     }
 
+    final uploadPath = await _resolveMediaUploadPath();
     final fileName = filePath.split(Platform.pathSeparator).last;
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: fileName),
     });
 
     debugPrint(
-      '=== uploadMedia url: $_mediaUploadPath fichier: $fileName '
+      '=== uploadMedia url: $uploadPath fichier: $fileName '
       '(${file.lengthSync()} octets) ===',
     );
 
-    // ApiClient accepte tous les codes HTTP (validateStatus) — on lève
-    // nous-mêmes sur un non-2xx pour que l'appelant puisse les distinguer.
-    final resp = await ApiClient.dio.post(_mediaUploadPath, data: formData);
+    // ApiClient accepte tous les codes HTTP (validateStatus) — on vérifie donc
+    // le statut nous-mêmes. Les échecs sont traduits ici plutôt que renvoyés
+    // bruts : un 404 sur le téléversement signifie « endpoint absent », pas
+    // « conversation introuvable » comme pour l'envoi d'un message.
+    final resp = await ApiClient.dio.post(uploadPath, data: formData);
     debugPrint(
       '=== uploadMedia response (${resp.statusCode}): ${resp.data} ===',
     );
-    if (resp.statusCode == null ||
-        resp.statusCode! < 200 ||
-        resp.statusCode! >= 300) {
-      throw DioException(
-        requestOptions: resp.requestOptions,
-        response: resp,
-        type: DioExceptionType.badResponse,
-      );
+    final status = resp.statusCode;
+    if (status == null || status < 200 || status >= 300) {
+      // Le chemin retenu s'avère finalement inutilisable : ne pas le garder en
+      // cache, la prochaine tentative resondera.
+      if (status == 404 || status == 405) _resolvedMediaUploadPath = null;
+      throw InboxMediaUploadException(_uploadErrorMessage(status, resp.data));
     }
 
     final url = _extractMediaUrl(resp.data);
@@ -468,6 +520,21 @@ class HttpInboxService implements InboxService {
       );
     }
     return url;
+  }
+
+  static String _uploadErrorMessage(int? status, dynamic body) {
+    final detail = body is Map ? (body['detail'] ?? body['message'] ?? '') : '';
+    return switch (status) {
+      404 || 405 => 'Téléversement refusé par le serveur : endpoint absent',
+      401 => 'Session expirée, reconnectez-vous',
+      403 => 'Téléversement non autorisé pour ce compte',
+      413 => 'Photo trop volumineuse',
+      415 => 'Format de photo non pris en charge',
+      422 => 'Photo rejetée par le serveur : $detail',
+      429 => 'Trop d\'envois, patientez un instant',
+      500 || 502 || 503 => 'Serveur indisponible, réessayez plus tard',
+      _ => 'Échec du téléversement de la photo (erreur $status)',
+    };
   }
 
   /// L'URL peut être nommée différemment selon le backend, et se trouver à la
