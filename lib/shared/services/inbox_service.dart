@@ -116,13 +116,14 @@ abstract class InboxService {
     required String threadId,
     required String provider,
     String? integrationAccountId,
-    required String
-    type, // "text", "image", "audio", "video", "document", "location"
+    // TEXT, IMAGE, AUDIO, VIDEO, DOCUMENT, LOCATION… La valeur est mise en
+    // majuscules et transmise dans le champ `message_type` de l'API.
+    required String type,
     String? content, // pour type text et location
     String? mediaUrl, // pour type image, audio, video, document
   });
 
-  /// POST /api/v1.2/inbox/{provider}/messages (type: "carousel")
+  /// POST /api/v1.2/inbox/{provider}/messages (message_type: "CAROUSEL")
   /// Retourne le message_id du serveur, ou null si absent de la réponse.
   Future<String?> sendCarousel({
     required String threadId,
@@ -496,6 +497,25 @@ class HttpInboxService implements InboxService {
     };
   }
 
+  /// Type MIME déduit de l'extension — `media_mime_type` aide le serveur à
+  /// choisir le bon format d'envoi côté Meta. Null si l'extension est
+  /// inconnue : le champ est alors simplement omis.
+  static String? _mimeTypeForUrl(String url) {
+    final path = Uri.tryParse(url)?.path ?? url;
+    return switch (path.split('.').last.toLowerCase()) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      'heic' => 'image/heic',
+      'mp4' => 'video/mp4',
+      'mp3' => 'audio/mpeg',
+      'ogg' => 'audio/ogg',
+      'pdf' => 'application/pdf',
+      _ => null,
+    };
+  }
+
   /// L'URL peut être nommée différemment selon le backend, et se trouver à la
   /// racine ou sous `data`. On accepte les clés usuelles plutôt que d'échouer
   /// sur un simple écart de nommage. Si le serveur ne renvoie qu'une clé de
@@ -542,12 +562,21 @@ class HttpInboxService implements InboxService {
       );
     }
 
-    final Map<String, dynamic> data = {'thread_id': threadId, 'type': type};
+    // Le serveur attend `message_type` EN MAJUSCULES (TEXT, IMAGE, CAROUSEL…).
+    // La clé `type` en minuscules qu'envoyait l'app était purement ignorée :
+    // tout message retombait donc sur TEXT — invisible pour un texte, mais
+    // fatal pour une image (« body_text is required for TEXT messages »).
+    final Map<String, dynamic> data = {
+      'thread_id': threadId,
+      'message_type': type.toUpperCase(),
+    };
     if (content != null && content.isNotEmpty) {
       data['body_text'] = content;
     }
     if (mediaUrl != null && mediaUrl.isNotEmpty) {
       data['media_url'] = mediaUrl;
+      final mime = _mimeTypeForUrl(mediaUrl);
+      if (mime != null) data['media_mime_type'] = mime;
     }
     if (integrationAccountId != null && integrationAccountId.isNotEmpty) {
       data['integration_account_id'] = integrationAccountId;
@@ -584,7 +613,7 @@ class HttpInboxService implements InboxService {
     return null;
   }
 
-  /// POST /api/v1.2/inbox/{provider}/messages (type: "carousel")
+  /// POST /api/v1.2/inbox/{provider}/messages (message_type: "CAROUSEL")
   @override
   Future<String?> sendCarousel({
     required String threadId,
@@ -599,11 +628,12 @@ class HttpInboxService implements InboxService {
       );
     }
 
-    // Une seule clé de type — 'type' est celle utilisée par sendMessage() pour
-    // tous les autres formats de message.
+    // Même clé que sendMessage() : `message_type` en majuscules. Avec la clé
+    // `type` en minuscules, le serveur classait le carrousel en TEXT et seul
+    // le `body_text` partait — d'où la bulle « 📦 Catalogue » sans produits.
     final body = <String, dynamic>{
       'thread_id': threadId,
-      'type': 'carousel',
+      'message_type': 'CAROUSEL',
       'integration_account_id': integrationAccountId,
       'carousel': {'items': catalogItemIds},
       'body_text': '📦 Catalogue',
