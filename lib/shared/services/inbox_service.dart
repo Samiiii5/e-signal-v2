@@ -106,9 +106,7 @@ abstract class InboxService {
   /// Réponse attendue : `{"media_url": "https://..."}` — les clés `url`,
   /// `file_url`, `public_url` et `location` sont également acceptées.
   ///
-  /// ⚠️ Le chemin exact n'est pas encore confirmé par le backend
-  /// (`/inbox/media` répond 404) : voir `_mediaUploadPaths` côté
-  /// implémentation HTTP.
+  /// Endpoint : `POST /api/v1.2/media/upload`, avec `organization_id`.
   ///
   /// Lève [InboxMediaUploadException] si le fichier est introuvable, si aucun
   /// endpoint n'existe, ou si la réponse ne contient aucune URL.
@@ -427,56 +425,18 @@ class HttpInboxService implements InboxService {
     }
   }
 
-  /// Chemins candidats pour le téléversement d'un média.
-  ///
-  /// `/inbox/media` répond 404 sur ws.score360.africa : le chemin réel n'est
-  /// pas documenté. Plutôt que de coder en dur une supposition, on sonde les
-  /// conventions habituelles une seule fois par session (voir
-  /// [_resolveMediaUploadPath]) et on retient celle qui existe. Dès que le
-  /// backend aura confirmé son chemin, ne garder que celui-là : la sonde
-  /// s'arrête alors au premier essai.
-  static const _mediaUploadPaths = [
-    '/inbox/media',
-    '/inbox/media/upload',
-    '/inbox/upload',
-    '/inbox/messages/media',
-    '/media/upload',
-    '/media',
-  ];
+  /// POST /api/v1.2/media/upload — « Uploader un fichier via le serveur »
+  /// (section `media` de la doc Swagger). L'alternative
+  /// `POST /media/upload-url` (URL pré-signée pour upload direct) éviterait de
+  /// faire transiter le fichier par le serveur, mais impose un aller-retour de
+  /// plus ; à envisager si les envois deviennent lourds.
+  static const _mediaUploadPath = '/media/upload';
 
-  /// Chemin retenu par la sonde — mémorisé pour ne sonder qu'une fois.
-  static String? _resolvedMediaUploadPath;
+  /// Préfixe des fichiers stockés, si le serveur ne renvoie qu'une clé.
+  /// GET /api/v1.2/media/file/{key}
+  static const _mediaFilePath = '/media/file';
 
-  /// Un GET sur une route qui n'accepte que POST renvoie 405 (ou 422 côté
-  /// FastAPI), jamais 404 : c'est ce qui permet de distinguer « la route
-  /// existe » de « la route n'existe pas » sans téléverser le fichier six fois.
-  Future<String> _resolveMediaUploadPath() async {
-    final cached = _resolvedMediaUploadPath;
-    if (cached != null) return cached;
-
-    for (final path in _mediaUploadPaths) {
-      try {
-        final resp = await ApiClient.dio.get(path);
-        debugPrint('=== média: sonde $path → ${resp.statusCode} ===');
-        if (resp.statusCode != 404) {
-          _resolvedMediaUploadPath = path;
-          debugPrint('=== média: endpoint de téléversement retenu → $path ===');
-          return path;
-        }
-      } on DioException catch (e) {
-        // Panne réseau : inutile de sonder les chemins suivants.
-        debugPrint('=== média: sonde $path échouée (${e.type}) ===');
-        rethrow;
-      }
-    }
-
-    throw const InboxMediaUploadException(
-      'Envoi de photos indisponible : aucun endpoint de téléversement sur le '
-      'serveur (à activer côté backend)',
-    );
-  }
-
-  /// POST multipart/form-data sur le chemin résolu par [_resolveMediaUploadPath]
+  /// POST multipart/form-data sur /media/upload
   @override
   Future<String> uploadMedia(String filePath) async {
     final file = File(filePath);
@@ -486,14 +446,24 @@ class HttpInboxService implements InboxService {
       );
     }
 
-    final uploadPath = await _resolveMediaUploadPath();
+    final orgId = SessionService.organizationId;
+    if (orgId == null || orgId.isEmpty) {
+      throw const InboxMediaUploadException(
+        'Organisation inconnue — reconnectez-vous',
+      );
+    }
+
     final fileName = filePath.split(Platform.pathSeparator).last;
+    // `organization_id` est passé en query ET en champ de formulaire : les
+    // routes de l'API l'attendent en query, mais certaines routes multipart le
+    // lisent dans le formulaire. Le champ en trop est ignoré côté serveur.
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      'organization_id': orgId,
     });
 
     debugPrint(
-      '=== uploadMedia url: $uploadPath fichier: $fileName '
+      '=== uploadMedia url: $_mediaUploadPath fichier: $fileName '
       '(${file.lengthSync()} octets) ===',
     );
 
@@ -501,15 +471,16 @@ class HttpInboxService implements InboxService {
     // le statut nous-mêmes. Les échecs sont traduits ici plutôt que renvoyés
     // bruts : un 404 sur le téléversement signifie « endpoint absent », pas
     // « conversation introuvable » comme pour l'envoi d'un message.
-    final resp = await ApiClient.dio.post(uploadPath, data: formData);
+    final resp = await ApiClient.dio.post(
+      _mediaUploadPath,
+      data: formData,
+      queryParameters: {'organization_id': orgId},
+    );
     debugPrint(
       '=== uploadMedia response (${resp.statusCode}): ${resp.data} ===',
     );
     final status = resp.statusCode;
     if (status == null || status < 200 || status >= 300) {
-      // Le chemin retenu s'avère finalement inutilisable : ne pas le garder en
-      // cache, la prochaine tentative resondera.
-      if (status == 404 || status == 405) _resolvedMediaUploadPath = null;
       throw InboxMediaUploadException(_uploadErrorMessage(status, resp.data));
     }
 
@@ -539,18 +510,26 @@ class HttpInboxService implements InboxService {
 
   /// L'URL peut être nommée différemment selon le backend, et se trouver à la
   /// racine ou sous `data`. On accepte les clés usuelles plutôt que d'échouer
-  /// sur un simple écart de nommage.
+  /// sur un simple écart de nommage. Si le serveur ne renvoie qu'une clé de
+  /// stockage, on la transforme en URL via /media/file/{key} — c'est cette
+  /// URL que Meta ira télécharger.
   static String? _extractMediaUrl(dynamic body) {
     if (body is! Map) return null;
-    for (final key in const [
+    for (final name in const [
       'media_url',
       'url',
       'file_url',
       'public_url',
       'location',
     ]) {
-      final value = body[key];
+      final value = body[name];
       if (value is String && value.isNotEmpty) return value;
+    }
+    for (final name in const ['key', 'file_key', 'object_key']) {
+      final value = body[name];
+      if (value is String && value.isNotEmpty) {
+        return '${ApiClient.baseUrl}$_mediaFilePath/$value';
+      }
     }
     return _extractMediaUrl(body['data']);
   }
