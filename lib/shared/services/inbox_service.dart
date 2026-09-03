@@ -103,10 +103,8 @@ abstract class InboxService {
   /// vidéo / document : `media_url` doit être une URL téléchargeable depuis
   /// l'extérieur (Meta/WhatsApp va la chercher), jamais un chemin local.
   ///
-  /// Réponse attendue : `{"media_url": "https://..."}` — les clés `url`,
-  /// `file_url`, `public_url` et `location` sont également acceptées.
-  ///
-  /// Endpoint : `POST /api/v1.2/media/upload`, avec `organization_id`.
+  /// Endpoint : `POST /api/v1.2/media/upload` (multipart, champ `file`).
+  /// Réponse 201 : `{"public_url": "https://...", "key": "..."}`.
   ///
   /// Lève [InboxMediaUploadException] si le fichier est introuvable, si aucun
   /// endpoint n'existe, ou si la réponse ne contient aucune URL.
@@ -425,11 +423,14 @@ class HttpInboxService implements InboxService {
     }
   }
 
-  /// POST /api/v1.2/media/upload — « Uploader un fichier via le serveur »
-  /// (section `media` de la doc Swagger). L'alternative
-  /// `POST /media/upload-url` (URL pré-signée pour upload direct) éviterait de
-  /// faire transiter le fichier par le serveur, mais impose un aller-retour de
-  /// plus ; à envisager si les envois deviennent lourds.
+  /// POST /api/v1.2/media/upload — « Uploader un fichier multipart via le
+  /// serveur qui le transmet ensuite à MinIO ». Aucun paramètre : un seul
+  /// champ de formulaire `file`. Répond 201 avec `{public_url, key}`.
+  ///
+  /// L'alternative `POST /media/upload-url` (URL pré-signée pour upload
+  /// direct vers MinIO) éviterait de faire transiter le fichier par le
+  /// serveur, au prix d'un aller-retour de plus ; à envisager si les envois
+  /// deviennent lourds.
   static const _mediaUploadPath = '/media/upload';
 
   /// Préfixe des fichiers stockés, si le serveur ne renvoie qu'une clé.
@@ -446,20 +447,9 @@ class HttpInboxService implements InboxService {
       );
     }
 
-    final orgId = SessionService.organizationId;
-    if (orgId == null || orgId.isEmpty) {
-      throw const InboxMediaUploadException(
-        'Organisation inconnue — reconnectez-vous',
-      );
-    }
-
     final fileName = filePath.split(Platform.pathSeparator).last;
-    // `organization_id` est passé en query ET en champ de formulaire : les
-    // routes de l'API l'attendent en query, mais certaines routes multipart le
-    // lisent dans le formulaire. Le champ en trop est ignoré côté serveur.
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: fileName),
-      'organization_id': orgId,
     });
 
     debugPrint(
@@ -471,11 +461,7 @@ class HttpInboxService implements InboxService {
     // le statut nous-mêmes. Les échecs sont traduits ici plutôt que renvoyés
     // bruts : un 404 sur le téléversement signifie « endpoint absent », pas
     // « conversation introuvable » comme pour l'envoi d'un message.
-    final resp = await ApiClient.dio.post(
-      _mediaUploadPath,
-      data: formData,
-      queryParameters: {'organization_id': orgId},
-    );
+    final resp = await ApiClient.dio.post(_mediaUploadPath, data: formData);
     debugPrint(
       '=== uploadMedia response (${resp.statusCode}): ${resp.data} ===',
     );
@@ -490,12 +476,14 @@ class HttpInboxService implements InboxService {
         'Le serveur n\'a pas renvoyé l\'URL du fichier',
       );
     }
+    debugPrint('=== uploadMedia URL publique: $url ===');
     return url;
   }
 
   static String _uploadErrorMessage(int? status, dynamic body) {
     final detail = body is Map ? (body['detail'] ?? body['message'] ?? '') : '';
     return switch (status) {
+      400 => 'Photo refusée par le serveur : $detail',
       404 || 405 => 'Téléversement refusé par le serveur : endpoint absent',
       401 => 'Session expirée, reconnectez-vous',
       403 => 'Téléversement non autorisé pour ce compte',
@@ -516,10 +504,10 @@ class HttpInboxService implements InboxService {
   static String? _extractMediaUrl(dynamic body) {
     if (body is! Map) return null;
     for (final name in const [
+      'public_url', // clé renvoyée par /media/upload
       'media_url',
       'url',
       'file_url',
-      'public_url',
       'location',
     ]) {
       final value = body[name];
